@@ -27,8 +27,8 @@ public final class VCoinsCommands {
                                 .executes(context -> {
                                     ServerPlayerEntity target = EntityArgumentType.getPlayer(context, "target");
                                     long coins = VCoinsState.getCoins(target.getUuid());
-                                    context.getSource().sendMessage(Text.literal(
-                                            target.getName().getString() + " has " + coins + " Velicoins."));
+                                    context.getSource().sendMessage(Text.translatable(
+                                            "vcoins.command.balance", target.getName(), coins));
                                     return 1;
                                 })))
                 .then(CommandManager.literal("set")
@@ -43,8 +43,8 @@ public final class VCoinsCommands {
                                                 VCoinsState.setCoins(target.getUuid(), amount);
                                                 VCoinsMod.syncCoins(target);
                                             }
-                                            context.getSource().sendMessage(Text.literal(
-                                                    "Set Velicoins to " + amount + " for " + targets.size() + " players."));
+                                            context.getSource().sendMessage(Text.translatable(
+                                                    "vcoins.command.set_balance", targets.size(), amount));
                                             return 1;
                                         }))))
                 .then(CommandManager.literal("add")
@@ -59,8 +59,8 @@ public final class VCoinsCommands {
                                                 VCoinsState.addCoins(target.getUuid(), amount);
                                                 VCoinsMod.syncCoins(target);
                                             }
-                                            context.getSource().sendMessage(Text.literal(
-                                                    "Added " + amount + " Velicoins to " + targets.size() + " players."));
+                                            context.getSource().sendMessage(Text.translatable(
+                                                    "vcoins.command.add_balance", amount, targets.size()));
                                             return 1;
                                         })))));
 

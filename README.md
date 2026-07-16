@@ -17,7 +17,7 @@ Veloria is a Fabric economy mod for Minecraft. It adds a searchable item market,
 - Block Creative-only items from trading and duplication.
 - Receive sound and action-bar feedback for each transaction.
 - Open the shop with the configurable `B` keybind or `/shop`.
-- Use the interface in English or Vietnamese.
+- Use English by default, with Vietnamese loaded automatically when Minecraft is set to Vietnamese.
 
 ## Requirements
 

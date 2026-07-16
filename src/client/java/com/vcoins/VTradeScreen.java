@@ -277,7 +277,8 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
 
         int trackX = this.x + SCROLLBAR_X;
         int trackY = this.y + SCROLLBAR_Y;
-        if (mouseX >= trackX && mouseX < trackX + 12
+        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT
+                && mouseX >= trackX && mouseX < trackX + 12
                 && mouseY >= trackY && mouseY < trackY + SCROLLBAR_HEIGHT
                 && this.handler.getMaxRows() > 0) {
             this.scrolling = true;
@@ -299,8 +300,11 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
 
     @Override
     public boolean mouseReleased(net.minecraft.client.gui.Click click) {
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && this.scrolling) {
             this.scrolling = false;
+            // The matching press was consumed by the custom scrollbar, so its
+            // release must not reach vanilla slot handling.
+            return true;
         }
         return super.mouseReleased(click);
     }

@@ -227,8 +227,12 @@ public class VTradeScreenHandler extends ScreenHandler {
     @Override
     public void onSlotClick(int slotIndex, int button, SlotActionType actionType, PlayerEntity player) {
         if (slotIndex >= 0 && slotIndex < SHOP_SLOT_COUNT) {
-            // Middle mouse / wheel-click never performs a shop transaction.
-            if (button == 2 || actionType == SlotActionType.CLONE) {
+            // Shop slots only support ordinary left/right clicks and Shift-clicks.
+            // Ignore scroll-wheel, hotbar-swap, drop, drag, clone, and collect
+            // actions so an unrelated input can never mutate the economy.
+            boolean supportedAction = actionType == SlotActionType.PICKUP
+                    || actionType == SlotActionType.QUICK_MOVE;
+            if (!supportedAction || (button != 0 && button != 1)) {
                 return;
             }
 
@@ -240,7 +244,11 @@ public class VTradeScreenHandler extends ScreenHandler {
 
             ItemStack cursorStack = getCursorStack();
             if (!cursorStack.isEmpty()) {
-                sellCursorStack(player, cursorStack);
+                // A held stack is sold only by a normal click onto the shop grid.
+                // Shift-click and all unsupported actions must never sell the cursor.
+                if (actionType == SlotActionType.PICKUP) {
+                    sellCursorStack(player, cursorStack);
+                }
                 return;
             }
 

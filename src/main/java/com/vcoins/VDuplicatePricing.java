@@ -5,6 +5,9 @@ import net.minecraft.registry.Registries;
 
 public final class VDuplicatePricing {
     private static final long MINIMUM_COIN_COST = 500_000L;
+    private static final long ITEM_PRICE_MULTIPLIER = 4L;
+    private static final long COMPONENT_SURCHARGE = 25_000L;
+    private static final long CUSTOM_NAME_SURCHARGE = 100_000L;
 
     private VDuplicatePricing() {
     }
@@ -16,14 +19,17 @@ public final class VDuplicatePricing {
 
         String itemId = Registries.ITEM.getId(sample.getItem()).toString();
         long itemPrice = Math.max(1_000L, VCoinsPricing.getPrice(itemId));
-        long cost = Math.max(MINIMUM_COIN_COST, safeMultiply(itemPrice, 30L));
-        cost = safeAdd(cost, safeMultiply(Math.min(20, sample.getComponentChanges().size()), 50_000L));
+        long cost = Math.max(MINIMUM_COIN_COST, safeMultiply(itemPrice, ITEM_PRICE_MULTIPLIER));
+        cost = safeAdd(cost, safeMultiply(
+                Math.min(20, sample.getComponentChanges().size()), COMPONENT_SURCHARGE));
 
         if (sample.hasEnchantments() || itemId.endsWith("enchanted_book")) {
-            cost = safeMultiply(cost, 2L);
+            // Enchantments add a meaningful premium without doubling an already
+            // expensive rare item such as an Elytra.
+            cost = safeAdd(cost, cost / 2L);
         }
         if (sample.getCustomName() != null) {
-            cost = safeAdd(cost, 250_000L);
+            cost = safeAdd(cost, CUSTOM_NAME_SURCHARGE);
         }
         return cost;
     }
