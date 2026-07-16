@@ -83,9 +83,15 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
                         ClientPlayNetworking.send(new OpenDuplicatePayload()))
                 .dimensions(this.x + 136, this.y + 126, 50, 14)
                 .build());
+
+        // Opening the market should be enough to start typing a search.
+        this.setInitialFocus(this.searchBox);
     }
 
     private void onSearchChanged(String query) {
+        if (!query.isEmpty() && this.selectedCategory != ShopCategory.ALL) {
+            selectCategory(ShopCategory.ALL);
+        }
         this.scrollPosition = 0.0f;
         this.lastScrollOffset = 0;
         this.handler.setSearchQuery(query);
@@ -393,6 +399,9 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
 
     @Override
     public boolean charTyped(net.minecraft.client.input.CharInput charInput) {
+        if (charInput.isValidChar() && !this.searchBox.isFocused()) {
+            this.setFocused(this.searchBox);
+        }
         if (this.searchBox.charTyped(charInput)) {
             return true;
         }
