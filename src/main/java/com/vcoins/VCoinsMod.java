@@ -34,6 +34,7 @@ public class VCoinsMod implements ModInitializer {
 
         // Register custom payload for shop actions
         PayloadTypeRegistry.playC2S().register(ShopActionPayload.ID, ShopActionPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(ShopTransactionPayload.ID, ShopTransactionPayload.CODEC);
         
         ServerPlayNetworking.registerGlobalReceiver(ShopActionPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
@@ -51,6 +52,14 @@ public class VCoinsMod implements ModInitializer {
                     } else if (payload.action().equals("SELL_ALL")) {
                         shop.sellAll();
                     }
+                }
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(ShopTransactionPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                if (context.player().currentScreenHandler instanceof VTradeScreenHandler shop) {
+                    shop.handleTransaction(context.player(), payload.slotIndex(), payload.buyStack());
                 }
             });
         });

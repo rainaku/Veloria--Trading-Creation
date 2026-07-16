@@ -32,6 +32,10 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
     private static final int SCROLLBAR_Y = 34;
     private static final int SCROLLBAR_HEIGHT = 89;
     private static final int SCROLL_THUMB_HEIGHT = 15;
+    private static final int SHOP_X = 9;
+    private static final int SHOP_Y = 34;
+    private static final int SLOT_SPACING = 18;
+    private static final int SLOT_SIZE = 16;
 
     private static final ShopCategory[] TABS = {
             ShopCategory.ALL,
@@ -286,6 +290,18 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
             return true;
         }
 
+        int shopSlot = getShopSlotAt(mouseX, mouseY);
+        if (shopSlot >= 0) {
+            if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT
+                    || click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
+                boolean buyStack = click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT
+                        || (click.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
+                ClientPlayNetworking.send(new ShopTransactionPayload(shopSlot, buyStack));
+            }
+            // Never pass a shop-grid input to vanilla slot handling.
+            return true;
+        }
+
         return super.mouseClicked(click, doubled);
     }
 
@@ -344,6 +360,26 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
         this.lastScrollOffset = offset;
         this.handler.setScrollOffset(offset);
         ClientPlayNetworking.send(new ShopActionPayload("SCROLL", Integer.toString(offset)));
+    }
+
+    private int getShopSlotAt(double mouseX, double mouseY) {
+        double localX = mouseX - (this.x + SHOP_X);
+        double localY = mouseY - (this.y + SHOP_Y);
+        if (localX < 0 || localY < 0) {
+            return -1;
+        }
+
+        int column = (int) (localX / SLOT_SPACING);
+        int row = (int) (localY / SLOT_SPACING);
+        if (column >= VTradeScreenHandler.SHOP_COLUMNS || row >= VTradeScreenHandler.SHOP_ROWS) {
+            return -1;
+        }
+
+        if (localX - column * SLOT_SPACING >= SLOT_SIZE
+                || localY - row * SLOT_SPACING >= SLOT_SIZE) {
+            return -1;
+        }
+        return column + row * VTradeScreenHandler.SHOP_COLUMNS;
     }
 
     @Override
