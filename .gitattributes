@@ -1,2 +1,7 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Keep text files consistent across development platforms.
+* text=auto eol=lf
+
+# Windows launchers require CRLF; generated assets remain binary.
+*.bat text eol=crlf
+*.jar binary
+*.png binary

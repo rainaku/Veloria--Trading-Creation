@@ -1,0 +1,52 @@
+# Gradle and Java build output
+/.gradle/
+/build/
+/classes/
+/out/
+*.class
+
+# Minecraft development runtime
+/run/
+/logs/
+/crash-reports/
+
+# JVM diagnostics
+hs_err_pid*
+replay_pid*
+*.hprof
+*.jfr
+
+# IntelliJ IDEA
+/.idea/
+*.iml
+*.ipr
+*.iws
+
+# Eclipse
+/.classpath
+/.project
+/.settings/
+/bin/
+*.launch
+
+# Visual Studio Code and Fleet
+/.vscode/
+/.fleet/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs, temporary files, and merge leftovers
+*.log
+*.tmp
+*.bak
+*.swp
+*.orig
+*~

@@ -1,0 +1,27 @@
+{
+	"schemaVersion": 1,
+	"id": "vcoins",
+	"version": "${version}",
+	"name": "Veloria: Trading & Creation",
+	"description": "Trade, collect and duplicate items through the Velicoins economy.",
+	"authors": [
+		"Veloria Team"
+	],
+	"license": "CC0-1.0",
+	"icon": "assets/vcoins/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.vcoins.VCoinsMod"
+		],
+		"client": [
+			"com.vcoins.VCoinsClientMod"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~1.21.11",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
