@@ -6,7 +6,6 @@ import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
-import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
@@ -129,8 +128,7 @@ public class VDuplicateScreen extends HandledScreen<VDuplicateScreenHandler> {
         if (this.focusedSlot != null && this.focusedSlot.hasStack()) {
             ItemStack stack = this.focusedSlot.getStack();
             List<Text> tooltip = new ArrayList<>(this.getTooltipFromItem(stack));
-            String itemId = Registries.ITEM.getId(stack.getItem()).toString();
-            long buyPrice = VCoinsPricing.getPrice(itemId);
+            long buyPrice = VCoinsPricing.getPrice(stack);
 
             if (buyPrice > 0) {
                 tooltip.add(Text.empty());

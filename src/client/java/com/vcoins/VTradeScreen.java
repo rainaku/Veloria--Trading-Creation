@@ -9,7 +9,6 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import org.lwjgl.glfw.GLFW;
@@ -211,13 +210,12 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
         if (this.focusedSlot != null && this.focusedSlot.hasStack()) {
             ItemStack stack = this.focusedSlot.getStack();
             List<Text> tooltip = new ArrayList<>(this.getTooltipFromItem(stack));
-            String itemId = Registries.ITEM.getId(stack.getItem()).toString();
-            long buyPrice = VCoinsPricing.getPrice(itemId);
+            long buyPrice = VCoinsPricing.getPrice(stack);
 
             if (this.focusedSlot.id < VTradeScreenHandler.SHOP_SLOT_COUNT) {
                 tooltip.add(Text.empty());
                 if (this.selectedCategory == ShopCategory.BUYBACK) {
-                    long totalPrice = safeMultiply(VCoinsPricing.getBuybackPrice(itemId), stack.getCount());
+                    long totalPrice = safeMultiply(VCoinsPricing.getBuybackPrice(stack), stack.getCount());
                     if (buyPrice > 0) {
                         tooltip.add(Text.translatable("vcoins.tooltip.buy_price", formatNumber(buyPrice))
                                 .formatted(Formatting.YELLOW));
@@ -233,7 +231,7 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
                             .formatted(Formatting.GRAY));
                 }
             } else {
-                long sellPrice = VCoinsPricing.getSellPrice(itemId);
+                long sellPrice = VCoinsPricing.getSellPrice(stack);
                 if (buyPrice > 0 || sellPrice > 0) {
                     tooltip.add(Text.empty());
                     if (buyPrice > 0) {

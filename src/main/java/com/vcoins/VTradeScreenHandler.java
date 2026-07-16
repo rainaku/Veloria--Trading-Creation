@@ -213,15 +213,15 @@ public class VTradeScreenHandler extends ScreenHandler {
     }
 
     private long getBuyPrice(ItemStack stack) {
-        return VCoinsPricing.getPrice(Registries.ITEM.getId(stack.getItem()).toString());
+        return VCoinsPricing.getPrice(stack);
     }
 
     private long getSellPrice(ItemStack stack) {
-        return VCoinsPricing.getSellPrice(Registries.ITEM.getId(stack.getItem()).toString());
+        return VCoinsPricing.getSellPrice(stack);
     }
 
     private long getBuybackPrice(ItemStack stack) {
-        return VCoinsPricing.getBuybackPrice(Registries.ITEM.getId(stack.getItem()).toString());
+        return VCoinsPricing.getBuybackPrice(stack);
     }
 
     @Override

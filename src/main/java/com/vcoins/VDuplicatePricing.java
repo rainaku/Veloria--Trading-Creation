@@ -1,7 +1,6 @@
 package com.vcoins;
 
 import net.minecraft.item.ItemStack;
-import net.minecraft.registry.Registries;
 
 public final class VDuplicatePricing {
     private static final long MINIMUM_COIN_COST = 500_000L;
@@ -17,17 +16,11 @@ public final class VDuplicatePricing {
             return 0L;
         }
 
-        String itemId = Registries.ITEM.getId(sample.getItem()).toString();
-        long itemPrice = Math.max(1_000L, VCoinsPricing.getPrice(itemId));
+        long itemPrice = Math.max(1_000L, VCoinsPricing.getPrice(sample));
         long cost = Math.max(MINIMUM_COIN_COST, safeMultiply(itemPrice, ITEM_PRICE_MULTIPLIER));
         cost = safeAdd(cost, safeMultiply(
                 Math.min(20, sample.getComponentChanges().size()), COMPONENT_SURCHARGE));
 
-        if (sample.hasEnchantments() || itemId.endsWith("enchanted_book")) {
-            // Enchantments add a meaningful premium without doubling an already
-            // expensive rare item such as an Elytra.
-            cost = safeAdd(cost, cost / 2L);
-        }
         if (sample.getCustomName() != null) {
             cost = safeAdd(cost, CUSTOM_NAME_SURCHARGE);
         }
@@ -39,16 +32,14 @@ public final class VDuplicatePricing {
             return 0;
         }
 
-        String itemId = Registries.ITEM.getId(sample.getItem()).toString();
         int levels = 30 + Math.min(30, sample.getComponentChanges().size() * 3);
-        if (sample.hasEnchantments() || itemId.endsWith("enchanted_book")) {
-            levels += 20;
-        }
+        levels += Math.min(35, VCoinsPricing.getTotalEnchantmentLevels(sample) * 2);
+        levels += Math.min(25, VCoinsPricing.getEnchantmentCount(sample) * 5);
         if (sample.getCustomName() != null) {
             levels += 5;
         }
 
-        long price = VCoinsPricing.getPrice(itemId);
+        long price = VCoinsPricing.getPrice(sample);
         if (price >= 500_000L) {
             levels += 20;
         } else if (price >= 100_000L) {

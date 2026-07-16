@@ -4,7 +4,6 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.item.ItemStack;
-import net.minecraft.registry.Registries;
 import net.minecraft.screen.SimpleNamedScreenHandlerFactory;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
@@ -144,8 +143,7 @@ public final class VCoinsCommands {
     }
 
     private static long getSellPrice(ItemStack stack) {
-        String itemId = Registries.ITEM.getId(stack.getItem()).toString();
-        return VCoinsPricing.getSellPrice(itemId);
+        return VCoinsPricing.getSellPrice(stack);
     }
 
     private static void reject(ServerPlayerEntity player, String translationKey) {

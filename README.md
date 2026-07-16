@@ -10,6 +10,7 @@ Veloria is a Fabric economy mod for Minecraft. It adds a searchable item market,
 ## Features
 
 - Browse survival-obtainable vanilla and modded items in a categorized, searchable catalogue.
+- Price rare items, enchanted equipment, and enchanted books by rarity, enchantment count, and level.
 - Buy one item or a full stack, and sell individual inventory stacks or everything tradeable at once.
 - Recover recently sold items through buyback at a small markup.
 - Duplicate an exact item while preserving enchantments, durability, custom names, and other data components.
