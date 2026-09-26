@@ -1,23 +1,23 @@
 package com.vcoins;
 
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.Identifier;
 
-public record ShopTransactionPayload(int slotIndex, boolean buyStack) implements CustomPayload {
-    public static final CustomPayload.Id<ShopTransactionPayload> ID =
-            new CustomPayload.Id<>(Identifier.of(VCoinsMod.MOD_ID, "shop_transaction"));
+public record ShopTransactionPayload(int slotIndex, boolean buyStack) implements CustomPacketPayload {
+    public static final CustomPacketPayload.Type<ShopTransactionPayload> ID =
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "shop_transaction"));
 
-    public static final PacketCodec<RegistryByteBuf, ShopTransactionPayload> CODEC = PacketCodec.tuple(
-            PacketCodecs.VAR_INT, ShopTransactionPayload::slotIndex,
-            PacketCodecs.BOOLEAN, ShopTransactionPayload::buyStack,
+    public static final StreamCodec<RegistryFriendlyByteBuf, ShopTransactionPayload> CODEC = StreamCodec.composite(
+            ByteBufCodecs.VAR_INT, ShopTransactionPayload::slotIndex,
+            ByteBufCodecs.BOOL, ShopTransactionPayload::buyStack,
             ShopTransactionPayload::new
     );
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

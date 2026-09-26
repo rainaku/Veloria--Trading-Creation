@@ -5,8 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.WorldSavePath;
-
+import net.minecraft.world.level.storage.LevelResource;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -42,7 +41,7 @@ public class VCoinsState {
     }
 
     private static void load(MinecraftServer server) {
-        File file = new File(server.getSavePath(WorldSavePath.ROOT).toFile(), "vcoins.json");
+        File file = new File(server.getWorldPath(LevelResource.ROOT).toFile(), "vcoins.json");
         if (file.exists()) {
             try (FileReader reader = new FileReader(file)) {
                 Type type = new TypeToken<Map<UUID, Long>>(){}.getType();
@@ -58,7 +57,7 @@ public class VCoinsState {
     }
 
     private static void save(MinecraftServer server) {
-        File file = new File(server.getSavePath(WorldSavePath.ROOT).toFile(), "vcoins.json");
+        File file = new File(server.getWorldPath(LevelResource.ROOT).toFile(), "vcoins.json");
         try (FileWriter writer = new FileWriter(file)) {
             GSON.toJson(playerCoins, writer);
         } catch (IOException e) {

@@ -1,6 +1,6 @@
 package com.vcoins;
 
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.item.ItemStack;
 
 public final class VDuplicatePricing {
     private static final long MINIMUM_COIN_COST = 500_000L;
@@ -19,7 +19,7 @@ public final class VDuplicatePricing {
         long itemPrice = Math.max(1_000L, VCoinsPricing.getPrice(sample));
         long cost = Math.max(MINIMUM_COIN_COST, safeMultiply(itemPrice, ITEM_PRICE_MULTIPLIER));
         cost = safeAdd(cost, safeMultiply(
-                Math.min(20, sample.getComponentChanges().size()), COMPONENT_SURCHARGE));
+                Math.min(20, sample.getComponentsPatch().size()), COMPONENT_SURCHARGE));
 
         if (sample.getCustomName() != null) {
             cost = safeAdd(cost, CUSTOM_NAME_SURCHARGE);
@@ -32,7 +32,7 @@ public final class VDuplicatePricing {
             return 0;
         }
 
-        int levels = 30 + Math.min(30, sample.getComponentChanges().size() * 3);
+        int levels = 30 + Math.min(30, sample.getComponentsPatch().size() * 3);
         levels += Math.min(35, VCoinsPricing.getTotalEnchantmentLevels(sample) * 2);
         levels += Math.min(25, VCoinsPricing.getEnchantmentCount(sample) * 5);
         if (sample.getCustomName() != null) {

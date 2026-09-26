@@ -1,22 +1,22 @@
 package com.vcoins;
 
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.Identifier;
 
-public record ShopActionPayload(String action, String data) implements CustomPayload {
-    public static final CustomPayload.Id<ShopActionPayload> ID = new CustomPayload.Id<>(Identifier.of(VCoinsMod.MOD_ID, "shop_action"));
+public record ShopActionPayload(String action, String data) implements CustomPacketPayload {
+    public static final CustomPacketPayload.Type<ShopActionPayload> ID = new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "shop_action"));
     
-    public static final PacketCodec<RegistryByteBuf, ShopActionPayload> CODEC = PacketCodec.tuple(
-        PacketCodecs.STRING, ShopActionPayload::action,
-        PacketCodecs.STRING, ShopActionPayload::data,
+    public static final StreamCodec<RegistryFriendlyByteBuf, ShopActionPayload> CODEC = StreamCodec.composite(
+        ByteBufCodecs.STRING_UTF8, ShopActionPayload::action,
+        ByteBufCodecs.STRING_UTF8, ShopActionPayload::data,
         ShopActionPayload::new
     );
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

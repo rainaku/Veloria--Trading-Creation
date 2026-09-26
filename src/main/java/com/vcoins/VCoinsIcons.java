@@ -1,9 +1,9 @@
 package com.vcoins;
 
-import net.minecraft.item.Item;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
-import net.minecraft.util.Identifier;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.Item;
 
 public class VCoinsIcons {
 
@@ -17,8 +17,8 @@ public class VCoinsIcons {
     public static final Item ICON_BUYBACK = registerIcon("icon_buyback");
 
     private static Item registerIcon(String name) {
-        net.minecraft.registry.RegistryKey<Item> key = net.minecraft.registry.RegistryKey.of(net.minecraft.registry.RegistryKeys.ITEM, Identifier.of(VCoinsMod.MOD_ID, name));
-        return Registry.register(Registries.ITEM, key, new Item(new Item.Settings().registryKey(key).maxCount(1)));
+        net.minecraft.resources.ResourceKey<Item> key = net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.ITEM, Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, name));
+        return Registry.register(BuiltInRegistries.ITEM, key, new Item(new Item.Properties().setId(key).stacksTo(1)));
     }
 
     public static void register() {

@@ -1,18 +1,18 @@
 package com.vcoins;
 
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.Identifier;
 
-public record OpenDuplicatePayload() implements CustomPayload {
-    public static final CustomPayload.Id<OpenDuplicatePayload> ID =
-            new CustomPayload.Id<>(Identifier.of(VCoinsMod.MOD_ID, "open_duplicate"));
-    public static final PacketCodec<RegistryByteBuf, OpenDuplicatePayload> CODEC =
-            PacketCodec.unit(new OpenDuplicatePayload());
+public record OpenDuplicatePayload() implements CustomPacketPayload {
+    public static final CustomPacketPayload.Type<OpenDuplicatePayload> ID =
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "open_duplicate"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, OpenDuplicatePayload> CODEC =
+            StreamCodec.unit(new OpenDuplicatePayload());
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

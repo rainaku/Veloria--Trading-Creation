@@ -1,28 +1,25 @@
 package com.vcoins;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import org.lwjgl.glfw.GLFW;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
-    private static final int PANEL_COLOR = 0xFFC6C6C6;
-    private static final int PANEL_LIGHT = 0xFFFFFFFF;
-    private static final int PANEL_MID = 0xFF8B8B8B;
-    private static final int PANEL_DARK = 0xFF373737;
-    private static final int SLOT_COLOR = 0xFF8B8B8B;
+public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
     private static final int TAB_WIDTH = 27;
     private static final int TAB_HEIGHT = 28;
     private static final int TAB_GAP = 1;
@@ -38,6 +35,7 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
 
     private static final ShopCategory[] TABS = {
             ShopCategory.ALL,
+            ShopCategory.BLACK_MARKET,
             ShopCategory.BUILDING,
             ShopCategory.COLORED,
             ShopCategory.NATURAL,
@@ -51,37 +49,40 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
             ShopCategory.BUYBACK
     };
 
-    private TextFieldWidget searchBox;
+    private EditBox searchBox;
     private ShopCategory selectedCategory = ShopCategory.ALL;
     private float scrollPosition;
     private boolean scrolling;
     private int lastScrollOffset = -1;
 
-    public VTradeScreen(VTradeScreenHandler handler, PlayerInventory inventory, Text title) {
-        super(handler, inventory, title);
-        this.backgroundWidth = 195;
-        this.backgroundHeight = 222;
+    public VTradeScreen(VTradeScreenHandler handler, Inventory inventory, Component title) {
+        super(handler, inventory, title, 195, 222);
     }
 
     @Override
     protected void init() {
         super.init();
 
-        this.searchBox = new TextFieldWidget(this.textRenderer, this.x + 91, this.y + 7, 95, 18,
-                Text.translatable("vcoins.search"));
+        this.searchBox = new EditBox(this.font, this.leftPos + 91, this.topPos + 7, 95, 18,
+                Component.translatable("vcoins.search"));
         this.searchBox.setMaxLength(50);
-        this.searchBox.setPlaceholder(Text.translatable("vcoins.search"));
-        this.searchBox.setChangedListener(this::onSearchChanged);
-        this.addDrawableChild(this.searchBox);
+        this.searchBox.setHint(Component.translatable("vcoins.search"));
+        this.searchBox.setResponder(this::onSearchChanged);
+        this.addRenderableWidget(this.searchBox);
 
-        this.addDrawableChild(ButtonWidget.builder(Text.translatable("vcoins.buyback"), button ->
-                        selectCategory(ShopCategory.BUYBACK))
-                .dimensions(this.x + 83, this.y + 126, 51, 14)
+        this.addRenderableWidget(Button.builder(Component.translatable("vcoins.tab.black_market"), button ->
+                        selectCategory(ShopCategory.BLACK_MARKET))
+                .bounds(this.leftPos + 31, this.topPos + 126, 50, 14)
                 .build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.translatable("vcoins.duplicate.open"), button ->
+        this.addRenderableWidget(Button.builder(Component.translatable("vcoins.buyback"), button ->
+                        selectCategory(ShopCategory.BUYBACK))
+                .bounds(this.leftPos + 83, this.topPos + 126, 51, 14)
+                .build());
+
+        this.addRenderableWidget(Button.builder(Component.translatable("vcoins.duplicate.open"), button ->
                         ClientPlayNetworking.send(new OpenDuplicatePayload()))
-                .dimensions(this.x + 136, this.y + 126, 50, 14)
+                .bounds(this.leftPos + 136, this.topPos + 126, 50, 14)
                 .build());
 
         // Opening the market should be enough to start typing a search.
@@ -94,7 +95,7 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
         }
         this.scrollPosition = 0.0f;
         this.lastScrollOffset = 0;
-        this.handler.setSearchQuery(query);
+        this.menu.setSearchQuery(query);
         ClientPlayNetworking.send(new ShopActionPayload("SEARCH", query));
     }
 
@@ -106,172 +107,146 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
         this.selectedCategory = category;
         this.scrollPosition = 0.0f;
         this.lastScrollOffset = 0;
-        this.handler.setCategory(category);
+        this.menu.setCategory(category);
         ClientPlayNetworking.send(new ShopActionPayload("TAB", category.name()));
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
-        super.render(context, mouseX, mouseY, delta);
-        this.drawMouseoverTooltip(context, mouseX, mouseY);
-    }
+    public void extractBackground(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float delta) {
+        super.extractBackground(extractor, mouseX, mouseY, delta);
+        drawTabs(extractor);
+        drawPanel(extractor);
+        drawSlotGrid(extractor, 9, 34, VTradeScreenHandler.SHOP_COLUMNS, VTradeScreenHandler.SHOP_ROWS);
+        drawSlotGrid(extractor, 9, 143, 9, 3);
+        drawSlotGrid(extractor, 9, 201, 9, 1);
+        drawScrollbar(extractor);
 
-    @Override
-    protected void drawBackground(DrawContext context, float delta, int mouseX, int mouseY) {
-        drawTabs(context);
-        drawPanel(context);
-        drawSlotGrid(context, 9, 34, VTradeScreenHandler.SHOP_COLUMNS, VTradeScreenHandler.SHOP_ROWS);
-        drawSlotGrid(context, 9, 143, 9, 3);
-        drawSlotGrid(context, 9, 201, 9, 1);
-        drawScrollbar(context);
-
-        long balance = this.client != null && this.client.player != null
-                ? VCoinsState.getCoins(this.client.player.getUuid())
+        long balance = this.minecraft != null && this.minecraft.player != null
+                ? VCoinsState.getCoins(this.minecraft.player.getUUID())
                 : 0L;
-        context.drawText(this.textRenderer, Text.translatable("vcoins.balance_short", formatCompactNumber(balance)),
-                this.x + 9, this.y + 18, 0xFFE8B829, true);
-        context.drawText(this.textRenderer, Text.translatable("vcoins.inventory"),
-                this.x + 9, this.y + 130, 0xFF404040, false);
+        extractor.text(this.font, Component.translatable("vcoins.balance_short", formatCompactNumber(balance)),
+                this.leftPos + 9, this.topPos + 18, 0xFFE8B829, true);
+        extractor.text(this.font, Component.translatable("vcoins.inventory"),
+                this.leftPos + 9, this.topPos + 130, 0xFF404040, false);
     }
 
-    private void drawPanel(DrawContext context) {
-        context.fill(this.x, this.y, this.x + this.backgroundWidth, this.y + this.backgroundHeight, PANEL_COLOR);
-        context.fill(this.x, this.y, this.x + this.backgroundWidth, this.y + 1, PANEL_LIGHT);
-        context.fill(this.x, this.y, this.x + 1, this.y + this.backgroundHeight, PANEL_LIGHT);
-        context.fill(this.x, this.y + this.backgroundHeight - 1,
-                this.x + this.backgroundWidth, this.y + this.backgroundHeight, PANEL_DARK);
-        context.fill(this.x + this.backgroundWidth - 1, this.y,
-                this.x + this.backgroundWidth, this.y + this.backgroundHeight, PANEL_DARK);
+    private void drawPanel(GuiGraphicsExtractor extractor) {
+        InventoryTextures.panel(extractor, this.leftPos, this.topPos, this.imageWidth, this.imageHeight);
 
-        context.drawText(this.textRenderer, Text.translatable("vcoins.title"),
-                this.x + 9, this.y + 7, 0xFF404040, false);
+        Component title = this.selectedCategory == ShopCategory.BLACK_MARKET
+                ? Component.translatable("vcoins.black_market.title")
+                : Component.translatable("vcoins.title");
+
+        extractor.text(this.font, title,
+                this.leftPos + 9, this.topPos + 7,
+                this.selectedCategory == ShopCategory.BLACK_MARKET ? 0xFF8A2BE2 : 0xFF404040, false);
     }
 
-    private void drawSlotGrid(DrawContext context, int relativeX, int relativeY, int columns, int rows) {
-        for (int row = 0; row < rows; row++) {
-            for (int column = 0; column < columns; column++) {
-                int slotX = this.x + relativeX + column * 18 - 1;
-                int slotY = this.y + relativeY + row * 18 - 1;
-                context.fill(slotX, slotY, slotX + 18, slotY + 18, PANEL_DARK);
-                context.fill(slotX + 1, slotY + 1, slotX + 18, slotY + 18, PANEL_LIGHT);
-                context.fill(slotX + 1, slotY + 1, slotX + 17, slotY + 17, SLOT_COLOR);
-            }
-        }
+    private void drawSlotGrid(GuiGraphicsExtractor extractor, int relativeX, int relativeY, int columns, int rows) {
+        InventoryTextures.slots(extractor, this.leftPos + relativeX, this.topPos + relativeY, columns, rows);
     }
 
-    private void drawTabs(DrawContext context) {
+    private void drawTabs(GuiGraphicsExtractor extractor) {
         for (int index = 0; index < TABS.length; index++) {
             TabBounds bounds = getTabBounds(index);
             boolean selected = TABS[index] == this.selectedCategory;
-            int color = selected ? PANEL_COLOR : 0xFFA6A6A6;
-
-            context.fill(bounds.x(), bounds.y(), bounds.x() + bounds.width(), bounds.y() + bounds.height(), PANEL_DARK);
-            context.fill(bounds.x() + 1, bounds.y() + 1,
-                    bounds.x() + bounds.width() - 1, bounds.y() + bounds.height() - 1, color);
-            context.fill(bounds.x() + 1, bounds.y() + 1,
-                    bounds.x() + bounds.width() - 1, bounds.y() + 2, PANEL_LIGHT);
-            context.fill(bounds.x() + 1, bounds.y() + 1,
-                    bounds.x() + 2, bounds.y() + bounds.height() - 1, PANEL_LIGHT);
-
-            if (selected) {
-                if (index < TOP_TAB_COUNT) {
-                    context.fill(bounds.x() + 1, bounds.y() + bounds.height() - 2,
-                            bounds.x() + bounds.width() - 1, bounds.y() + bounds.height(), PANEL_COLOR);
-                } else {
-                    context.fill(bounds.x() + 1, bounds.y(),
-                            bounds.x() + bounds.width() - 1, bounds.y() + 2, PANEL_COLOR);
-                }
-            }
-
+            String row = index < TOP_TAB_COUNT ? "top" : "bottom";
+            int position = index < TOP_TAB_COUNT ? index + 1 : index - TOP_TAB_COUNT + 1;
+            Identifier sprite = Identifier.withDefaultNamespace("container/creative_inventory/tab_"
+                    + row + (selected ? "_selected_" : "_unselected_") + position);
+            extractor.blitSprite(RenderPipelines.GUI_TEXTURED, sprite,
+                    bounds.x(), bounds.y(), bounds.width(), bounds.height());
             Item icon = getTabIcon(TABS[index]);
-            context.drawItem(new ItemStack(icon), bounds.x() + 5, bounds.y() + 6);
+            extractor.item(new ItemStack(icon), bounds.x() + 5, bounds.y() + 6);
         }
     }
 
-    private void drawScrollbar(DrawContext context) {
-        int trackX = this.x + SCROLLBAR_X;
-        int trackY = this.y + SCROLLBAR_Y;
-        int maxRows = this.handler.getMaxRows();
+    private void drawScrollbar(GuiGraphicsExtractor extractor) {
+        int trackX = this.leftPos + SCROLLBAR_X;
+        int trackY = this.topPos + SCROLLBAR_Y;
+        int maxRows = this.menu.getMaxRows();
         boolean enabled = maxRows > 0;
 
-        context.fill(trackX, trackY, trackX + 12, trackY + SCROLLBAR_HEIGHT, PANEL_DARK);
-        context.fill(trackX + 1, trackY + 1, trackX + 11, trackY + SCROLLBAR_HEIGHT - 1, 0xFF555555);
-
+        InventoryTextures.recess(extractor, trackX, trackY, 12, SCROLLBAR_HEIGHT);
         int travel = SCROLLBAR_HEIGHT - SCROLL_THUMB_HEIGHT;
         int thumbY = trackY + Math.round(this.scrollPosition * travel);
-        int thumbColor = enabled ? PANEL_COLOR : 0xFF777777;
-        context.fill(trackX, thumbY, trackX + 12, thumbY + SCROLL_THUMB_HEIGHT, PANEL_DARK);
-        context.fill(trackX + 1, thumbY + 1, trackX + 11, thumbY + SCROLL_THUMB_HEIGHT - 1, thumbColor);
-        context.fill(trackX + 2, thumbY + 2, trackX + 10, thumbY + 3, PANEL_LIGHT);
+        Identifier sprite = Identifier.withDefaultNamespace("container/creative_inventory/"
+                + (enabled ? "scroller" : "scroller_disabled"));
+        extractor.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, trackX, thumbY, 12, SCROLL_THUMB_HEIGHT);
+    }
+    @Override
+    protected void extractLabels(GuiGraphicsExtractor extractor, int mouseX, int mouseY) {
+        // All labels are positioned explicitly in extractBackground.
     }
 
     @Override
-    protected void drawForeground(DrawContext context, int mouseX, int mouseY) {
-        // All labels are positioned explicitly in drawBackground.
-    }
-
-    @Override
-    protected void drawMouseoverTooltip(DrawContext context, int mouseX, int mouseY) {
-        if (this.focusedSlot != null && this.focusedSlot.hasStack()) {
-            ItemStack stack = this.focusedSlot.getStack();
-            List<Text> tooltip = new ArrayList<>(this.getTooltipFromItem(stack));
+    protected void extractTooltip(GuiGraphicsExtractor extractor, int mouseX, int mouseY) {
+        if (this.hoveredSlot != null && this.hoveredSlot.hasItem()) {
+            ItemStack stack = this.hoveredSlot.getItem();
+            List<Component> tooltip = new ArrayList<>(this.getTooltipFromContainerItem(stack));
             long buyPrice = VCoinsPricing.getPrice(stack);
 
-            if (this.focusedSlot.id < VTradeScreenHandler.SHOP_SLOT_COUNT) {
-                tooltip.add(Text.empty());
+            if (this.hoveredSlot.index < VTradeScreenHandler.SHOP_SLOT_COUNT) {
+                tooltip.add(Component.empty());
                 if (this.selectedCategory == ShopCategory.BUYBACK) {
                     long totalPrice = safeMultiply(VCoinsPricing.getBuybackPrice(stack), stack.getCount());
                     if (buyPrice > 0) {
-                        tooltip.add(Text.translatable("vcoins.tooltip.buy_price", formatNumber(buyPrice))
-                                .formatted(Formatting.YELLOW));
+                        tooltip.add(Component.translatable("vcoins.tooltip.buy_price", formatNumber(buyPrice))
+                                .withStyle(ChatFormatting.YELLOW));
                     }
-                    tooltip.add(Text.translatable("vcoins.tooltip.buyback", formatNumber(totalPrice))
-                            .formatted(Formatting.GOLD));
+                    tooltip.add(Component.translatable("vcoins.tooltip.buyback", formatNumber(totalPrice))
+                            .withStyle(ChatFormatting.GOLD));
                 } else {
-                    tooltip.add(Text.translatable("vcoins.tooltip.buy_price", formatNumber(buyPrice))
-                            .formatted(Formatting.YELLOW));
-                    tooltip.add(Text.translatable("vcoins.tooltip.buy_left").formatted(Formatting.GRAY));
-                    tooltip.add(Text.translatable("vcoins.tooltip.buy_shift").formatted(Formatting.GRAY));
-                    tooltip.add(Text.translatable("vcoins.tooltip.buy_right", stack.getMaxCount())
-                            .formatted(Formatting.GRAY));
+                    if (this.selectedCategory == ShopCategory.BLACK_MARKET) {
+                        tooltip.add(Component.translatable("vcoins.black_market.merchant_tag")
+                                .withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.ITALIC));
+                    }
+                    tooltip.add(Component.translatable("vcoins.tooltip.buy_price", formatNumber(buyPrice))
+                            .withStyle(ChatFormatting.YELLOW));
+                    tooltip.add(Component.translatable("vcoins.tooltip.buy_left").withStyle(ChatFormatting.GRAY));
+                    tooltip.add(Component.translatable("vcoins.tooltip.buy_shift").withStyle(ChatFormatting.GRAY));
+                    tooltip.add(Component.translatable("vcoins.tooltip.buy_right", stack.getMaxStackSize())
+                            .withStyle(ChatFormatting.GRAY));
                 }
             } else {
                 long sellPrice = VCoinsPricing.getSellPrice(stack);
                 if (buyPrice > 0 || sellPrice > 0) {
-                    tooltip.add(Text.empty());
+                    tooltip.add(Component.empty());
                     if (buyPrice > 0) {
-                        tooltip.add(Text.translatable("vcoins.tooltip.buy_price", formatNumber(buyPrice))
-                                .formatted(Formatting.YELLOW));
+                        tooltip.add(Component.translatable("vcoins.tooltip.buy_price", formatNumber(buyPrice))
+                                .withStyle(ChatFormatting.YELLOW));
                     }
                 }
                 if (sellPrice > 0) {
-                    tooltip.add(Text.translatable("vcoins.tooltip.sell_price", formatNumber(sellPrice))
-                            .formatted(Formatting.GREEN));
-                    tooltip.add(Text.translatable("vcoins.tooltip.sell_shift").formatted(Formatting.GRAY));
-                    tooltip.add(Text.translatable("vcoins.tooltip.sell_drag").formatted(Formatting.GRAY));
+                    tooltip.add(Component.translatable("vcoins.tooltip.sell_price", formatNumber(sellPrice))
+                            .withStyle(ChatFormatting.GREEN));
+                    tooltip.add(Component.translatable("vcoins.tooltip.sell_shift").withStyle(ChatFormatting.GRAY));
+                    tooltip.add(Component.translatable("vcoins.tooltip.sell_drag").withStyle(ChatFormatting.GRAY));
                 }
             }
 
-            context.drawTooltip(this.textRenderer, tooltip, stack.getTooltipData(), mouseX, mouseY);
+            extractor.setTooltipForNextFrame(this.font, tooltip, stack.getTooltipImage(), mouseX, mouseY);
             return;
         }
 
         ShopCategory hoveredTab = getHoveredTab(mouseX, mouseY);
         if (hoveredTab != null) {
-            context.drawTooltip(this.textRenderer, getTabName(hoveredTab), mouseX, mouseY);
+            extractor.setTooltipForNextFrame(this.font, getTabName(hoveredTab), mouseX, mouseY);
             return;
         }
 
-        if (mouseX >= this.x + 8 && mouseX < this.x + 89 && mouseY >= this.y + 17 && mouseY < this.y + 28
-                && this.client != null && this.client.player != null) {
-            long balance = VCoinsState.getCoins(this.client.player.getUuid());
-            context.drawTooltip(this.textRenderer, Text.translatable("vcoins.balance", formatNumber(balance)), mouseX, mouseY);
+        if (mouseX >= this.leftPos + 8 && mouseX < this.leftPos + 89 && mouseY >= this.topPos + 17 && mouseY < this.topPos + 28
+                && this.minecraft != null && this.minecraft.player != null) {
+            long balance = VCoinsState.getCoins(this.minecraft.player.getUUID());
+            extractor.setTooltipForNextFrame(this.font, Component.translatable("vcoins.balance", formatNumber(balance)), mouseX, mouseY);
+            return;
         }
+
+        super.extractTooltip(extractor, mouseX, mouseY);
     }
 
     @Override
-    public boolean mouseClicked(net.minecraft.client.gui.Click click, boolean doubled) {
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent click, boolean doubled) {
         double mouseX = click.x();
         double mouseY = click.y();
 
@@ -283,12 +258,12 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
             }
         }
 
-        int trackX = this.x + SCROLLBAR_X;
-        int trackY = this.y + SCROLLBAR_Y;
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT
+        int trackX = this.leftPos + SCROLLBAR_X;
+        int trackY = this.topPos + SCROLLBAR_Y;
+        if (click.button() == InputConstants.MOUSE_BUTTON_LEFT
                 && mouseX >= trackX && mouseX < trackX + 12
                 && mouseY >= trackY && mouseY < trackY + SCROLLBAR_HEIGHT
-                && this.handler.getMaxRows() > 0) {
+                && this.menu.getMaxRows() > 0) {
             this.scrolling = true;
             updateScrollFromMouse(mouseY);
             return true;
@@ -296,10 +271,10 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
 
         int shopSlot = getShopSlotAt(mouseX, mouseY);
         if (shopSlot >= 0) {
-            if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT
-                    || click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
-                boolean buyStack = click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT
-                        || (click.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0;
+            if (click.button() == InputConstants.MOUSE_BUTTON_LEFT
+                    || click.button() == InputConstants.MOUSE_BUTTON_RIGHT) {
+                boolean buyStack = click.button() == InputConstants.MOUSE_BUTTON_RIGHT
+                        || click.hasShiftDown();
                 ClientPlayNetworking.send(new ShopTransactionPayload(shopSlot, buyStack));
             }
             // Never pass a shop-grid input to vanilla slot handling.
@@ -310,7 +285,7 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
     }
 
     @Override
-    public boolean mouseDragged(net.minecraft.client.gui.Click click, double deltaX, double deltaY) {
+    public boolean mouseDragged(net.minecraft.client.input.MouseButtonEvent click, double deltaX, double deltaY) {
         if (this.scrolling) {
             updateScrollFromMouse(click.y());
             return true;
@@ -319,8 +294,8 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
     }
 
     @Override
-    public boolean mouseReleased(net.minecraft.client.gui.Click click) {
-        if (click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && this.scrolling) {
+    public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent click) {
+        if (click.button() == InputConstants.MOUSE_BUTTON_LEFT && this.scrolling) {
             this.scrolling = false;
             // The matching press was consumed by the custom scrollbar, so its
             // release must not reach vanilla slot handling.
@@ -331,7 +306,7 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        int maxRows = this.handler.getMaxRows();
+        int maxRows = this.menu.getMaxRows();
         if (maxRows > 0 && verticalAmount != 0.0) {
             int currentOffset = Math.round(this.scrollPosition * maxRows);
             int nextOffset = Math.max(0, Math.min(maxRows,
@@ -343,12 +318,12 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
     }
 
     private void updateScrollFromMouse(double mouseY) {
-        int maxRows = this.handler.getMaxRows();
+        int maxRows = this.menu.getMaxRows();
         if (maxRows <= 0) {
             return;
         }
 
-        int trackY = this.y + SCROLLBAR_Y;
+        int trackY = this.topPos + SCROLLBAR_Y;
         float travel = SCROLLBAR_HEIGHT - SCROLL_THUMB_HEIGHT;
         float value = (float) ((mouseY - trackY - SCROLL_THUMB_HEIGHT / 2.0) / travel);
         this.scrollPosition = Math.max(0.0f, Math.min(1.0f, value));
@@ -362,13 +337,13 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
         }
 
         this.lastScrollOffset = offset;
-        this.handler.setScrollOffset(offset);
+        this.menu.setScrollOffset(offset);
         ClientPlayNetworking.send(new ShopActionPayload("SCROLL", Integer.toString(offset)));
     }
 
     private int getShopSlotAt(double mouseX, double mouseY) {
-        double localX = mouseX - (this.x + SHOP_X);
-        double localY = mouseY - (this.y + SHOP_Y);
+        double localX = mouseX - (this.leftPos + SHOP_X);
+        double localY = mouseY - (this.topPos + SHOP_Y);
         if (localX < 0 || localY < 0) {
             return -1;
         }
@@ -387,19 +362,19 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
     }
 
     @Override
-    public boolean keyPressed(net.minecraft.client.input.KeyInput keyInput) {
+    public boolean keyPressed(net.minecraft.client.input.KeyEvent keyInput) {
         if (this.searchBox.keyPressed(keyInput)) {
             return true;
         }
-        if (this.searchBox.isFocused() && keyInput.key() != GLFW.GLFW_KEY_ESCAPE) {
+        if (this.searchBox.isFocused() && !keyInput.isEscape()) {
             return true;
         }
         return super.keyPressed(keyInput);
     }
 
     @Override
-    public boolean charTyped(net.minecraft.client.input.CharInput charInput) {
-        if (charInput.isValidChar() && !this.searchBox.isFocused()) {
+    public boolean charTyped(net.minecraft.client.input.CharacterEvent charInput) {
+        if (charInput.isAllowedChatCharacter() && !this.searchBox.isFocused()) {
             this.setFocused(this.searchBox);
         }
         if (this.searchBox.charTyped(charInput)) {
@@ -422,9 +397,9 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
         int rowIndex = top ? index : index - TOP_TAB_COUNT;
         int count = top ? TOP_TAB_COUNT : TABS.length - TOP_TAB_COUNT;
         int totalWidth = count * TAB_WIDTH + (count - 1) * TAB_GAP;
-        int startX = this.x + (this.backgroundWidth - totalWidth) / 2;
+        int startX = this.leftPos + (this.imageWidth - totalWidth) / 2;
         int tabX = startX + rowIndex * (TAB_WIDTH + TAB_GAP);
-        int tabY = top ? this.y - TAB_HEIGHT + 4 : this.y + this.backgroundHeight - 4;
+        int tabY = top ? this.topPos - TAB_HEIGHT + 4 : this.topPos + this.imageHeight - 4;
         return new TabBounds(tabX, tabY, TAB_WIDTH, TAB_HEIGHT);
     }
 
@@ -432,7 +407,7 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
         return switch (category) {
             case ALL -> Items.COMPASS;
             case BUILDING -> Items.BRICKS;
-            case COLORED -> Items.CYAN_WOOL;
+            case COLORED -> Items.WOOL.cyan();
             case NATURAL -> Items.GRASS_BLOCK;
             case FUNCTIONAL -> Items.CRAFTING_TABLE;
             case REDSTONE -> Items.REDSTONE;
@@ -442,12 +417,13 @@ public class VTradeScreen extends HandledScreen<VTradeScreenHandler> {
             case INGREDIENTS -> Items.IRON_INGOT;
             case SPAWN_EGGS -> Items.PIG_SPAWN_EGG;
             case MISC -> Items.BUNDLE;
+            case BLACK_MARKET -> Items.NETHER_STAR;
             case BUYBACK -> Items.CHEST;
         };
     }
 
-    private static Text getTabName(ShopCategory category) {
-        return Text.translatable("vcoins.tab." + category.name().toLowerCase(Locale.ROOT));
+    private static Component getTabName(ShopCategory category) {
+        return Component.translatable("vcoins.tab." + category.name().toLowerCase(Locale.ROOT));
     }
 
     private static String formatNumber(long value) {

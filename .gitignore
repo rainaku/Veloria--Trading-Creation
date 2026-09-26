@@ -50,3 +50,6 @@ Desktop.ini
 *.swp
 *.orig
 *~
+CHANGELOG.md
+changes/1.0.md
+/changes

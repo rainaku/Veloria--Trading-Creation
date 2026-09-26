@@ -1,57 +1,57 @@
 package com.vcoins;
 
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.inventory.SimpleInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.ScreenHandler;
-import net.minecraft.screen.slot.Slot;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-
 import java.util.Locale;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.Prediction;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.Container;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
 
-public class VDuplicateScreenHandler extends ScreenHandler {
+public class VDuplicateScreenHandler extends AbstractContainerMenu {
     private static final int SAMPLE_SLOT = 0;
     private static final int PREVIEW_SLOT = 1;
     private static final int PLAYER_SLOT_START = 2;
     private static final int PLAYER_SLOT_END = PLAYER_SLOT_START + 36;
 
-    private final Inventory sampleInventory = new SimpleInventory(1);
-    private final Inventory previewInventory = new SimpleInventory(1);
+    private final Container sampleInventory = new SimpleContainer(1);
+    private final Container previewInventory = new SimpleContainer(1);
 
-    public VDuplicateScreenHandler(int syncId, PlayerInventory playerInventory) {
+    public VDuplicateScreenHandler(int syncId, Inventory playerInventory) {
         super(VCoinsMod.VDUPLICATE_SCREEN_HANDLER, syncId);
 
         this.addSlot(new Slot(sampleInventory, 0, 27, 47) {
             @Override
-            public boolean canInsert(ItemStack stack) {
+            public boolean mayPlace(ItemStack stack) {
                 return VCoinsPricing.isTradeable(stack.getItem());
             }
 
             @Override
-            public int getMaxItemCount(ItemStack stack) {
+            public int getMaxStackSize(ItemStack stack) {
                 return 1;
             }
 
             @Override
-            public int getMaxItemCount() {
+            public int getMaxStackSize() {
                 return 1;
             }
         });
 
         this.addSlot(new Slot(previewInventory, 0, 134, 47) {
             @Override
-            public boolean canInsert(ItemStack stack) {
+            public boolean mayPlace(ItemStack stack) {
                 return false;
             }
 
             @Override
-            public boolean canTakeItems(PlayerEntity player) {
+            public boolean mayPickup(Player player) {
                 return false;
             }
         });
@@ -70,13 +70,13 @@ public class VDuplicateScreenHandler extends ScreenHandler {
     }
 
     public ItemStack getSampleStack() {
-        return sampleInventory.getStack(0);
+        return sampleInventory.getItem(0);
     }
 
     @Override
-    public void sendContentUpdates() {
+    public void broadcastChanges() {
         updatePreview();
-        super.sendContentUpdates();
+        super.broadcastChanges();
     }
 
     private void updatePreview() {
@@ -84,20 +84,20 @@ public class VDuplicateScreenHandler extends ScreenHandler {
         ItemStack wanted = sample.isEmpty() || !VCoinsPricing.isTradeable(sample.getItem())
                 ? ItemStack.EMPTY
                 : sample.copyWithCount(1);
-        if (!ItemStack.areEqual(previewInventory.getStack(0), wanted)) {
-            previewInventory.setStack(0, wanted);
+        if (!ItemStack.matches(previewInventory.getItem(0), wanted)) {
+            previewInventory.setItem(0, wanted);
         }
     }
 
     @Override
-    public boolean onButtonClick(PlayerEntity player, int id) {
-        if (id != 0 || player.getEntityWorld().isClient() || !(player instanceof ServerPlayerEntity serverPlayer)) {
+    public boolean clickMenuButton(Player player, int id) {
+        if (id != 0 || player.level().isClientSide() || !(player instanceof ServerPlayer serverPlayer)) {
             return false;
         }
         return duplicate(serverPlayer);
     }
 
-    private boolean duplicate(ServerPlayerEntity player) {
+    private boolean duplicate(ServerPlayer player) {
         ItemStack sample = getSampleStack();
         if (sample.isEmpty() || !VCoinsPricing.isTradeable(sample.getItem())) {
             fail(player, "vcoins.duplicate.invalid_item");
@@ -106,89 +106,89 @@ public class VDuplicateScreenHandler extends ScreenHandler {
 
         long coinCost = VDuplicatePricing.getCoinCost(sample);
         int levelCost = VDuplicatePricing.getExperienceLevelCost(sample);
-        long balance = VCoinsState.getCoins(player.getUuid());
+        long balance = VCoinsState.getCoins(player.getUUID());
 
         if (balance < coinCost) {
-            player.sendMessage(Text.translatable("vcoins.duplicate.not_enough_coins",
-                    formatNumber(coinCost), formatNumber(balance)).formatted(Formatting.RED), true);
-            player.playSound(SoundEvents.ENTITY_VILLAGER_NO, 0.9f, 1.0f);
+            player.sendOverlayMessage(Component.translatable("vcoins.duplicate.not_enough_coins",
+                    formatNumber(coinCost), formatNumber(balance)).withStyle(ChatFormatting.RED));
+            player.playSound(SoundEvents.VILLAGER_NO, 0.9f, 1.0f);
             return false;
         }
         if (player.experienceLevel < levelCost) {
-            player.sendMessage(Text.translatable("vcoins.duplicate.not_enough_xp",
-                    levelCost, player.experienceLevel).formatted(Formatting.RED), true);
-            player.playSound(SoundEvents.ENTITY_VILLAGER_NO, 0.9f, 1.0f);
+            player.sendOverlayMessage(Component.translatable("vcoins.duplicate.not_enough_xp",
+                    levelCost, player.experienceLevel).withStyle(ChatFormatting.RED));
+            player.playSound(SoundEvents.VILLAGER_NO, 0.9f, 1.0f);
             return false;
         }
 
-        VCoinsState.removeCoins(player.getUuid(), coinCost);
-        player.addExperienceLevels(-levelCost);
-        player.getInventory().offerOrDrop(sample.copyWithCount(1));
+        VCoinsState.removeCoins(player.getUUID(), coinCost);
+        player.giveExperienceLevels(-levelCost);
+        player.getInventory().placeItemBackInInventory(sample.copyWithCount(1), Prediction.SERVER_ONLY);
         VCoinsMod.syncCoins(player);
 
-        player.playSound(SoundEvents.BLOCK_ANVIL_USE, 1.0f, 1.15f);
-        player.playSound(SoundEvents.ENTITY_PLAYER_LEVELUP, 0.65f, 1.55f);
-        player.sendMessage(Text.translatable("vcoins.duplicate.success", sample.getName(),
-                formatNumber(coinCost), levelCost).formatted(Formatting.GREEN), true);
+        player.playSound(SoundEvents.ANVIL_USE, 1.0f, 1.15f);
+        player.playSound(SoundEvents.PLAYER_LEVELUP, 0.65f, 1.55f);
+        player.sendOverlayMessage(Component.translatable("vcoins.duplicate.success", sample.getHoverName(),
+                formatNumber(coinCost), levelCost).withStyle(ChatFormatting.GREEN));
         return true;
     }
 
-    private void fail(ServerPlayerEntity player, String translationKey) {
-        player.sendMessage(Text.translatable(translationKey).formatted(Formatting.RED), true);
-        player.playSound(SoundEvents.ENTITY_VILLAGER_NO, 0.9f, 1.0f);
+    private void fail(ServerPlayer player, String translationKey) {
+        player.sendOverlayMessage(Component.translatable(translationKey).withStyle(ChatFormatting.RED));
+        player.playSound(SoundEvents.VILLAGER_NO, 0.9f, 1.0f);
     }
 
     @Override
-    public void onSlotClick(int slotIndex, int button, SlotActionType actionType, PlayerEntity player) {
+    public void clicked(int slotIndex, int button, ContainerInput actionType, Player player) {
         if (slotIndex == PREVIEW_SLOT) {
             return;
         }
-        super.onSlotClick(slotIndex, button, actionType, player);
+        super.clicked(slotIndex, button, actionType, player);
         updatePreview();
     }
 
     @Override
-    public ItemStack quickMove(PlayerEntity player, int slotIndex) {
+    public ItemStack quickMoveStack(Player player, int slotIndex) {
         if (slotIndex < 0 || slotIndex >= this.slots.size() || slotIndex == PREVIEW_SLOT) {
             return ItemStack.EMPTY;
         }
 
         Slot slot = this.slots.get(slotIndex);
-        if (!slot.hasStack()) {
+        if (!slot.hasItem()) {
             return ItemStack.EMPTY;
         }
 
-        ItemStack source = slot.getStack();
+        ItemStack source = slot.getItem();
         ItemStack original = source.copy();
         if (slotIndex == SAMPLE_SLOT) {
-            if (!this.insertItem(source, PLAYER_SLOT_START, PLAYER_SLOT_END, true)) {
+            if (!this.moveItemStackTo(source, PLAYER_SLOT_START, PLAYER_SLOT_END, true)) {
                 return ItemStack.EMPTY;
             }
         } else if (!VCoinsPricing.isTradeable(source.getItem())
-                || !this.insertItem(source, SAMPLE_SLOT, SAMPLE_SLOT + 1, false)) {
+                || !this.moveItemStackTo(source, SAMPLE_SLOT, SAMPLE_SLOT + 1, false)) {
             return ItemStack.EMPTY;
         }
 
         if (source.isEmpty()) {
-            slot.setStack(ItemStack.EMPTY);
+            slot.setByPlayer(ItemStack.EMPTY);
         } else {
-            slot.markDirty();
+            slot.setChanged();
         }
         updatePreview();
         return original;
     }
 
     @Override
-    public void onClosed(PlayerEntity player) {
-        super.onClosed(player);
-        if (!player.getEntityWorld().isClient()) {
-            this.dropInventory(player, sampleInventory);
+    public void removed(Player player) {
+        super.removed(player);
+        if (!player.level().isClientSide()) {
+            this.clearContainer(player, sampleInventory);
         }
-        previewInventory.clear();
+        previewInventory.clearContent();
     }
 
     @Override
-    public boolean canUse(PlayerEntity player) {
+    public boolean stillValid(Player player) {
         return true;
     }
 

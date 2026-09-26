@@ -1,182 +1,201 @@
 package com.vcoins;
 
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.ItemEnchantmentsComponent;
-import net.minecraft.enchantment.Enchantment;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.util.Rarity;
-
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.Rarity;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 
 public class VCoinsPricing {
     private static final Map<String, Long> prices = new HashMap<>();
     private static final Map<String, ShopCategory> categories = new HashMap<>();
+    private static volatile boolean initialized = false;
 
-    public static void init() {
+    public static synchronized void ensureInitialized() {
+        if (!initialized) {
+            init();
+        }
+    }
+
+    public static synchronized void init() {
         prices.clear();
         categories.clear();
+        // ==================== CƠ BẢN / KHỐI DỄ FARM ====================
+        setPrice("minecraft:cobblestone", 1);
+        setPrice("minecraft:dirt", 1);
+        setPrice("minecraft:sand", 2);
+        setPrice("minecraft:red_sand", 4);
+        setPrice("minecraft:gravel", 2);
+        setPrice("minecraft:netherrack", 1);
+        setPrice("minecraft:stone", 2);
+        setPrice("minecraft:cobbled_deepslate", 2);
+        setPrice("minecraft:deepslate", 2);
+        setPrice("minecraft:blackstone", 4);
+        setPrice("minecraft:end_stone", 10);
+        setPrice("minecraft:obsidian", 150);
+        setPrice("minecraft:crying_obsidian", 1_500);
+        setPrice("minecraft:clay_ball", 4);
+        setPrice("minecraft:clay", 16);
+        setPrice("minecraft:snowball", 1);
+        setPrice("minecraft:snow_block", 4);
+        setPrice("minecraft:ice", 16);
+        setPrice("minecraft:packed_ice", 144);
+        setPrice("minecraft:blue_ice", 1_296);
         
-        // Common gathered blocks. Four coins is the baseline for one block that
-        // can be collected almost immediately with an unenchanted tool.
-        setPrice("minecraft:cobblestone", 4);
-        setPrice("minecraft:dirt", 4);
-        setPrice("minecraft:sand", 4);
-        setPrice("minecraft:red_sand", 8);
-        setPrice("minecraft:gravel", 4);
-        setPrice("minecraft:netherrack", 4);
-        setPrice("minecraft:stone", 6);
-        setPrice("minecraft:cobbled_deepslate", 8);
-        setPrice("minecraft:deepslate", 8);
-        setPrice("minecraft:blackstone", 12);
-        setPrice("minecraft:end_stone", 16);
-        setPrice("minecraft:obsidian", 128);
-        setPrice("minecraft:crying_obsidian", 1_024);
-        setPrice("minecraft:clay_ball", 12);
-        setPrice("minecraft:clay", 48);
-        setPrice("minecraft:snowball", 2);
-        setPrice("minecraft:snow_block", 8);
-        setPrice("minecraft:ice", 24);
-        setPrice("minecraft:packed_ice", 216);
-        setPrice("minecraft:blue_ice", 1_944);
-        
-        setPrice("minecraft:oak_log", 16);
-        setPrice("minecraft:spruce_log", 16);
-        setPrice("minecraft:birch_log", 16);
-        setPrice("minecraft:jungle_log", 16);
-        setPrice("minecraft:acacia_log", 16);
-        setPrice("minecraft:dark_oak_log", 16);
-        setPrice("minecraft:mangrove_log", 16);
-        setPrice("minecraft:cherry_log", 16);
-        setPrice("minecraft:oak_planks", 4);
-        setPrice("minecraft:stick", 2);
-        setPrice("minecraft:bamboo", 2);
-        
-        // Mined resources are priced per item after accounting for the average
-        // drops from one ore. Storage blocks always equal exactly nine units so
-        // reversible crafting cannot create or destroy value.
-        setPrice("minecraft:coal", 64);
-        setPrice("minecraft:charcoal", 64);
-        setPrice("minecraft:coal_block", 576);
-        setPrice("minecraft:raw_copper", 48);
-        setPrice("minecraft:copper_ingot", 64);
-        setPrice("minecraft:copper_nugget", 7);
-        setPrice("minecraft:raw_copper_block", 432);
-        setPrice("minecraft:copper_block", 576);
-        setPrice("minecraft:waxed_copper_block", 608);
-        setPrice("minecraft:raw_iron", 192);
-        setPrice("minecraft:iron_ingot", 256);
-        setPrice("minecraft:iron_nugget", 29);
-        setPrice("minecraft:raw_iron_block", 1728);
-        setPrice("minecraft:iron_block", 2304);
-        setPrice("minecraft:raw_gold", 512);
-        setPrice("minecraft:gold_ingot", 768);
-        setPrice("minecraft:gold_nugget", 85);
-        setPrice("minecraft:raw_gold_block", 4608);
-        setPrice("minecraft:gold_block", 6912);
-        setPrice("minecraft:redstone", 32);
-        setPrice("minecraft:redstone_block", 288);
-        setPrice("minecraft:lapis_lazuli", 64);
-        setPrice("minecraft:lapis_block", 576);
-        setPrice("minecraft:diamond", 16000);
-        setPrice("minecraft:diamond_block", 144000);
-        // Emeralds are deliberately below diamonds because villager trading
-        // makes them renewable once a settlement has been established.
-        setPrice("minecraft:emerald", 512);
-        setPrice("minecraft:emerald_block", 4608);
-        setPrice("minecraft:ancient_debris", 32768);
-        setPrice("minecraft:netherite_scrap", 32768);
-        setPrice("minecraft:netherite_ingot", 160000);
-        setPrice("minecraft:netherite_block", 1440000);
-        setPrice("minecraft:quartz", 96);
-        setPrice("minecraft:quartz_block", 384);
-        setPrice("minecraft:amethyst_shard", 96);
-        setPrice("minecraft:amethyst_block", 384);
-        
-        // Mob and structure drops
-        setPrice("minecraft:rotten_flesh", 8);
-        setPrice("minecraft:bone", 24);
-        setPrice("minecraft:bone_meal", 8);
-        setPrice("minecraft:string", 16);
-        setPrice("minecraft:leather", 48);
-        setPrice("minecraft:feather", 8);
-        setPrice("minecraft:spider_eye", 32);
-        setPrice("minecraft:gunpowder", 64);
-        setPrice("minecraft:ender_pearl", 1024);
-        setPrice("minecraft:blaze_rod", 2048);
-        setPrice("minecraft:blaze_powder", 1024);
-        setPrice("minecraft:ghast_tear", 8192);
-        setPrice("minecraft:slime_ball", 64);
-        setPrice("minecraft:slime_block", 576);
-        setPrice("minecraft:magma_cream", 128);
-        setPrice("minecraft:prismarine_shard", 32);
-        setPrice("minecraft:prismarine_crystals", 64);
-        setPrice("minecraft:nautilus_shell", 4096);
-        setPrice("minecraft:shulker_shell", 8192);
-        setPrice("minecraft:nether_star", 750000);
-        setPrice("minecraft:heart_of_the_sea", 300000);
-        setPrice("minecraft:echo_shard", 25000);
-        setPrice("minecraft:heavy_core", 1000000);
-        setPrice("minecraft:breeze_rod", 4096);
-        setPrice("minecraft:dragon_egg", 10000000);
-        setPrice("minecraft:dragon_head", 1000000);
-        setPrice("minecraft:wither_skeleton_skull", 150000);
-        
-        // Crops and food
-        setPrice("minecraft:wheat_seeds", 4);
-        setPrice("minecraft:wheat", 12);
-        setPrice("minecraft:hay_block", 108);
-        setPrice("minecraft:potato", 12);
-        setPrice("minecraft:carrot", 12);
-        setPrice("minecraft:apple", 32);
-        setPrice("minecraft:beef", 32);
-        setPrice("minecraft:porkchop", 32);
-        setPrice("minecraft:mutton", 32);
-        setPrice("minecraft:chicken", 32);
-        setPrice("minecraft:melon_slice", 4);
-        setPrice("minecraft:melon", 36);
-        setPrice("minecraft:dried_kelp", 4);
-        setPrice("minecraft:dried_kelp_block", 36);
-        // Eight gold ingots plus the apple, with a small crafting premium.
-        setPrice("minecraft:golden_apple", 7200);
-        setPrice("minecraft:enchanted_golden_apple", 1000000);
-        
-        // Reversible and commonly crafted items
-        setPrice("minecraft:glass", 8);
-        setPrice("minecraft:white_wool", 16);
-        setPrice("minecraft:torch", 18);
-        setPrice("minecraft:bone_block", 216);
-        setPrice("minecraft:glowstone_dust", 32);
-        setPrice("minecraft:glowstone", 128);
-        setPrice("minecraft:honeycomb", 32);
-        setPrice("minecraft:honeycomb_block", 128);
-        setPrice("minecraft:honey_block", 96);
-        setPrice("minecraft:resin_clump", 64);
-        setPrice("minecraft:resin_block", 576);
-        setPrice("minecraft:disc_fragment_5", 4096);
+        // ==================== GỖ & TRE (Tree Farm / Bamboo Farm) ====================
+        setPrice("minecraft:oak_log", 4);
+        setPrice("minecraft:spruce_log", 4);
+        setPrice("minecraft:birch_log", 4);
+        setPrice("minecraft:jungle_log", 4);
+        setPrice("minecraft:acacia_log", 4);
+        setPrice("minecraft:dark_oak_log", 4);
+        setPrice("minecraft:mangrove_log", 4);
+        setPrice("minecraft:cherry_log", 4);
+        setPrice("minecraft:pale_oak_log", 4);
+        setPrice("minecraft:oak_planks", 1);
+        setPrice("minecraft:stick", 1);
+        setPrice("minecraft:bamboo", 1);
 
-        // Rare, unique and progression-defining items
-        setPrice("minecraft:enchanted_book", 2000);
-        setPrice("minecraft:elytra", 2000000);
-        setPrice("minecraft:totem_of_undying", 400000);
-        setPrice("minecraft:beacon", 1000000);
-        setPrice("minecraft:conduit", 400000);
-        setPrice("minecraft:mace", 1500000);
-        setPrice("minecraft:trident", 350000);
-        setPrice("minecraft:sniffer_egg", 250000);
+        // ==================== KHOÁNG SẢN (Iron Golem Farm & Gold Piglin Farm cân bằng lại) ====================
+        setPrice("minecraft:coal", 24);
+        setPrice("minecraft:charcoal", 8);
+        setPrice("minecraft:coal_block", 216);
+        setPrice("minecraft:raw_copper", 8);
+        setPrice("minecraft:copper_ingot", 12);
+        setPrice("minecraft:copper_nugget", 1);
+        setPrice("minecraft:raw_copper_block", 72);
+        setPrice("minecraft:copper_block", 108);
+        setPrice("minecraft:waxed_copper_block", 120);
+
+        // Sắt và Vàng: dễ AFK quy mô công nghiệp -> Giảm giá mua xuống mức hợp lý
+        setPrice("minecraft:raw_iron", 24);
+        setPrice("minecraft:iron_ingot", 32); // AFK 1 rương sắt không còn phá nát nền kinh tế
+        setPrice("minecraft:iron_nugget", 3);
+        setPrice("minecraft:raw_iron_block", 216);
+        setPrice("minecraft:iron_block", 288);
+
+        setPrice("minecraft:raw_gold", 48);
+        setPrice("minecraft:gold_ingot", 64); // Piglin farm
+        setPrice("minecraft:gold_nugget", 7);
+        setPrice("minecraft:raw_gold_block", 432);
+        setPrice("minecraft:gold_block", 576);
+
+        setPrice("minecraft:redstone", 12);
+        setPrice("minecraft:redstone_block", 108);
+        setPrice("minecraft:lapis_lazuli", 24);
+        setPrice("minecraft:lapis_block", 216);
+        setPrice("minecraft:quartz", 32);
+        setPrice("minecraft:quartz_block", 128);
+        setPrice("minecraft:amethyst_shard", 48);
+        setPrice("minecraft:amethyst_block", 192);
+
+        // Tài nguyên giá trị cao & không thể AFK vô hạn
+        setPrice("minecraft:emerald", 128);
+        setPrice("minecraft:emerald_block", 1_152);
+        setPrice("minecraft:diamond", 25_000);
+        setPrice("minecraft:diamond_block", 225_000);
+        setPrice("minecraft:ancient_debris", 60_000);
+        setPrice("minecraft:netherite_scrap", 60_000);
+        setPrice("minecraft:netherite_ingot", 300_000);
+        setPrice("minecraft:netherite_block", 2_700_000);
+        
+        // ==================== MOB VÀ PHẦN THƯỞNG CHIẾN ĐẤU ====================
+        // Mob thường từ Spawner AFK: Giảm mạnh
+        setPrice("minecraft:rotten_flesh", 2);
+        setPrice("minecraft:bone", 4);
+        setPrice("minecraft:bone_meal", 1);
+        setPrice("minecraft:string", 4);
+        setPrice("minecraft:spider_eye", 6);
+        setPrice("minecraft:feather", 2);
+        setPrice("minecraft:leather", 16);
+        setPrice("minecraft:gunpowder", 12);
+        setPrice("minecraft:slime_ball", 20);
+        setPrice("minecraft:slime_block", 180);
+        setPrice("minecraft:magma_cream", 24);
+        setPrice("minecraft:prismarine_shard", 16);
+        setPrice("minecraft:prismarine_crystals", 32);
+        setPrice("minecraft:ender_pearl", 64);
+        setPrice("minecraft:blaze_rod", 256);
+        setPrice("minecraft:blaze_powder", 128);
+        setPrice("minecraft:ghast_tear", 4_096);
+        setPrice("minecraft:nautilus_shell", 8_000);
+        setPrice("minecraft:shulker_shell", 25_000);
+        setPrice("minecraft:breeze_rod", 12_000);
+
+        // Boss & Mini-boss Drops: TĂNG MẠNH
+        setPrice("minecraft:wither_skeleton_skull", 250_000);
+        setPrice("minecraft:nether_star", 2_500_000);
+        setPrice("minecraft:heart_of_the_sea", 1_200_000);
+        setPrice("minecraft:echo_shard", 100_000);
+        setPrice("minecraft:heavy_core", 5_000_000);
+        setPrice("minecraft:dragon_head", 3_000_000);
+        setPrice("minecraft:dragon_egg", 50_000_000);
+        
+        // ==================== CÂY TRỒNG VÀ NÔNG SẢN (Farm tự động) ====================
+        setPrice("minecraft:wheat_seeds", 1);
+        setPrice("minecraft:wheat", 2);
+        setPrice("minecraft:hay_block", 18);
+        setPrice("minecraft:potato", 2);
+        setPrice("minecraft:carrot", 2);
+        setPrice("minecraft:beetroot", 2);
+        setPrice("minecraft:beetroot_seeds", 1);
+        setPrice("minecraft:melon_slice", 1);
+        setPrice("minecraft:melon", 9);
+        setPrice("minecraft:pumpkin", 6);
+        setPrice("minecraft:sugar_cane", 2);
+        setPrice("minecraft:kelp", 1);
+        setPrice("minecraft:dried_kelp", 1);
+        setPrice("minecraft:dried_kelp_block", 9);
+        setPrice("minecraft:sweet_berries", 2);
+        setPrice("minecraft:glow_berries", 4);
+        setPrice("minecraft:cocoa_beans", 3);
+        setPrice("minecraft:cactus", 2);
+        setPrice("minecraft:apple", 12);
+        setPrice("minecraft:beef", 8);
+        setPrice("minecraft:porkchop", 8);
+        setPrice("minecraft:mutton", 8);
+        setPrice("minecraft:chicken", 8);
+        setPrice("minecraft:golden_apple", 20_000);
+        setPrice("minecraft:enchanted_golden_apple", 3_500_000);
+        
+        // ==================== VẬT LIỆU CHẾ TẠO PHỔ BIẾN ====================
+        setPrice("minecraft:glass", 4);
+        setPrice("minecraft:white_wool", 4);
+        setPrice("minecraft:torch", 4);
+        setPrice("minecraft:bone_block", 36);
+        setPrice("minecraft:glowstone_dust", 12);
+        setPrice("minecraft:glowstone", 48);
+        setPrice("minecraft:honeycomb", 8);
+        setPrice("minecraft:honeycomb_block", 32);
+        setPrice("minecraft:honey_block", 48);
+        setPrice("minecraft:resin_clump", 16);
+        setPrice("minecraft:resin_block", 144);
+        setPrice("minecraft:disc_fragment_5", 15_000);
+
+        // ==================== VẬT PHẨM ENDGAME / HIẾM (Tăng mạnh tạo mục tiêu cày cuốc) ====================
+        setPrice("minecraft:enchanted_book", 5_000);
+        setPrice("minecraft:elytra", 8_000_000);
+        setPrice("minecraft:totem_of_undying", 1_500_000);
+        setPrice("minecraft:beacon", 3_500_000);
+        setPrice("minecraft:conduit", 1_800_000);
+        setPrice("minecraft:mace", 6_000_000);
+        setPrice("minecraft:trident", 1_200_000);
+        setPrice("minecraft:sniffer_egg", 800_000);
         
         // Every registered item (including items added by other mods) belongs to the
         // catalogue. Explicit prices above win; everything else receives a sensible
         // fallback price so the "All items" tab is actually complete.
-        for (Item item : Registries.ITEM) {
-            String id = Registries.ITEM.getId(item).toString();
+        for (Item item : BuiltInRegistries.ITEM) {
+            String id = BuiltInRegistries.ITEM.getKey(item).toString();
 
             if (item == Items.AIR) {
                 continue;
@@ -194,6 +213,7 @@ public class VCoinsPricing {
                 prices.put(id, getFallbackPrice(id, category));
             }
         }
+        initialized = true;
     }
     
     public static void calculateRecipes(MinecraftServer server) {
@@ -205,6 +225,7 @@ public class VCoinsPricing {
     }
 
     public static long getPrice(String itemId) {
+        ensureInitialized();
         return prices.getOrDefault(itemId, 0L);
     }
 
@@ -217,14 +238,14 @@ public class VCoinsPricing {
             return 0L;
         }
 
-        String itemId = Registries.ITEM.getId(stack.getItem()).toString();
+        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         long basePrice = getPrice(itemId);
         // Vanilla rarity colors are not a measure of acquisition effort (a
         // craftable golden apple is RARE, for example). Our vanilla catalogue is
         // priced explicitly; the floor remains useful only for unknown mod items.
         if (!itemId.startsWith("minecraft:")) {
             basePrice = Math.max(basePrice,
-                    getRarityFloor(stack.getItem().getDefaultStack().getRarity()));
+                    getRarityFloor(stack.getItem().getDefaultInstance().getRarity()));
         }
         if (basePrice <= 0) {
             return 0L;
@@ -242,7 +263,7 @@ public class VCoinsPricing {
             return 0L;
         }
 
-        String itemId = Registries.ITEM.getId(stack.getItem()).toString();
+        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         return calculateSellPrice(itemId, getDurabilityAdjustedPrice(stack, getPrice(stack)));
     }
 
@@ -251,27 +272,53 @@ public class VCoinsPricing {
             return 0L;
         }
 
-        // Round up so the integer sell price is never lower than two thirds
-        // of the item's buy price. This form also avoids overflowing buyPrice * 2.
-        long regularSellPrice = buyPrice / 3L * 2L + buyPrice % 3L;
-
-        // Smithing templates are rare to discover but cheap to copy after the
-        // first one (seven diamonds plus their catalyst block). Keep their buy
-        // price collectible-worthy while preventing template duplication from
-        // becoming an infinite-money loop.
         String path = itemId.substring(itemId.indexOf(':') + 1);
+
+        // Chống sao chép Smithing Template kiếm tiền vô hạn
         if (path.contains("smithing_template")) {
-            return Math.min(regularSellPrice, 100_000L);
+            return Math.min(buyPrice / 4L, 25_000L);
         }
-        return regularSellPrice;
+
+        // Tỷ lệ thu mua phân tầng (Tiered Sell Margins):
+        // 1. Các tài nguyên siêu dễ AFK farm (đá cuội, cát, đất, cây trồng, mob drop thông thường, sắt, vàng):
+        // Chỉ thu mua ở mức 20% - 25% giá mua để triệt tiêu việc cắm máy AFK làm giàu.
+        if (isEasilyFarmable(path)) {
+            return Math.max(1L, buyPrice / 5L); // 20% giá mua
+        }
+
+        // 2. Các vật phẩm nông sản, thức ăn, gỗ, khối xây dựng cơ bản:
+        ShopCategory category = getCategory(itemId);
+        if (category == ShopCategory.FOOD || category == ShopCategory.NATURAL || category == ShopCategory.BUILDING) {
+            return Math.max(1L, buyPrice / 4L); // 25% giá mua
+        }
+
+        // 3. Các vật phẩm khác (Tools, Combat, Functional, Rare loot): 35% giá mua
+        return Math.max(1L, buyPrice * 35L / 100L);
+    }
+
+    private static boolean isEasilyFarmable(String path) {
+        return containsAny(path,
+                // Cobble / Stone / Dirt gen
+                "cobblestone", "cobbled_deepslate", "dirt", "gravel", "sand", "netherrack", "basalt",
+                // Golem iron farm & Gold piglin farm
+                "iron_ingot", "iron_nugget", "raw_iron", "gold_ingot", "gold_nugget", "raw_gold", "copper_ingot", "raw_copper",
+                // Mob farms (Zombies, Skeletons, Spiders, Creepers, Endermen, Witches, Slimes)
+                "rotten_flesh", "bone", "bone_meal", "string", "spider_eye", "gunpowder", "feather", "arrow",
+                "slime_ball", "magma_cream", "glowstone_dust", "redstone", "sugar", "glass_bottle", "ender_pearl",
+                // Crop / Plant / Tree automated farms
+                "sugar_cane", "bamboo", "cactus", "kelp", "dried_kelp", "melon", "melon_slice", "pumpkin",
+                "wheat", "wheat_seeds", "carrot", "potato", "beetroot", "beetroot_seeds", "sweet_berries", "glow_berries",
+                "cocoa_beans", "nether_wart", "chorus_fruit", "egg", "honey_bottle", "honeycomb",
+                // Wood tree farms & Wool sheep farms
+                "log", "stem", "wood", "hyphae", "planks", "stick", "wool", "carpet");
     }
 
     private static long getDurabilityAdjustedPrice(ItemStack stack, long fullPrice) {
-        if (fullPrice <= 0L || !stack.isDamageable() || stack.getMaxDamage() <= 0) {
+        if (fullPrice <= 0L || !stack.isDamageableItem() || stack.getMaxDamage() <= 0) {
             return fullPrice;
         }
 
-        long remaining = Math.max(0L, (long) stack.getMaxDamage() - stack.getDamage());
+        long remaining = Math.max(0L, (long) stack.getMaxDamage() - stack.getDamageValue());
         // Twenty percent represents the material/enchantment salvage value; the
         // other eighty percent follows remaining durability.
         long durabilityPercent = 20L + remaining * 80L / stack.getMaxDamage();
@@ -308,15 +355,17 @@ public class VCoinsPricing {
     }
 
     public static ShopCategory getCategory(String itemId) {
+        ensureInitialized();
         return categories.getOrDefault(itemId, ShopCategory.ALL);
     }
 
     public static Map<String, Long> getAllPrices() {
+        ensureInitialized();
         return prices;
     }
 
     public static boolean isTradeable(Item item) {
-        return item != Items.AIR && !isCreativeOnly(Registries.ITEM.getId(item).toString());
+        return item != Items.AIR && !isCreativeOnly(BuiltInRegistries.ITEM.getKey(item).toString());
     }
 
     private static long getFallbackPrice(String id, ShopCategory category) {
@@ -328,40 +377,40 @@ public class VCoinsPricing {
             return getSmithingTemplatePrice(path);
         }
         if (path.equals("elytra")) {
-            return 2_000_000L;
+            return 8_000_000L;
         }
         if (path.equals("totem_of_undying")) {
-            return 400_000L;
-        }
-        if (path.equals("beacon")) {
-            return 1_000_000L;
-        }
-        if (path.equals("mace")) {
             return 1_500_000L;
         }
+        if (path.equals("beacon")) {
+            return 3_500_000L;
+        }
+        if (path.equals("mace")) {
+            return 6_000_000L;
+        }
         if (path.equals("trident")) {
-            return 350_000L;
+            return 1_200_000L;
         }
         if (path.equals("dragon_head")) {
-            return 1_000_000L;
+            return 3_000_000L;
         }
         if (path.endsWith("_head") || path.endsWith("_skull")) {
-            return path.equals("wither_skeleton_skull") ? 150_000L : 75_000L;
+            return path.equals("wither_skeleton_skull") ? 250_000L : 75_000L;
         }
         if (path.startsWith("music_disc_")) {
             return getMusicDiscPrice(path);
         }
         if (path.equals("ominous_trial_key")) {
-            return 150_000L;
+            return 250_000L;
         }
         if (path.equals("trial_key")) {
-            return 40_000L;
+            return 60_000L;
         }
         if (path.equals("enchanted_book")) {
-            return 2_000L;
+            return 5_000L;
         }
         if (path.contains("shulker_box")) {
-            return 30_000L;
+            return 75_000L;
         }
 
         long effortPrice = getEquipmentPrice(path);
@@ -412,47 +461,47 @@ public class VCoinsPricing {
         // This final tier is mainly for items added by other mods. Vanilla items
         // are handled by the effort-based families above.
         return switch (category) {
-            case BUILDING, COLORED, NATURAL -> 16L;
-            case FOOD -> 32L;
-            case FUNCTIONAL -> 256L;
-            case REDSTONE -> 192L;
-            case INGREDIENTS -> 64L;
-            case SPAWN_EGGS -> 20_000L;
-            case MISC, ALL, BUYBACK -> 64L;
-            case TOOLS, COMBAT -> 512L;
+            case BUILDING, COLORED, NATURAL -> 8L;
+            case FOOD -> 12L;
+            case FUNCTIONAL -> 128L;
+            case REDSTONE -> 96L;
+            case INGREDIENTS -> 32L;
+            case SPAWN_EGGS -> 50_000L;
+            case MISC, ALL, BUYBACK -> 32L;
+            case TOOLS, COMBAT -> 256L;
         };
     }
 
     private static long getEquipmentPrice(String path) {
         long exactPrice = switch (path) {
-            case "bow" -> 80L;
-            case "crossbow" -> 768L;
-            case "arrow" -> 7L;
-            case "spectral_arrow" -> 32L;
-            case "tipped_arrow" -> 64L;
-            case "shield" -> 336L;
-            case "shears" -> 615L;
-            case "flint_and_steel" -> 322L;
-            case "fishing_rod" -> 48L;
-            case "carrot_on_a_stick", "warped_fungus_on_a_stick" -> 80L;
-            case "brush" -> 96L;
-            case "spyglass" -> 288L;
-            case "compass" -> 1_280L;
-            case "clock" -> 3_744L;
-            case "recovery_compass" -> 241_536L;
-            case "bucket" -> 922L;
-            case "turtle_helmet" -> 6_144L;
-            case "wolf_armor" -> 4_608L;
-            case "leather_horse_armor" -> 384L;
+            case "bow" -> 40L;
+            case "crossbow" -> 160L;
+            case "arrow" -> 2L;
+            case "spectral_arrow" -> 16L;
+            case "tipped_arrow" -> 32L;
+            case "shield" -> 64L;
+            case "shears" -> 70L;
+            case "flint_and_steel" -> 50L;
+            case "fishing_rod" -> 24L;
+            case "carrot_on_a_stick", "warped_fungus_on_a_stick" -> 30L;
+            case "brush" -> 32L;
+            case "spyglass" -> 80L;
+            case "compass" -> 160L;
+            case "clock" -> 320L;
+            case "recovery_compass" -> 800_000L;
+            case "bucket" -> 100L;
+            case "turtle_helmet" -> 8_000L;
+            case "wolf_armor" -> 6_000L;
+            case "leather_horse_armor" -> 150L;
             case "iron_horse_armor" -> 15_000L;
             case "golden_horse_armor" -> 30_000L;
-            case "diamond_horse_armor" -> 120_000L;
-            case "netherite_horse_armor" -> 420_000L;
+            case "diamond_horse_armor" -> 250_000L;
+            case "netherite_horse_armor" -> 1_500_000L;
             case "copper_nautilus_armor" -> 4_000L;
             case "iron_nautilus_armor" -> 15_000L;
             case "golden_nautilus_armor" -> 30_000L;
-            case "diamond_nautilus_armor" -> 120_000L;
-            case "netherite_nautilus_armor" -> 420_000L;
+            case "diamond_nautilus_armor" -> 250_000L;
+            case "netherite_nautilus_armor" -> 1_500_000L;
             default -> 0L;
         };
         if (exactPrice > 0L) {
@@ -467,10 +516,10 @@ public class VCoinsPricing {
         if (path.startsWith("netherite_")) {
             String diamondPath = "diamond_" + path.substring("netherite_".length());
             long diamondItem = getEquipmentPrice(diamondPath);
-            // A copied upgrade template costs seven diamonds plus its catalyst.
-            long reproducibleTemplateCost = 112_128L;
+            // Netherite ingot (300k) + Netherite upgrade template reproduction cost (7 diamonds ~175k + catalyst)
+            long reproducibleTemplateCost = 175_000L;
             return addCraftingEffort(safeAdd(diamondItem,
-                    safeAdd(160_000L, reproducibleTemplateCost)), 10);
+                    safeAdd(300_000L, reproducibleTemplateCost)), 10);
         }
 
         long materialUnitPrice = getEquipmentMaterialUnitPrice(path);
@@ -480,7 +529,7 @@ public class VCoinsPricing {
 
         int stickCount = getEquipmentStickCount(path);
         long ingredients = safeAdd(safeMultiply(materialUnitPrice, materialUnits),
-                safeMultiply(2L, stickCount));
+                safeMultiply(1L, stickCount));
         return addCraftingEffort(ingredients, 20);
     }
 
@@ -507,13 +556,13 @@ public class VCoinsPricing {
     }
 
     private static long getEquipmentMaterialUnitPrice(String path) {
-        if (path.startsWith("wooden_")) return 4L;
-        if (path.startsWith("stone_")) return 4L;
-        if (path.startsWith("copper_")) return 64L;
-        if (path.startsWith("iron_") || path.startsWith("chainmail_")) return 256L;
-        if (path.startsWith("golden_")) return 768L;
-        if (path.startsWith("diamond_")) return 16_000L;
-        if (path.startsWith("leather_")) return 48L;
+        if (path.startsWith("wooden_")) return 1L;
+        if (path.startsWith("stone_")) return 2L;
+        if (path.startsWith("copper_")) return 12L;
+        if (path.startsWith("iron_") || path.startsWith("chainmail_")) return 32L;
+        if (path.startsWith("golden_")) return 64L;
+        if (path.startsWith("diamond_")) return 25_000L;
+        if (path.startsWith("leather_")) return 16L;
         return 0L;
     }
 
@@ -929,26 +978,26 @@ public class VCoinsPricing {
 
     private static long getSmithingTemplatePrice(String path) {
         if (path.contains("silence_armor_trim")) {
-            return 750_000L;
+            return 2_500_000L; // Rơi cực hiếm tại Ancient City (1.2% rương)
         }
         if (path.contains("netherite_upgrade")) {
-            return 250_000L;
+            return 800_000L; // Tìm thấy tại Bastion Remnant
         }
-        if (containsAny(path, "spire_armor_trim", "ward_armor_trim", "rib_armor_trim")) {
-            return 350_000L;
+        if (containsAny(path, "ward_armor_trim", "spire_armor_trim", "rib_armor_trim")) {
+            return 1_200_000L; // Ancient City, End City, Nether Fortress
         }
         if (containsAny(path, "eye_armor_trim", "snout_armor_trim", "vex_armor_trim",
                 "tide_armor_trim", "flow_armor_trim", "bolt_armor_trim")) {
-            return 225_000L;
+            return 600_000L; // Stronghold, Bastion, Woodland Mansion, Ocean Monument, Trial Chamber
         }
-        return 125_000L;
+        return 350_000L;
     }
 
     private static long getMusicDiscPrice(String path) {
         if (containsAny(path, "pigstep", "otherside", "relic", "creator", "precipice")) {
-            return 150_000L;
+            return 450_000L;
         }
-        return 50_000L;
+        return 120_000L;
     }
 
     private static long getRarityFloor(Rarity rarity) {
@@ -980,7 +1029,7 @@ public class VCoinsPricing {
             premium = safeAdd(premium, enchantmentPrice);
         }
 
-        String itemPath = Registries.ITEM.getId(stack.getItem()).getPath();
+        String itemPath = BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath();
         if (itemPath.endsWith("enchanted_book")) {
             // Books are directly reusable upgrade materials, so their enchantment
             // value is higher than the same enchantments already bound to an item.
@@ -1000,16 +1049,16 @@ public class VCoinsPricing {
         }
 
         return switch (path) {
-            case "mending" -> 120_000L;
-            case "wind_burst" -> 100_000L;
-            case "swift_sneak" -> 60_000L;
-            case "soul_speed" -> 50_000L;
-            case "silk_touch", "infinity", "channeling" -> 40_000L;
+            case "mending" -> 350_000L;
+            case "wind_burst" -> 400_000L;
+            case "swift_sneak" -> 250_000L;
+            case "soul_speed" -> 150_000L;
+            case "silk_touch", "infinity", "channeling" -> 80_000L;
             default -> {
-                if (weight >= 10) yield 4_000L;
-                if (weight >= 5) yield 8_000L;
-                if (weight >= 2) yield 20_000L;
-                yield 40_000L;
+                if (weight >= 10) yield 8_000L;
+                if (weight >= 5) yield 20_000L;
+                if (weight >= 2) yield 50_000L;
+                yield 100_000L;
             }
         };
     }
@@ -1022,14 +1071,14 @@ public class VCoinsPricing {
 
         collectEnchantments(values, stack.getEnchantments());
         collectEnchantments(values, stack.getOrDefault(
-                DataComponentTypes.STORED_ENCHANTMENTS, ItemEnchantmentsComponent.DEFAULT));
+                DataComponents.STORED_ENCHANTMENTS, ItemEnchantments.EMPTY));
         return values;
     }
 
     private static void collectEnchantments(Map<String, EnchantmentValue> values,
-                                            ItemEnchantmentsComponent component) {
-        for (RegistryEntry<Enchantment> enchantment : component.getEnchantments()) {
-            String id = enchantment.getIdAsString();
+                                            ItemEnchantments component) {
+        for (Holder<Enchantment> enchantment : component.keySet()) {
+            String id = enchantment.getRegisteredName();
             int level = component.getLevel(enchantment);
             EnchantmentValue previous = values.get(id);
             if (previous == null || level > previous.level()) {
@@ -1058,7 +1107,7 @@ public class VCoinsPricing {
         return left > Long.MAX_VALUE - right ? Long.MAX_VALUE : left + right;
     }
 
-    private record EnchantmentValue(RegistryEntry<Enchantment> enchantment, int level) {
+    private record EnchantmentValue(Holder<Enchantment> enchantment, int level) {
     }
 
     public static boolean matchesCategory(Item item, ShopCategory category) {
@@ -1066,7 +1115,7 @@ public class VCoinsPricing {
             return item != Items.AIR;
         }
 
-        String id = Registries.ITEM.getId(item).getPath().toLowerCase(Locale.ROOT);
+        String id = BuiltInRegistries.ITEM.getKey(item).getPath().toLowerCase(Locale.ROOT);
         ShopCategory primary = getCategoryForItem(item);
 
         if (category == ShopCategory.BUILDING) {
@@ -1086,7 +1135,7 @@ public class VCoinsPricing {
     }
 
     private static ShopCategory getCategoryForItem(Item item) {
-        String id = Registries.ITEM.getId(item).getPath().toLowerCase(Locale.ROOT);
+        String id = BuiltInRegistries.ITEM.getKey(item).getPath().toLowerCase(Locale.ROOT);
 
         if (id.endsWith("_spawn_egg")) {
             return ShopCategory.SPAWN_EGGS;
@@ -1101,7 +1150,7 @@ public class VCoinsPricing {
                 || id.contains("brush") || id.contains("spyglass") || id.contains("compass") || id.contains("clock")) {
             return ShopCategory.TOOLS;
         }
-        if (item.getComponents().contains(DataComponentTypes.FOOD) || id.contains("potion")) {
+        if (isFood(item, id)) {
             return ShopCategory.FOOD;
         }
         if (isRedstoneItem(id)) {
@@ -1117,6 +1166,24 @@ public class VCoinsPricing {
             return ShopCategory.INGREDIENTS;
         }
         return ShopCategory.MISC;
+    }
+
+    private static boolean isFood(Item item, String id) {
+        if (id.contains("potion") || id.contains("stew") || id.contains("soup") || id.contains("bottle")
+                || id.contains("apple") || id.contains("bread") || id.contains("beef") || id.contains("porkchop")
+                || id.contains("mutton") || id.contains("chicken") || id.contains("rabbit") || id.contains("fish")
+                || id.contains("salmon") || id.contains("cod") || id.contains("berry") || id.contains("berries")
+                || id.contains("carrot") || id.contains("potato") || id.contains("beetroot") || id.contains("melon")
+                || id.contains("pie") || id.contains("cake") || id.contains("cookie") || id.contains("meat")) {
+            return true;
+        }
+        try {
+            if (item.builtInRegistryHolder().areComponentsBound()) {
+                return item.components().has(DataComponents.FOOD);
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
     }
 
     private static boolean isRedstoneItem(String id) {

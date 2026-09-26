@@ -4,13 +4,13 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
-import net.minecraft.screen.ScreenHandlerType;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.inventory.MenuType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -19,13 +19,13 @@ public class VCoinsMod implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger("vcoins");
     public static final String MOD_ID = "vcoins";
 
-    public static final ScreenHandlerType<VTradeScreenHandler> VTRADE_SCREEN_HANDLER = Registry.register(
-            Registries.SCREEN_HANDLER, Identifier.of(MOD_ID, "vtrade"),
-            new ScreenHandlerType<>(VTradeScreenHandler::new, net.minecraft.resource.featuretoggle.FeatureFlags.VANILLA_FEATURES)
+    public static final MenuType<VTradeScreenHandler> VTRADE_SCREEN_HANDLER = Registry.register(
+            BuiltInRegistries.MENU, Identifier.fromNamespaceAndPath(MOD_ID, "vtrade"),
+            new MenuType<>(VTradeScreenHandler::new, net.minecraft.world.flag.FeatureFlags.VANILLA_SET)
     );
-    public static final ScreenHandlerType<VDuplicateScreenHandler> VDUPLICATE_SCREEN_HANDLER = Registry.register(
-            Registries.SCREEN_HANDLER, Identifier.of(MOD_ID, "vduplicate"),
-            new ScreenHandlerType<>(VDuplicateScreenHandler::new, net.minecraft.resource.featuretoggle.FeatureFlags.VANILLA_FEATURES)
+    public static final MenuType<VDuplicateScreenHandler> VDUPLICATE_SCREEN_HANDLER = Registry.register(
+            BuiltInRegistries.MENU, Identifier.fromNamespaceAndPath(MOD_ID, "vduplicate"),
+            new MenuType<>(VDuplicateScreenHandler::new, net.minecraft.world.flag.FeatureFlags.VANILLA_SET)
     );
 
     @Override
@@ -33,12 +33,12 @@ public class VCoinsMod implements ModInitializer {
         LOGGER.info("Initializing Veloria: Trading & Creation...");
 
         // Register custom payload for shop actions
-        PayloadTypeRegistry.playC2S().register(ShopActionPayload.ID, ShopActionPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(ShopTransactionPayload.ID, ShopTransactionPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ShopActionPayload.ID, ShopActionPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(ShopTransactionPayload.ID, ShopTransactionPayload.CODEC);
         
         ServerPlayNetworking.registerGlobalReceiver(ShopActionPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
-                if (context.player().currentScreenHandler instanceof VTradeScreenHandler shop) {
+                if (context.player().containerMenu instanceof VTradeScreenHandler shop) {
                     if (payload.action().equals("SCROLL")) {
                         try {
                             shop.setScrollOffset(Integer.parseInt(payload.data()));
@@ -58,59 +58,60 @@ public class VCoinsMod implements ModInitializer {
 
         ServerPlayNetworking.registerGlobalReceiver(ShopTransactionPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
-                if (context.player().currentScreenHandler instanceof VTradeScreenHandler shop) {
+                if (context.player().containerMenu instanceof VTradeScreenHandler shop) {
                     shop.handleTransaction(context.player(), payload.slotIndex(), payload.buyStack());
                 }
             });
         });
 
         // Register custom payload for opening shop
-        PayloadTypeRegistry.playC2S().register(OpenShopPayload.ID, OpenShopPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(OpenShopPayload.ID, OpenShopPayload.CODEC);
         
         ServerPlayNetworking.registerGlobalReceiver(OpenShopPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
-                context.player().openHandledScreen(new net.minecraft.screen.SimpleNamedScreenHandlerFactory(
+                context.player().openMenu(new net.minecraft.world.SimpleMenuProvider(
                         (syncId, inv, p) -> new VTradeScreenHandler(syncId, inv),
-                        Text.translatable("vcoins.title")
+                        Component.translatable("vcoins.title")
                 ));
-                context.player().playSound(SoundEvents.BLOCK_CHEST_OPEN, 0.65f, 1.1f);
+                context.player().playSound(SoundEvents.CHEST_OPEN, 0.65f, 1.1f);
                 syncCoins(context.player());
             });
         });
 
-        PayloadTypeRegistry.playC2S().register(OpenDuplicatePayload.ID, OpenDuplicatePayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(OpenDuplicatePayload.ID, OpenDuplicatePayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(OpenDuplicatePayload.ID, (payload, context) -> {
             context.server().execute(() -> {
-                if (!(context.player().currentScreenHandler instanceof VTradeScreenHandler)) {
+                if (!(context.player().containerMenu instanceof VTradeScreenHandler)) {
                     return;
                 }
-                context.player().openHandledScreen(new net.minecraft.screen.SimpleNamedScreenHandlerFactory(
+                context.player().openMenu(new net.minecraft.world.SimpleMenuProvider(
                         (syncId, inv, player) -> new VDuplicateScreenHandler(syncId, inv),
-                        Text.translatable("vcoins.duplicate.title")
+                        Component.translatable("vcoins.duplicate.title")
                 ));
                 syncCoins(context.player());
             });
         });
 
         // Register Payloads
-        PayloadTypeRegistry.playS2C().register(VCoinsSyncPayload.ID, VCoinsSyncPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(VCoinsSyncPayload.ID, VCoinsSyncPayload.CODEC);
 
         // Register commands
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             VCoinsCommands.register(dispatcher);
         });
 
-        // Initialize Pricing Engine
-        VCoinsPricing.init();
+        // Initialize Pricing Engine on server start or on demand
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            VCoinsPricing.ensureInitialized();
             VCoinsPricing.calculateRecipes(server);
         });
         
         VCoinsState.registerEvents();
+        VBlackMarket.registerEvents();
     }
 
-    public static void syncCoins(ServerPlayerEntity player) {
-        long coins = VCoinsState.getCoins(player.getUuid());
+    public static void syncCoins(ServerPlayer player) {
+        long coins = VCoinsState.getCoins(player.getUUID());
         ServerPlayNetworking.send(player, new VCoinsSyncPayload(coins));
     }
 }

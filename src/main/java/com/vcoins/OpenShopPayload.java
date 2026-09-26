@@ -1,16 +1,16 @@
 package com.vcoins;
 
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.Identifier;
 
-public record OpenShopPayload() implements CustomPayload {
-    public static final CustomPayload.Id<OpenShopPayload> ID = new CustomPayload.Id<>(Identifier.of("vcoins", "open_shop"));
-    public static final PacketCodec<RegistryByteBuf, OpenShopPayload> CODEC = PacketCodec.unit(new OpenShopPayload());
+public record OpenShopPayload() implements CustomPacketPayload {
+    public static final CustomPacketPayload.Type<OpenShopPayload> ID = new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("vcoins", "open_shop"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, OpenShopPayload> CODEC = StreamCodec.unit(new OpenShopPayload());
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }

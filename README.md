@@ -1,8 +1,8 @@
 # Veloria: Trading & Creation
 
 [![Build](https://github.com/rainaku/Veloria--Trading-Creation/actions/workflows/build.yml/badge.svg)](https://github.com/rainaku/Veloria--Trading-Creation/actions/workflows/build.yml)
-![Minecraft 1.21.11](https://img.shields.io/badge/Minecraft-1.21.11-62b47a)
-![Java 21](https://img.shields.io/badge/Java-21-e76f00)
+![Minecraft 26.3](https://img.shields.io/badge/Minecraft-26.3-62b47a)
+![Java 25](https://img.shields.io/badge/Java-25-e76f00)
 [![License: CC0 1.0](https://img.shields.io/badge/License-CC0%201.0-lightgrey.svg)](LICENSE)
 
 Veloria is a Fabric economy mod for Minecraft. It adds a searchable item market, the Velicoin currency, buyback, and high-cost item duplication through an interface designed to feel at home in vanilla Minecraft.
@@ -24,16 +24,16 @@ Veloria is a Fabric economy mod for Minecraft. It adds a searchable item market,
 
 | Dependency | Supported version |
 | --- | --- |
-| Minecraft | 1.21.11 |
-| Fabric Loader | 0.19.3 or newer |
-| Fabric API | 0.141.4+1.21.11 or compatible |
-| Java | 21 or newer |
+| Minecraft | 26.3 |
+| Fabric Loader | 0.19.5 or newer |
+| Fabric API | 0.161.0+26.3 or compatible |
+| Java | 25 or newer |
 
 Veloria must be installed on the server and on every connecting client.
 
 ## Installation
 
-1. Install [Fabric Loader](https://fabricmc.net/use/installer/) for Minecraft 1.21.11.
+1. Install [Fabric Loader](https://fabricmc.net/use/installer/) for Minecraft 26.3.
 2. Download and install [Fabric API](https://modrinth.com/mod/fabric-api).
 3. Place the Veloria JAR in the `mods` folder on both the client and server.
 4. Start Minecraft and configure the **Veloria** keybind if desired.
@@ -74,7 +74,7 @@ Duplication starts at **500,000 Velicoins and 30 XP levels**. Rare items, enchan
 
 ## Building from source
 
-Install JDK 21, clone the repository, and run:
+Install JDK 25, clone the repository, and run:
 
 ```bash
 ./gradlew build

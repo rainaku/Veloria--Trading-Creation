@@ -13,5 +13,6 @@ public enum ShopCategory {
     INGREDIENTS,
     SPAWN_EGGS,
     MISC,
+    BLACK_MARKET,
     BUYBACK
 }
