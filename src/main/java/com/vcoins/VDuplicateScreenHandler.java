@@ -189,7 +189,7 @@ public class VDuplicateScreenHandler extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        return true;
+        return player != null && !player.isRemoved() && player.isAlive();
     }
 
     private static String formatNumber(long value) {

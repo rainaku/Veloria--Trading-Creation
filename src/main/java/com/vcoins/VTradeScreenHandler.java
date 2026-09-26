@@ -1,6 +1,7 @@
 package com.vcoins;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -16,6 +17,9 @@ import net.minecraft.util.Prediction;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.core.Holder;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
@@ -33,11 +37,11 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
     public static final int SHOP_ROWS = 5;
     public static final int SHOP_SLOT_COUNT = SHOP_COLUMNS * SHOP_ROWS;
 
-    private static final int SHOP_X = 9;
-    private static final int SHOP_Y = 34;
-    private static final int PLAYER_X = 9;
-    private static final int PLAYER_INVENTORY_Y = 143;
-    private static final int PLAYER_HOTBAR_Y = 201;
+    public static final int SHOP_X = 22;
+    public static final int SHOP_Y = 38;
+    public static final int PLAYER_X = 22;
+    public static final int PLAYER_INVENTORY_Y = 166;
+    public static final int PLAYER_HOTBAR_Y = 224;
     private static final int MAX_BUYBACK_ENTRIES = SHOP_SLOT_COUNT;
 
     private static final Map<UUID, LinkedList<ItemStack>> BUYBACK = new ConcurrentHashMap<>();
@@ -151,35 +155,31 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
     }
 
     private List<ItemStack> getFilteredItems() {
-        List<ItemStack> items = new ArrayList<>();
-
         if (currentCategory == ShopCategory.BUYBACK) {
-            for (ItemStack stack : BUYBACK.getOrDefault(player.getUUID(), new LinkedList<>())) {
-                if (matchesSearch(stack)) {
-                    items.add(stack.copy());
-                }
-            }
-            return items;
+            return filterList(BUYBACK.getOrDefault(player.getUUID(), new LinkedList<>()));
         }
-
         if (currentCategory == ShopCategory.BLACK_MARKET) {
-            for (ItemStack stack : VBlackMarket.getDailyItems()) {
-                if (matchesSearch(stack)) {
-                    items.add(stack.copy());
-                }
-            }
-            return items;
+            return filterList(VBlackMarket.getDailyItems());
         }
 
+        List<ItemStack> items = new ArrayList<>();
         for (ItemStack creativeStack : creativeCatalog) {
             Item item = creativeStack.getItem();
-            if (!VCoinsPricing.isTradeable(item) || !VCoinsPricing.matchesCategory(item, currentCategory) || !matchesSearch(creativeStack)) {
-                continue;
+            if (VCoinsPricing.isTradeable(item) && VCoinsPricing.matchesCategory(item, currentCategory) && matchesSearch(creativeStack)) {
+                items.add(creativeStack.copy());
             }
-            items.add(creativeStack.copy());
         }
-
         return items;
+    }
+
+    private List<ItemStack> filterList(Collection<ItemStack> source) {
+        List<ItemStack> filtered = new ArrayList<>();
+        for (ItemStack stack : source) {
+            if (matchesSearch(stack)) {
+                filtered.add(stack.copy());
+            }
+        }
+        return filtered;
     }
 
     private List<ItemStack> buildCreativeCatalog() {
@@ -253,7 +253,7 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
     }
 
     public void handleTransaction(ServerPlayer player, int slotIndex, boolean buyStack) {
-        if (player != this.player || slotIndex < 0 || slotIndex >= SHOP_SLOT_COUNT) {
+        if (player != this.player || slotIndex < 0 || slotIndex >= SHOP_SLOT_COUNT || !player.isAlive() || player.isRemoved()) {
             return;
         }
 
@@ -267,52 +267,96 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
     }
 
     private void sellCursorStack(Player player, ItemStack cursorStack) {
+        if (cursorStack.isEmpty() || cursorStack.getCount() <= 0) {
+            return;
+        }
+
         long unitPrice = getSellPrice(cursorStack);
         if (unitPrice <= 0) {
             rejectTrade(player);
             return;
         }
 
-        long total = safeMultiply(unitPrice, cursorStack.getCount());
+        String cursorItemId = BuiltInRegistries.ITEM.getKey(cursorStack.getItem()).toString();
+        int count = cursorStack.getCount();
+        long total = safeMultiply(unitPrice, count);
         VCoinsState.addCoins(player.getUUID(), total);
         VCoinsMod.syncCoins((ServerPlayer) player);
-        addBuyback(player, cursorStack);
+        addBuyback(player, cursorStack.copy());
         this.setCarried(ItemStack.EMPTY);
-        player.playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
+        VMarketEngine.recordSell(cursorItemId, count);
+        if (player.level().getServer() != null) {
+            VMarketEngine.syncToActiveShoppers(player.level().getServer());
+        }
+        sendSoundToPlayer((ServerPlayer) player, SoundEvents.EXPERIENCE_ORB_PICKUP, 0.85f, 1.2f);
+        sendSoundToPlayer((ServerPlayer) player, SoundEvents.BUNDLE_DROP_CONTENTS, 0.6f, 1.3f);
         player.sendOverlayMessage(Component.translatable("vcoins.message.sell_success",
-                cursorStack.getCount(), cursorStack.getHoverName(), formatNumber(total)).withStyle(ChatFormatting.GREEN));
+                count, cursorStack.getHoverName(), formatNumber(total)).withStyle(ChatFormatting.GREEN));
         updateShopItems();
     }
 
     private void buyFromShop(Player player, int slotIndex, boolean buyStack) {
+        if (currentCategory == ShopCategory.BUYBACK) {
+            LinkedList<ItemStack> history = BUYBACK.get(player.getUUID());
+            if (history == null) {
+                return;
+            }
+
+            ItemStack targetHistoryStack = null;
+            synchronized (history) {
+                int targetIndex = this.scrollOffset * SHOP_COLUMNS + slotIndex;
+                int visibleIndex = 0;
+                var iterator = history.iterator();
+                while (iterator.hasNext()) {
+                    ItemStack candidate = iterator.next();
+                    if (matchesSearch(candidate)) {
+                        if (visibleIndex == targetIndex) {
+                            targetHistoryStack = candidate;
+                            iterator.remove(); // Atomically pop to prevent duplicate buyback exploits
+                            break;
+                        }
+                        visibleIndex++;
+                    }
+                }
+            }
+
+            if (targetHistoryStack == null || targetHistoryStack.isEmpty() || targetHistoryStack.getCount() <= 0) {
+                updateShopItems();
+                return;
+            }
+
+            long unitPrice = getBuybackPrice(targetHistoryStack);
+            if (unitPrice <= 0) {
+                synchronized (history) {
+                    history.addFirst(targetHistoryStack);
+                }
+                return;
+            }
+
+            long total = safeMultiply(unitPrice, targetHistoryStack.getCount());
+            if (!tryCharge(player, total)) {
+                // Restore item back into history if charge fails
+                synchronized (history) {
+                    history.addFirst(targetHistoryStack);
+                }
+                return;
+            }
+
+            player.getInventory().placeItemBackInInventory(targetHistoryStack.copy(), Prediction.SERVER_ONLY);
+            sendSoundToPlayer((ServerPlayer) player, SoundEvents.ITEM_PICKUP, 0.9f, 1.15f);
+            sendSoundToPlayer((ServerPlayer) player, SoundEvents.NOTE_BLOCK_CHIME, 0.5f, 1.6f);
+            player.sendOverlayMessage(Component.translatable("vcoins.message.buyback_success",
+                    targetHistoryStack.getCount(), targetHistoryStack.getHoverName(), formatNumber(total)).withStyle(ChatFormatting.GREEN));
+            updateShopItems();
+            return;
+        }
+
         Slot slot = this.slots.get(slotIndex);
         if (slot == null || !slot.hasItem()) {
             return;
         }
 
         ItemStack displayedStack = slot.getItem();
-        if (currentCategory == ShopCategory.BUYBACK) {
-            long unitPrice = getBuybackPrice(displayedStack);
-            if (unitPrice <= 0) {
-                return;
-            }
-            long total = safeMultiply(unitPrice, displayedStack.getCount());
-            if (!tryCharge(player, total)) {
-                return;
-            }
-
-            player.getInventory().placeItemBackInInventory(displayedStack.copy(), Prediction.SERVER_ONLY);
-            LinkedList<ItemStack> history = BUYBACK.get(player.getUUID());
-            if (history != null) {
-                removeVisibleBuybackEntry(history, slotIndex);
-            }
-            player.playSound(SoundEvents.ITEM_PICKUP, 1.0f, 1.0f);
-            player.sendOverlayMessage(Component.translatable("vcoins.message.buyback_success",
-                    displayedStack.getCount(), displayedStack.getHoverName(), formatNumber(total)).withStyle(ChatFormatting.GREEN));
-            updateShopItems();
-            return;
-        }
-
         long unitPrice = getBuyPrice(displayedStack);
         if (unitPrice <= 0) {
             return;
@@ -320,8 +364,12 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
 
         String itemId = BuiltInRegistries.ITEM.getKey(displayedStack.getItem()).toString();
         boolean isTool = VCoinsPricing.getCategory(itemId) == ShopCategory.TOOLS;
-        int requestedAmount = buyStack && !isTool ? displayedStack.getMaxStackSize() : 1;
-        int amount = Math.max(1, Math.min(requestedAmount, displayedStack.getMaxStackSize()));
+        int maxAllowed = displayedStack.getMaxStackSize();
+        if (maxAllowed <= 0) {
+            maxAllowed = 1;
+        }
+        int requestedAmount = buyStack && !isTool ? maxAllowed : 1;
+        int amount = Math.max(1, Math.min(requestedAmount, maxAllowed));
         long total = safeMultiply(unitPrice, amount);
         if (!tryCharge(player, total)) {
             return;
@@ -330,33 +378,22 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
         ItemStack purchased = displayedStack.copy();
         purchased.setCount(amount);
         player.getInventory().placeItemBackInInventory(purchased, Prediction.SERVER_ONLY);
-        player.playSound(SoundEvents.ITEM_PICKUP, 1.0f, 1.0f);
+        VMarketEngine.recordBuy(itemId, amount);
+        if (player.level().getServer() != null) {
+            VMarketEngine.syncToActiveShoppers(player.level().getServer());
+        }
+        sendSoundToPlayer((ServerPlayer) player, SoundEvents.ITEM_PICKUP, 0.9f, 1.25f);
+        sendSoundToPlayer((ServerPlayer) player, SoundEvents.NOTE_BLOCK_CHIME, 0.6f, 1.75f);
         player.sendOverlayMessage(Component.translatable("vcoins.message.buy_success",
                 amount, displayedStack.getHoverName(), formatNumber(total)).withStyle(ChatFormatting.GREEN));
         updateShopItems();
-    }
-
-    private void removeVisibleBuybackEntry(LinkedList<ItemStack> history, int visibleIndex) {
-        int currentVisibleIndex = 0;
-        var iterator = history.iterator();
-        while (iterator.hasNext()) {
-            ItemStack historyStack = iterator.next();
-            if (!matchesSearch(historyStack)) {
-                continue;
-            }
-            if (currentVisibleIndex == visibleIndex) {
-                iterator.remove();
-                return;
-            }
-            currentVisibleIndex++;
-        }
     }
 
     private boolean tryCharge(Player player, long amount) {
         if (amount <= 0 || VCoinsState.getCoins(player.getUUID()) < amount) {
             player.sendOverlayMessage(Component.translatable("vcoins.message.not_enough",
                     formatNumber(amount), formatNumber(VCoinsState.getCoins(player.getUUID()))).withStyle(ChatFormatting.RED));
-            player.playSound(SoundEvents.VILLAGER_NO, 0.9f, 1.0f);
+            sendSoundToPlayer((ServerPlayer) player, SoundEvents.VILLAGER_NO, 1.0f, 1.0f);
             return false;
         }
         VCoinsState.removeCoins(player.getUUID(), amount);
@@ -370,34 +407,50 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
         }
 
         Slot slot = this.slots.get(slotIndex);
-        if (!slot.hasItem()) {
+        if (slot == null || !slot.hasItem()) {
             return;
         }
 
         ItemStack stack = slot.getItem();
+        if (stack.isEmpty() || stack.getCount() <= 0) {
+            return;
+        }
+
         long unitPrice = getSellPrice(stack);
         if (unitPrice <= 0) {
             rejectTrade(player);
             return;
         }
 
-        long total = safeMultiply(unitPrice, stack.getCount());
+        String soldItemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        int count = stack.getCount();
+        long total = safeMultiply(unitPrice, count);
         VCoinsState.addCoins(player.getUUID(), total);
         VCoinsMod.syncCoins((ServerPlayer) player);
-        addBuyback(player, stack);
+        addBuyback(player, stack.copy());
         slot.setByPlayer(ItemStack.EMPTY);
-        player.playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
+        VMarketEngine.recordSell(soldItemId, count);
+        if (player.level().getServer() != null) {
+            VMarketEngine.syncToActiveShoppers(player.level().getServer());
+        }
+        sendSoundToPlayer((ServerPlayer) player, SoundEvents.EXPERIENCE_ORB_PICKUP, 0.85f, 1.2f);
+        sendSoundToPlayer((ServerPlayer) player, SoundEvents.BUNDLE_DROP_CONTENTS, 0.6f, 1.3f);
         player.sendOverlayMessage(Component.translatable("vcoins.message.sell_success",
-                stack.getCount(), stack.getHoverName(), formatNumber(total)).withStyle(ChatFormatting.GREEN));
+                count, stack.getHoverName(), formatNumber(total)).withStyle(ChatFormatting.GREEN));
         updateShopItems();
     }
 
     private static void rejectTrade(Player player) {
         player.sendOverlayMessage(Component.translatable("vcoins.message.cannot_trade").withStyle(ChatFormatting.RED));
-        player.playSound(SoundEvents.VILLAGER_NO, 0.9f, 1.0f);
+        if (player instanceof ServerPlayer serverPlayer) {
+            sendSoundToPlayer(serverPlayer, SoundEvents.VILLAGER_NO, 1.0f, 1.0f);
+        }
     }
 
     private static long safeMultiply(long price, int count) {
+        if (price <= 0 || count <= 0) {
+            return 0L;
+        }
         try {
             return Math.multiplyExact(price, (long) count);
         } catch (ArithmeticException ignored) {
@@ -416,18 +469,18 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        return true;
+        return player != null && !player.isRemoved() && player.isAlive();
     }
 
     public void sellAll() {
-        if (player.level().isClientSide()) {
+        if (player.level().isClientSide() || !player.isAlive() || player.isRemoved()) {
             return;
         }
 
         long totalEarned = 0;
         for (int inventorySlot = 0; inventorySlot < 36; inventorySlot++) {
             ItemStack stack = playerInventory.getItem(inventorySlot);
-            if (stack.isEmpty()) {
+            if (stack.isEmpty() || stack.getCount() <= 0) {
                 continue;
             }
 
@@ -436,17 +489,49 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
                 continue;
             }
 
-            long stackValue = safeMultiply(unitPrice, stack.getCount());
+            int count = stack.getCount();
+            String soldItemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+            VMarketEngine.recordSell(soldItemId, count);
+            long stackValue = safeMultiply(unitPrice, count);
             totalEarned = totalEarned > Long.MAX_VALUE - stackValue ? Long.MAX_VALUE : totalEarned + stackValue;
-            addBuyback(player, stack);
+            addBuyback(player, stack.copy());
             playerInventory.setItem(inventorySlot, ItemStack.EMPTY);
         }
 
         if (totalEarned > 0) {
             VCoinsState.addCoins(player.getUUID(), totalEarned);
             VCoinsMod.syncCoins((ServerPlayer) player);
-            player.playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
+            if (player.level().getServer() != null) {
+                VMarketEngine.syncToActiveShoppers(player.level().getServer());
+            }
+            sendSoundToPlayer((ServerPlayer) player, SoundEvents.EXPERIENCE_ORB_PICKUP, 0.9f, 1.2f);
+            sendSoundToPlayer((ServerPlayer) player, SoundEvents.BUNDLE_DROP_CONTENTS, 0.7f, 1.25f);
             updateShopItems();
+        } else {
+            sendSoundToPlayer((ServerPlayer) player, SoundEvents.VILLAGER_NO, 1.0f, 1.0f);
         }
+    }
+
+    public static void sendSoundToPlayer(ServerPlayer player, net.minecraft.sounds.SoundEvent sound, float volume, float pitch) {
+        if (player == null || sound == null) {
+            return;
+        }
+        net.minecraft.core.Holder<net.minecraft.sounds.SoundEvent> holder = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.wrapAsHolder(sound);
+        player.connection.send(new ClientboundSoundPacket(
+                holder, SoundSource.PLAYERS,
+                player.getX(), player.getY(), player.getZ(),
+                volume, pitch, player.getRandom().nextLong()
+        ));
+    }
+
+    public static void sendSoundToPlayer(ServerPlayer player, net.minecraft.core.Holder<net.minecraft.sounds.SoundEvent> soundHolder, float volume, float pitch) {
+        if (player == null || soundHolder == null) {
+            return;
+        }
+        player.connection.send(new ClientboundSoundPacket(
+                soundHolder, SoundSource.PLAYERS,
+                player.getX(), player.getY(), player.getZ(),
+                volume, pitch, player.getRandom().nextLong()
+        ));
     }
 }

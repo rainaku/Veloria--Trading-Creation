@@ -27,31 +27,59 @@ public class VCoinsMod implements ModInitializer {
             BuiltInRegistries.MENU, Identifier.fromNamespaceAndPath(MOD_ID, "vduplicate"),
             new MenuType<>(VDuplicateScreenHandler::new, net.minecraft.world.flag.FeatureFlags.VANILLA_SET)
     );
+    public static final MenuType<VBlackMarketScreenHandler> VBLACK_MARKET_SCREEN_HANDLER = Registry.register(
+            BuiltInRegistries.MENU, Identifier.fromNamespaceAndPath(MOD_ID, "vblack_market"),
+            new MenuType<>(VBlackMarketScreenHandler::new, net.minecraft.world.flag.FeatureFlags.VANILLA_SET)
+    );
 
     @Override
     public void onInitialize() {
         LOGGER.info("Initializing Veloria: Trading & Creation...");
 
-        // Register custom payload for shop actions
+        registerActionNetworking();
+        registerMenuNetworking();
+
+        // Register Payloads
+        PayloadTypeRegistry.clientboundPlay().register(VCoinsSyncPayload.ID, VCoinsSyncPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(BlackMarketSyncPayload.ID, BlackMarketSyncPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(MarketSyncPayload.ID, MarketSyncPayload.CODEC);
+
+        // Register commands
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+            VCoinsCommands.register(dispatcher);
+        });
+
+        // Initialize Pricing Engine on server start or on demand
+        ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            VCoinsPricing.ensureInitialized();
+            VCoinsPricing.calculateRecipes(server);
+            VMarketEngine.load(server);
+        });
+
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            VMarketEngine.save(server);
+        });
+
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
+            if (server.getTickCount() % 100 == 0) {
+                VMarketEngine.tick(server);
+            }
+        });
+        
+        VCoinsState.registerEvents();
+        VBlackMarket.registerEvents();
+    }
+
+    private static void registerActionNetworking() {
         PayloadTypeRegistry.serverboundPlay().register(ShopActionPayload.ID, ShopActionPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(ShopTransactionPayload.ID, ShopTransactionPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(BlackMarketBuyPayload.ID, BlackMarketBuyPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(BlackMarketRevealPayload.ID, BlackMarketRevealPayload.CODEC);
         
         ServerPlayNetworking.registerGlobalReceiver(ShopActionPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
                 if (context.player().containerMenu instanceof VTradeScreenHandler shop) {
-                    if (payload.action().equals("SCROLL")) {
-                        try {
-                            shop.setScrollOffset(Integer.parseInt(payload.data()));
-                        } catch (Exception ignored) {}
-                    } else if (payload.action().equals("TAB")) {
-                        try {
-                            shop.setCategory(ShopCategory.valueOf(payload.data()));
-                        } catch (Exception ignored) {}
-                    } else if (payload.action().equals("SEARCH")) {
-                        shop.setSearchQuery(payload.data());
-                    } else if (payload.action().equals("SELL_ALL")) {
-                        shop.sellAll();
-                    }
+                    handleShopAction(shop, payload.action(), payload.data());
                 }
             });
         });
@@ -64,9 +92,43 @@ public class VCoinsMod implements ModInitializer {
             });
         });
 
-        // Register custom payload for opening shop
+        ServerPlayNetworking.registerGlobalReceiver(BlackMarketBuyPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                if (context.player().containerMenu instanceof VBlackMarketScreenHandler market) {
+                    market.handlePurchase(context.player(), payload.slotIndex(), payload.buyStack());
+                }
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(BlackMarketRevealPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                VBlackMarket.revealCard(context.player().getUUID(), payload.slotIndex());
+                if (context.server() != null) {
+                    VBlackMarket.save(context.server());
+                }
+                VBlackMarket.syncToPlayer(context.player());
+            });
+        });
+    }
+
+    private static void handleShopAction(VTradeScreenHandler shop, String action, String data) {
+        if ("SCROLL".equals(action)) {
+            try {
+                shop.setScrollOffset(Integer.parseInt(data));
+            } catch (Exception ignored) {}
+        } else if ("TAB".equals(action)) {
+            try {
+                shop.setCategory(ShopCategory.valueOf(data));
+            } catch (Exception ignored) {}
+        } else if ("SEARCH".equals(action)) {
+            shop.setSearchQuery(data);
+        } else if ("SELL_ALL".equals(action)) {
+            shop.sellAll();
+        }
+    }
+
+    private static void registerMenuNetworking() {
         PayloadTypeRegistry.serverboundPlay().register(OpenShopPayload.ID, OpenShopPayload.CODEC);
-        
         ServerPlayNetworking.registerGlobalReceiver(OpenShopPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
                 context.player().openMenu(new net.minecraft.world.SimpleMenuProvider(
@@ -75,6 +137,7 @@ public class VCoinsMod implements ModInitializer {
                 ));
                 context.player().playSound(SoundEvents.CHEST_OPEN, 0.65f, 1.1f);
                 syncCoins(context.player());
+                VMarketEngine.syncToPlayer(context.player());
             });
         });
 
@@ -92,22 +155,18 @@ public class VCoinsMod implements ModInitializer {
             });
         });
 
-        // Register Payloads
-        PayloadTypeRegistry.clientboundPlay().register(VCoinsSyncPayload.ID, VCoinsSyncPayload.CODEC);
-
-        // Register commands
-        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-            VCoinsCommands.register(dispatcher);
+        PayloadTypeRegistry.serverboundPlay().register(OpenBlackMarketPayload.ID, OpenBlackMarketPayload.CODEC);
+        ServerPlayNetworking.registerGlobalReceiver(OpenBlackMarketPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                context.player().openMenu(new net.minecraft.world.SimpleMenuProvider(
+                        (syncId, inv, player) -> new VBlackMarketScreenHandler(syncId, inv),
+                        Component.translatable("vcoins.black_market.title")
+                ));
+                context.player().playSound(SoundEvents.PORTAL_TRAVEL, 0.35f, 1.8f);
+                context.player().playSound(SoundEvents.CHEST_OPEN, 0.65f, 1.2f);
+                syncCoins(context.player());
+            });
         });
-
-        // Initialize Pricing Engine on server start or on demand
-        ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-            VCoinsPricing.ensureInitialized();
-            VCoinsPricing.calculateRecipes(server);
-        });
-        
-        VCoinsState.registerEvents();
-        VBlackMarket.registerEvents();
     }
 
     public static void syncCoins(ServerPlayer player) {

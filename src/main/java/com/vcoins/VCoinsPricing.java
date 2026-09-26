@@ -29,188 +29,189 @@ public class VCoinsPricing {
     public static synchronized void init() {
         prices.clear();
         categories.clear();
-        // ==================== CƠ BẢN / KHỐI DỄ FARM ====================
-        setPrice("minecraft:cobblestone", 1);
-        setPrice("minecraft:dirt", 1);
-        setPrice("minecraft:sand", 2);
-        setPrice("minecraft:red_sand", 4);
-        setPrice("minecraft:gravel", 2);
-        setPrice("minecraft:netherrack", 1);
-        setPrice("minecraft:stone", 2);
-        setPrice("minecraft:cobbled_deepslate", 2);
-        setPrice("minecraft:deepslate", 2);
-        setPrice("minecraft:blackstone", 4);
+        // ==================== BASIC / EASILY FARMABLE BLOCKS (Priced to eliminate AFK exploit loops) ====================
+        setPrice("minecraft:cobblestone", 5);
+        setPrice("minecraft:dirt", 5);
+        setPrice("minecraft:sand", 5);
+        setPrice("minecraft:red_sand", 6);
+        setPrice("minecraft:gravel", 5);
+        setPrice("minecraft:netherrack", 5);
+        setPrice("minecraft:stone", 6);
+        setPrice("minecraft:cobbled_deepslate", 5);
+        setPrice("minecraft:deepslate", 6);
+        setPrice("minecraft:blackstone", 5);
         setPrice("minecraft:end_stone", 10);
-        setPrice("minecraft:obsidian", 150);
-        setPrice("minecraft:crying_obsidian", 1_500);
+        setPrice("minecraft:obsidian", 120);
+        setPrice("minecraft:crying_obsidian", 600);
         setPrice("minecraft:clay_ball", 4);
         setPrice("minecraft:clay", 16);
-        setPrice("minecraft:snowball", 1);
-        setPrice("minecraft:snow_block", 4);
-        setPrice("minecraft:ice", 16);
-        setPrice("minecraft:packed_ice", 144);
-        setPrice("minecraft:blue_ice", 1_296);
+        setPrice("minecraft:snowball", 2);
+        setPrice("minecraft:snow_block", 8);
+        setPrice("minecraft:ice", 8);
+        setPrice("minecraft:packed_ice", 72);
+        setPrice("minecraft:blue_ice", 648);
         
-        // ==================== GỖ & TRE (Tree Farm / Bamboo Farm) ====================
-        setPrice("minecraft:oak_log", 4);
-        setPrice("minecraft:spruce_log", 4);
-        setPrice("minecraft:birch_log", 4);
-        setPrice("minecraft:jungle_log", 4);
-        setPrice("minecraft:acacia_log", 4);
-        setPrice("minecraft:dark_oak_log", 4);
-        setPrice("minecraft:mangrove_log", 4);
-        setPrice("minecraft:cherry_log", 4);
-        setPrice("minecraft:pale_oak_log", 4);
-        setPrice("minecraft:oak_planks", 1);
+        // ==================== WOOD & BAMBOO (Tree Farms / Bamboo Farms) ====================
+        setPrice("minecraft:oak_log", 8);
+        setPrice("minecraft:spruce_log", 8);
+        setPrice("minecraft:birch_log", 8);
+        setPrice("minecraft:jungle_log", 8);
+        setPrice("minecraft:acacia_log", 8);
+        setPrice("minecraft:dark_oak_log", 8);
+        setPrice("minecraft:mangrove_log", 8);
+        setPrice("minecraft:cherry_log", 8);
+        setPrice("minecraft:pale_oak_log", 8);
+        setPrice("minecraft:oak_planks", 2);
         setPrice("minecraft:stick", 1);
-        setPrice("minecraft:bamboo", 1);
+        setPrice("minecraft:bamboo", 2);
 
-        // ==================== KHOÁNG SẢN (Iron Golem Farm & Gold Piglin Farm cân bằng lại) ====================
-        setPrice("minecraft:coal", 24);
-        setPrice("minecraft:charcoal", 8);
-        setPrice("minecraft:coal_block", 216);
+        // ==================== MINERALS (Balanced against Iron Golem & Piglin Gold Farms) ====================
+        setPrice("minecraft:coal", 16);
+        setPrice("minecraft:charcoal", 10);
+        setPrice("minecraft:coal_block", 144);
         setPrice("minecraft:raw_copper", 8);
-        setPrice("minecraft:copper_ingot", 12);
+        setPrice("minecraft:copper_ingot", 10);
         setPrice("minecraft:copper_nugget", 1);
         setPrice("minecraft:raw_copper_block", 72);
-        setPrice("minecraft:copper_block", 108);
-        setPrice("minecraft:waxed_copper_block", 120);
+        setPrice("minecraft:copper_block", 90);
+        setPrice("minecraft:waxed_copper_block", 100);
 
-        // Sắt và Vàng: dễ AFK quy mô công nghiệp -> Giảm giá mua xuống mức hợp lý
+        // Iron and Gold: balanced against industrial automated golem/piglin farms
         setPrice("minecraft:raw_iron", 24);
-        setPrice("minecraft:iron_ingot", 32); // AFK 1 rương sắt không còn phá nát nền kinh tế
+        setPrice("minecraft:iron_ingot", 30);
         setPrice("minecraft:iron_nugget", 3);
         setPrice("minecraft:raw_iron_block", 216);
-        setPrice("minecraft:iron_block", 288);
+        setPrice("minecraft:iron_block", 270);
 
         setPrice("minecraft:raw_gold", 48);
-        setPrice("minecraft:gold_ingot", 64); // Piglin farm
-        setPrice("minecraft:gold_nugget", 7);
+        setPrice("minecraft:gold_ingot", 60);
+        setPrice("minecraft:gold_nugget", 6);
         setPrice("minecraft:raw_gold_block", 432);
-        setPrice("minecraft:gold_block", 576);
+        setPrice("minecraft:gold_block", 540);
 
-        setPrice("minecraft:redstone", 12);
-        setPrice("minecraft:redstone_block", 108);
-        setPrice("minecraft:lapis_lazuli", 24);
-        setPrice("minecraft:lapis_block", 216);
-        setPrice("minecraft:quartz", 32);
-        setPrice("minecraft:quartz_block", 128);
-        setPrice("minecraft:amethyst_shard", 48);
-        setPrice("minecraft:amethyst_block", 192);
+        setPrice("minecraft:redstone", 10);
+        setPrice("minecraft:redstone_block", 90);
+        setPrice("minecraft:lapis_lazuli", 16);
+        setPrice("minecraft:lapis_block", 144);
+        setPrice("minecraft:quartz", 16);
+        setPrice("minecraft:quartz_block", 64);
+        setPrice("minecraft:amethyst_shard", 20);
+        setPrice("minecraft:amethyst_block", 80);
 
-        // Tài nguyên giá trị cao & không thể AFK vô hạn
-        setPrice("minecraft:emerald", 128);
-        setPrice("minecraft:emerald_block", 1_152);
-        setPrice("minecraft:diamond", 25_000);
-        setPrice("minecraft:diamond_block", 225_000);
-        setPrice("minecraft:ancient_debris", 60_000);
-        setPrice("minecraft:netherite_scrap", 60_000);
-        setPrice("minecraft:netherite_ingot", 300_000);
-        setPrice("minecraft:netherite_block", 2_700_000);
+        // High-value finite resources (cannot be infinitely AFK farmed)
+        setPrice("minecraft:emerald", 50);
+        setPrice("minecraft:emerald_block", 450);
+        setPrice("minecraft:diamond", 18_000);
+        setPrice("minecraft:diamond_block", 162_000);
+        setPrice("minecraft:ancient_debris", 50_000);
+        setPrice("minecraft:netherite_scrap", 50_000);
+        setPrice("minecraft:netherite_ingot", 250_000);
+        setPrice("minecraft:netherite_block", 2_250_000);
         
-        // ==================== MOB VÀ PHẦN THƯỞNG CHIẾN ĐẤU ====================
-        // Mob thường từ Spawner AFK: Giảm mạnh
-        setPrice("minecraft:rotten_flesh", 2);
-        setPrice("minecraft:bone", 4);
-        setPrice("minecraft:bone_meal", 1);
-        setPrice("minecraft:string", 4);
+        // ==================== MOB & COMBAT REWARDS ====================
+        // Common Spawner / AFK mob drops: reduced to prevent exploitation
+        setPrice("minecraft:rotten_flesh", 3);
+        setPrice("minecraft:bone", 6);
+        setPrice("minecraft:bone_meal", 2);
+        setPrice("minecraft:string", 5);
         setPrice("minecraft:spider_eye", 6);
-        setPrice("minecraft:feather", 2);
+        setPrice("minecraft:feather", 4);
         setPrice("minecraft:leather", 16);
-        setPrice("minecraft:gunpowder", 12);
-        setPrice("minecraft:slime_ball", 20);
-        setPrice("minecraft:slime_block", 180);
-        setPrice("minecraft:magma_cream", 24);
-        setPrice("minecraft:prismarine_shard", 16);
-        setPrice("minecraft:prismarine_crystals", 32);
-        setPrice("minecraft:ender_pearl", 64);
-        setPrice("minecraft:blaze_rod", 256);
-        setPrice("minecraft:blaze_powder", 128);
-        setPrice("minecraft:ghast_tear", 4_096);
-        setPrice("minecraft:nautilus_shell", 8_000);
-        setPrice("minecraft:shulker_shell", 25_000);
-        setPrice("minecraft:breeze_rod", 12_000);
+        setPrice("minecraft:gunpowder", 15);
+        setPrice("minecraft:slime_ball", 16);
+        setPrice("minecraft:slime_block", 144);
+        setPrice("minecraft:magma_cream", 20);
+        setPrice("minecraft:magma_block", 80);
+        setPrice("minecraft:prismarine_shard", 12);
+        setPrice("minecraft:prismarine_crystals", 24);
+        setPrice("minecraft:ender_pearl", 40);
+        setPrice("minecraft:blaze_rod", 160);
+        setPrice("minecraft:blaze_powder", 80);
+        setPrice("minecraft:ghast_tear", 3_000);
+        setPrice("minecraft:nautilus_shell", 5_000);
+        setPrice("minecraft:shulker_shell", 18_000);
+        setPrice("minecraft:breeze_rod", 8_000);
 
-        // Boss & Mini-boss Drops: TĂNG MẠNH
-        setPrice("minecraft:wither_skeleton_skull", 250_000);
-        setPrice("minecraft:nether_star", 2_500_000);
-        setPrice("minecraft:heart_of_the_sea", 1_200_000);
-        setPrice("minecraft:echo_shard", 100_000);
-        setPrice("minecraft:heavy_core", 5_000_000);
-        setPrice("minecraft:dragon_head", 3_000_000);
-        setPrice("minecraft:dragon_egg", 50_000_000);
+        // Boss & Mini-boss Drops: high reward for combat exploration
+        setPrice("minecraft:wither_skeleton_skull", 180_000);
+        setPrice("minecraft:nether_star", 1_800_000);
+        setPrice("minecraft:heart_of_the_sea", 800_000);
+        setPrice("minecraft:echo_shard", 60_000);
+        setPrice("minecraft:heavy_core", 4_000_000);
+        setPrice("minecraft:dragon_head", 2_000_000);
+        setPrice("minecraft:dragon_egg", 35_000_000);
         
-        // ==================== CÂY TRỒNG VÀ NÔNG SẢN (Farm tự động) ====================
-        setPrice("minecraft:wheat_seeds", 1);
-        setPrice("minecraft:wheat", 2);
-        setPrice("minecraft:hay_block", 18);
-        setPrice("minecraft:potato", 2);
-        setPrice("minecraft:carrot", 2);
-        setPrice("minecraft:beetroot", 2);
-        setPrice("minecraft:beetroot_seeds", 1);
-        setPrice("minecraft:melon_slice", 1);
-        setPrice("minecraft:melon", 9);
-        setPrice("minecraft:pumpkin", 6);
-        setPrice("minecraft:sugar_cane", 2);
-        setPrice("minecraft:kelp", 1);
-        setPrice("minecraft:dried_kelp", 1);
-        setPrice("minecraft:dried_kelp_block", 9);
-        setPrice("minecraft:sweet_berries", 2);
+        // ==================== CROPS & AGRICULTURAL PRODUCTS (Automated Farms) ====================
+        setPrice("minecraft:wheat_seeds", 2);
+        setPrice("minecraft:wheat", 5);
+        setPrice("minecraft:hay_block", 45);
+        setPrice("minecraft:potato", 4);
+        setPrice("minecraft:baked_potato", 6);
+        setPrice("minecraft:carrot", 4);
+        setPrice("minecraft:beetroot", 4);
+        setPrice("minecraft:beetroot_seeds", 2);
+        setPrice("minecraft:melon_slice", 2);
+        setPrice("minecraft:melon", 18);
+        setPrice("minecraft:pumpkin", 12);
+        setPrice("minecraft:sugar_cane", 4);
+        setPrice("minecraft:kelp", 2);
+        setPrice("minecraft:dried_kelp", 3);
+        setPrice("minecraft:dried_kelp_block", 27);
+        setPrice("minecraft:sweet_berries", 3);
         setPrice("minecraft:glow_berries", 4);
-        setPrice("minecraft:cocoa_beans", 3);
-        setPrice("minecraft:cactus", 2);
-        setPrice("minecraft:apple", 12);
+        setPrice("minecraft:cocoa_beans", 4);
+        setPrice("minecraft:cactus", 4);
+        setPrice("minecraft:apple", 10);
         setPrice("minecraft:beef", 8);
         setPrice("minecraft:porkchop", 8);
         setPrice("minecraft:mutton", 8);
-        setPrice("minecraft:chicken", 8);
-        setPrice("minecraft:golden_apple", 20_000);
-        setPrice("minecraft:enchanted_golden_apple", 3_500_000);
+        setPrice("minecraft:chicken", 6);
+        setPrice("minecraft:bread", 18);
+        setPrice("minecraft:golden_carrot", 70);
+        setPrice("minecraft:glistering_melon_slice", 70);
+        setPrice("minecraft:golden_apple", 650);
+        setPrice("minecraft:enchanted_golden_apple", 2_000_000);
+        setPrice("minecraft:pumpkin_pie", 30);
+        setPrice("minecraft:cake", 350);
         
-        // ==================== VẬT LIỆU CHẾ TẠO PHỔ BIẾN ====================
+        // ==================== COMMONLY CRAFTED MATERIALS ====================
         setPrice("minecraft:glass", 4);
-        setPrice("minecraft:white_wool", 4);
-        setPrice("minecraft:torch", 4);
-        setPrice("minecraft:bone_block", 36);
-        setPrice("minecraft:glowstone_dust", 12);
-        setPrice("minecraft:glowstone", 48);
-        setPrice("minecraft:honeycomb", 8);
-        setPrice("minecraft:honeycomb_block", 32);
-        setPrice("minecraft:honey_block", 48);
-        setPrice("minecraft:resin_clump", 16);
-        setPrice("minecraft:resin_block", 144);
-        setPrice("minecraft:disc_fragment_5", 15_000);
+        setPrice("minecraft:white_wool", 6);
+        setPrice("minecraft:torch", 6);
+        setPrice("minecraft:bone_block", 54);
+        setPrice("minecraft:glowstone_dust", 8);
+        setPrice("minecraft:glowstone", 32);
+        setPrice("minecraft:honeycomb", 10);
+        setPrice("minecraft:honeycomb_block", 40);
+        setPrice("minecraft:honey_block", 60);
+        setPrice("minecraft:resin_clump", 12);
+        setPrice("minecraft:resin_block", 108);
+        setPrice("minecraft:disc_fragment_5", 10_000);
 
-        // ==================== VẬT PHẨM ENDGAME / HIẾM (Tăng mạnh tạo mục tiêu cày cuốc) ====================
+        // ==================== ENDGAME / RARE PROGRESSION ITEMS ====================
         setPrice("minecraft:enchanted_book", 5_000);
-        setPrice("minecraft:elytra", 8_000_000);
-        setPrice("minecraft:totem_of_undying", 1_500_000);
-        setPrice("minecraft:beacon", 3_500_000);
-        setPrice("minecraft:conduit", 1_800_000);
-        setPrice("minecraft:mace", 6_000_000);
-        setPrice("minecraft:trident", 1_200_000);
-        setPrice("minecraft:sniffer_egg", 800_000);
+        setPrice("minecraft:elytra", 5_000_000);
+        setPrice("minecraft:totem_of_undying", 1_000_000);
+        setPrice("minecraft:beacon", 2_500_000);
+        setPrice("minecraft:conduit", 1_200_000);
+        setPrice("minecraft:mace", 4_800_000);
+        setPrice("minecraft:trident", 1_000_000);
+        setPrice("minecraft:sniffer_egg", 500_000);
         
         // Every registered item (including items added by other mods) belongs to the
         // catalogue. Explicit prices above win; everything else receives a sensible
         // fallback price so the "All items" tab is actually complete.
         for (Item item : BuiltInRegistries.ITEM) {
-            String id = BuiltInRegistries.ITEM.getKey(item).toString();
+            if (item != Items.AIR) {
+                String id = BuiltInRegistries.ITEM.getKey(item).toString();
+                ShopCategory category = getCategoryForItem(item);
+                categories.put(id, category);
 
-            if (item == Items.AIR) {
-                continue;
-            }
-
-            ShopCategory category = getCategoryForItem(item);
-            categories.put(id, category);
-
-            if (!isTradeable(item)) {
-                prices.remove(id);
-                continue;
-            }
-
-            if (!prices.containsKey(id)) {
-                prices.put(id, getFallbackPrice(id, category));
+                if (!isTradeable(item)) {
+                    prices.remove(id);
+                } else if (!prices.containsKey(id)) {
+                    prices.put(id, getFallbackPrice(id, category));
+                }
             }
         }
         initialized = true;
@@ -224,9 +225,18 @@ public class VCoinsPricing {
         prices.put(id, price);
     }
 
-    public static long getPrice(String itemId) {
+    public static long getBasePrice(String itemId) {
         ensureInitialized();
         return prices.getOrDefault(itemId, 0L);
+    }
+
+    public static long getPrice(String itemId) {
+        long base = getBasePrice(itemId);
+        if (base <= 0) {
+            return 0L;
+        }
+        double multiplier = VMarketEngine.getMultiplier(itemId);
+        return Math.max(1L, Math.round(base * multiplier));
     }
 
     /**
@@ -254,8 +264,13 @@ public class VCoinsPricing {
     }
 
     public static long getSellPrice(String itemId) {
-        long buyPrice = getPrice(itemId);
-        return calculateSellPrice(itemId, buyPrice);
+        long basePrice = getBasePrice(itemId);
+        if (basePrice <= 0) {
+            return 0L;
+        }
+        double sellMultiplier = VMarketEngine.getSellMultiplier(itemId);
+        long marketAdjustedBuyPrice = Math.max(1L, Math.round(basePrice * sellMultiplier));
+        return calculateSellPrice(itemId, marketAdjustedBuyPrice);
     }
 
     public static long getSellPrice(ItemStack stack) {
@@ -264,7 +279,16 @@ public class VCoinsPricing {
         }
 
         String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        return calculateSellPrice(itemId, getDurabilityAdjustedPrice(stack, getPrice(stack)));
+        long basePrice = getBasePrice(itemId);
+        if (basePrice <= 0) {
+            long buyPrice = getPrice(stack);
+            return calculateSellPrice(itemId, getDurabilityAdjustedPrice(stack, buyPrice));
+        }
+
+        double sellMultiplier = VMarketEngine.getSellMultiplier(itemId);
+        long marketAdjustedBase = Math.max(1L, Math.round(basePrice * sellMultiplier));
+        long fullPrice = safeAdd(marketAdjustedBase, getEnchantmentPremium(stack));
+        return calculateSellPrice(itemId, getDurabilityAdjustedPrice(stack, fullPrice));
     }
 
     private static long calculateSellPrice(String itemId, long buyPrice) {
@@ -274,43 +298,55 @@ public class VCoinsPricing {
 
         String path = itemId.substring(itemId.indexOf(':') + 1);
 
-        // Chống sao chép Smithing Template kiếm tiền vô hạn
+        // Prevent infinite money exploits via Smithing Template duplication
         if (path.contains("smithing_template")) {
             return Math.min(buyPrice / 4L, 25_000L);
         }
 
-        // Tỷ lệ thu mua phân tầng (Tiered Sell Margins):
-        // 1. Các tài nguyên siêu dễ AFK farm (đá cuội, cát, đất, cây trồng, mob drop thông thường, sắt, vàng):
-        // Chỉ thu mua ở mức 20% - 25% giá mua để triệt tiêu việc cắm máy AFK làm giàu.
-        if (isEasilyFarmable(path)) {
-            return Math.max(1L, buyPrice / 5L); // 20% giá mua
+        // Tiered Sell Margins:
+        // 1. Easily farmable resources, basic blocks, mob drops, iron/gold, and craftable redstone/functional items:
+        // 20% sell margin max. Under extreme market saturation (dumping), sell price drops to 0 (shop refusal).
+        if (isFarmableOrCrafted(path)) {
+            return buyPrice / 5L; // 20% sell margin
         }
 
-        // 2. Các vật phẩm nông sản, thức ăn, gỗ, khối xây dựng cơ bản:
+        // 2. Agricultural crops, food, wood, and standard building blocks:
         ShopCategory category = getCategory(itemId);
         if (category == ShopCategory.FOOD || category == ShopCategory.NATURAL || category == ShopCategory.BUILDING) {
-            return Math.max(1L, buyPrice / 4L); // 25% giá mua
+            return buyPrice / 4L; // 25% sell margin
         }
 
-        // 3. Các vật phẩm khác (Tools, Combat, Functional, Rare loot): 35% giá mua
-        return Math.max(1L, buyPrice * 35L / 100L);
+        // 3. Other items (Tools, Combat, Rare exploration loot): 35% sell margin
+        return buyPrice * 35L / 100L;
     }
 
-    private static boolean isEasilyFarmable(String path) {
+    private static boolean isFarmableOrCrafted(String path) {
         return containsAny(path,
-                // Cobble / Stone / Dirt gen
+                // Cobble / Stone / Dirt gen & Raw materials
                 "cobblestone", "cobbled_deepslate", "dirt", "gravel", "sand", "netherrack", "basalt",
-                // Golem iron farm & Gold piglin farm
-                "iron_ingot", "iron_nugget", "raw_iron", "gold_ingot", "gold_nugget", "raw_gold", "copper_ingot", "raw_copper",
+                "diorite", "andesite", "granite", "tuff", "calcite", "blackstone",
+                // Golem iron farm & Gold piglin farm & Copper
+                "iron_", "raw_iron", "gold_", "raw_gold", "copper_", "raw_copper",
                 // Mob farms (Zombies, Skeletons, Spiders, Creepers, Endermen, Witches, Slimes)
-                "rotten_flesh", "bone", "bone_meal", "string", "spider_eye", "gunpowder", "feather", "arrow",
-                "slime_ball", "magma_cream", "glowstone_dust", "redstone", "sugar", "glass_bottle", "ender_pearl",
+                "rotten_flesh", "bone", "string", "spider_eye", "gunpowder", "feather", "arrow",
+                "slime_ball", "slime_block", "magma_cream", "glowstone_dust", "redstone", "sugar",
+                "glass_bottle", "ender_pearl",
                 // Crop / Plant / Tree automated farms
-                "sugar_cane", "bamboo", "cactus", "kelp", "dried_kelp", "melon", "melon_slice", "pumpkin",
-                "wheat", "wheat_seeds", "carrot", "potato", "beetroot", "beetroot_seeds", "sweet_berries", "glow_berries",
+                "sugar_cane", "bamboo", "cactus", "kelp", "melon", "pumpkin",
+                "wheat", "carrot", "potato", "beetroot", "sweet_berries", "glow_berries",
                 "cocoa_beans", "nether_wart", "chorus_fruit", "egg", "honey_bottle", "honeycomb",
                 // Wood tree farms & Wool sheep farms
-                "log", "stem", "wood", "hyphae", "planks", "stick", "wool", "carpet");
+                "log", "stem", "wood", "hyphae", "planks", "stick", "wool", "carpet",
+                // Functional / Crafting tables / Utility blocks
+                "crafting_table", "furnace", "smoker", "blast_furnace", "stonecutter", "grindstone",
+                "smithing_table", "fletching_table", "cartography_table", "loom", "anvil", "chest",
+                "barrel", "cauldron", "composter", "note_block", "bookshelf", "lectern", "door",
+                "trapdoor", "ladder", "scaffolding", "armor_stand", "item_frame",
+                // Redstone mechanisms & Rails
+                "piston", "repeater", "comparator", "observer", "dispenser", "dropper", "hopper",
+                "crafter", "daylight_detector", "target", "tripwire_hook", "rail", "minecart", "tnt",
+                // Metal building materials
+                "iron_bars", "chain");
     }
 
     private static long getDurabilityAdjustedPrice(ItemStack stack, long fullPrice) {
@@ -377,40 +413,40 @@ public class VCoinsPricing {
             return getSmithingTemplatePrice(path);
         }
         if (path.equals("elytra")) {
-            return 8_000_000L;
+            return 5_000_000L;
         }
         if (path.equals("totem_of_undying")) {
-            return 1_500_000L;
+            return 1_000_000L;
         }
         if (path.equals("beacon")) {
-            return 3_500_000L;
+            return 2_500_000L;
         }
         if (path.equals("mace")) {
-            return 6_000_000L;
+            return 4_800_000L;
         }
         if (path.equals("trident")) {
-            return 1_200_000L;
+            return 1_000_000L;
         }
         if (path.equals("dragon_head")) {
-            return 3_000_000L;
+            return 2_000_000L;
         }
         if (path.endsWith("_head") || path.endsWith("_skull")) {
-            return path.equals("wither_skeleton_skull") ? 250_000L : 75_000L;
+            return path.equals("wither_skeleton_skull") ? 180_000L : 60_000L;
         }
         if (path.startsWith("music_disc_")) {
             return getMusicDiscPrice(path);
         }
         if (path.equals("ominous_trial_key")) {
-            return 250_000L;
+            return 180_000L;
         }
         if (path.equals("trial_key")) {
-            return 60_000L;
+            return 45_000L;
         }
         if (path.equals("enchanted_book")) {
             return 5_000L;
         }
         if (path.contains("shulker_box")) {
-            return 75_000L;
+            return 50_000L;
         }
 
         long effortPrice = getEquipmentPrice(path);
@@ -467,7 +503,7 @@ public class VCoinsPricing {
             case REDSTONE -> 96L;
             case INGREDIENTS -> 32L;
             case SPAWN_EGGS -> 50_000L;
-            case MISC, ALL, BUYBACK -> 32L;
+            case MISC, ALL, BUYBACK, BLACK_MARKET -> 32L;
             case TOOLS, COMBAT -> 256L;
         };
     }
@@ -475,33 +511,33 @@ public class VCoinsPricing {
     private static long getEquipmentPrice(String path) {
         long exactPrice = switch (path) {
             case "bow" -> 40L;
-            case "crossbow" -> 160L;
+            case "crossbow" -> 65L;
             case "arrow" -> 2L;
             case "spectral_arrow" -> 16L;
             case "tipped_arrow" -> 32L;
-            case "shield" -> 64L;
-            case "shears" -> 70L;
-            case "flint_and_steel" -> 50L;
-            case "fishing_rod" -> 24L;
-            case "carrot_on_a_stick", "warped_fungus_on_a_stick" -> 30L;
+            case "shield" -> 40L;
+            case "shears" -> 60L;
+            case "flint_and_steel" -> 45L;
+            case "fishing_rod" -> 15L;
+            case "carrot_on_a_stick", "warped_fungus_on_a_stick" -> 25L;
             case "brush" -> 32L;
             case "spyglass" -> 80L;
-            case "compass" -> 160L;
-            case "clock" -> 320L;
+            case "compass" -> 140L;
+            case "clock" -> 260L;
             case "recovery_compass" -> 800_000L;
-            case "bucket" -> 100L;
+            case "bucket" -> 90L;
             case "turtle_helmet" -> 8_000L;
             case "wolf_armor" -> 6_000L;
             case "leather_horse_armor" -> 150L;
             case "iron_horse_armor" -> 15_000L;
             case "golden_horse_armor" -> 30_000L;
-            case "diamond_horse_armor" -> 250_000L;
-            case "netherite_horse_armor" -> 1_500_000L;
+            case "diamond_horse_armor" -> 180_000L;
+            case "netherite_horse_armor" -> 1_200_000L;
             case "copper_nautilus_armor" -> 4_000L;
-            case "iron_nautilus_armor" -> 15_000L;
-            case "golden_nautilus_armor" -> 30_000L;
-            case "diamond_nautilus_armor" -> 250_000L;
-            case "netherite_nautilus_armor" -> 1_500_000L;
+            case "iron_nautilus_armor" -> 12_000L;
+            case "golden_nautilus_armor" -> 24_000L;
+            case "diamond_nautilus_armor" -> 180_000L;
+            case "netherite_nautilus_armor" -> 1_200_000L;
             default -> 0L;
         };
         if (exactPrice > 0L) {
@@ -516,10 +552,10 @@ public class VCoinsPricing {
         if (path.startsWith("netherite_")) {
             String diamondPath = "diamond_" + path.substring("netherite_".length());
             long diamondItem = getEquipmentPrice(diamondPath);
-            // Netherite ingot (300k) + Netherite upgrade template reproduction cost (7 diamonds ~175k + catalyst)
-            long reproducibleTemplateCost = 175_000L;
+            // Netherite ingot (250k) + Netherite upgrade template reproduction cost (7 diamonds ~126k + catalyst)
+            long reproducibleTemplateCost = 130_000L;
             return addCraftingEffort(safeAdd(diamondItem,
-                    safeAdd(300_000L, reproducibleTemplateCost)), 10);
+                    safeAdd(250_000L, reproducibleTemplateCost)), 10);
         }
 
         long materialUnitPrice = getEquipmentMaterialUnitPrice(path);
@@ -556,12 +592,12 @@ public class VCoinsPricing {
     }
 
     private static long getEquipmentMaterialUnitPrice(String path) {
-        if (path.startsWith("wooden_")) return 1L;
-        if (path.startsWith("stone_")) return 2L;
-        if (path.startsWith("copper_")) return 12L;
-        if (path.startsWith("iron_") || path.startsWith("chainmail_")) return 32L;
-        if (path.startsWith("golden_")) return 64L;
-        if (path.startsWith("diamond_")) return 25_000L;
+        if (path.startsWith("wooden_")) return 2L;
+        if (path.startsWith("stone_")) return 6L;
+        if (path.startsWith("copper_")) return 10L;
+        if (path.startsWith("iron_") || path.startsWith("chainmail_")) return 30L;
+        if (path.startsWith("golden_")) return 60L;
+        if (path.startsWith("diamond_")) return 18_000L;
         if (path.startsWith("leather_")) return 16L;
         return 0L;
     }
@@ -752,10 +788,10 @@ public class VCoinsPricing {
             case "packed_mud", "mud_bricks" -> 24L;
             case "nether_bricks" -> 32L;
             case "red_nether_bricks" -> 36L;
-            case "iron_bars" -> 116L;
-            case "chain" -> 377L;
-            case "end_rod" -> 640L;
-            case "sea_lantern" -> 540L;
+            case "iron_bars" -> 15L;
+            case "chain" -> 42L;
+            case "end_rod" -> 65L;
+            case "sea_lantern" -> 220L;
             case "prismarine" -> 154L;
             case "prismarine_bricks" -> 346L;
             case "dark_prismarine" -> 320L;
@@ -763,7 +799,7 @@ public class VCoinsPricing {
             case "end_stone_bricks" -> 20L;
             case "terracotta" -> 56L;
             case "glass_pane" -> 4L;
-            case "tinted_glass" -> 416L;
+            case "tinted_glass" -> 55L;
             default -> 0L;
         };
         if (exactPrice > 0L) {
@@ -809,75 +845,75 @@ public class VCoinsPricing {
 
     private static long getFunctionalItemPrice(String path) {
         return switch (path) {
-            case "crafting_table" -> 20L;
-            case "chest" -> 40L;
-            case "trapped_chest" -> 480L;
-            case "barrel" -> 32L;
-            case "furnace" -> 40L;
-            case "smoker" -> 125L;
-            case "blast_furnace" -> 1_600L;
-            case "stonecutter" -> 330L;
-            case "grindstone" -> 22L;
-            case "smithing_table" -> 635L;
-            case "fletching_table", "loom" -> 48L;
-            case "cartography_table" -> 31L;
-            case "anvil" -> 9_600L;
-            case "chipped_anvil" -> 6_400L;
-            case "damaged_anvil" -> 3_200L;
+            case "crafting_table" -> 8L;
+            case "chest" -> 16L;
+            case "trapped_chest" -> 36L;
+            case "barrel" -> 16L;
+            case "furnace" -> 15L;
+            case "smoker" -> 60L;
+            case "blast_furnace" -> 220L;
+            case "stonecutter" -> 55L;
+            case "grindstone" -> 30L;
+            case "smithing_table" -> 85L;
+            case "fletching_table", "loom" -> 20L;
+            case "cartography_table" -> 25L;
+            case "anvil" -> 1_100L;
+            case "chipped_anvil" -> 750L;
+            case "damaged_anvil" -> 400L;
             case "enchanting_table" -> 39_000L;
-            case "brewing_stand" -> 2_500L;
-            case "ender_chest" -> 4_250L;
-            case "cauldron" -> 1_800L;
+            case "brewing_stand" -> 220L;
+            case "ender_chest" -> 1_300L;
+            case "cauldron" -> 250L;
             case "composter" -> 18L;
             case "jukebox" -> 19_250L;
-            case "note_block" -> 80L;
-            case "respawn_anchor" -> 5_400L;
+            case "note_block" -> 35L;
+            case "respawn_anchor" -> 4_200L;
             case "lodestone" -> 192_000L;
             case "bell" -> 8_000L;
             case "decorated_pot" -> 8_500L;
-            case "bookshelf" -> 260L;
-            case "chiseled_bookshelf" -> 36L;
-            case "lectern" -> 325L;
-            case "ladder" -> 6L;
-            case "scaffolding" -> 6L;
-            case "armor_stand" -> 18L;
-            case "flower_pot" -> 58L;
-            case "item_frame" -> 96L;
-            case "glow_item_frame" -> 144L;
-            case "iron_door" -> 615L;
-            case "iron_trapdoor" -> 1_230L;
+            case "bookshelf" -> 135L;
+            case "chiseled_bookshelf" -> 20L;
+            case "lectern" -> 150L;
+            case "ladder" -> 4L;
+            case "scaffolding" -> 3L;
+            case "armor_stand" -> 15L;
+            case "flower_pot" -> 50L;
+            case "item_frame" -> 30L;
+            case "glow_item_frame" -> 75L;
+            case "iron_door" -> 75L;
+            case "iron_trapdoor" -> 145L;
             default -> 0L;
         };
     }
 
     private static long getRedstoneItemPrice(String path) {
         return switch (path) {
-            case "redstone_torch" -> 42L;
+            case "redstone_torch" -> 14L;
             case "lever" -> 8L;
-            case "stone_button" -> 6L;
-            case "repeater" -> 160L;
-            case "comparator" -> 320L;
-            case "piston" -> 384L;
-            case "sticky_piston" -> 540L;
-            case "observer" -> 260L;
-            case "dispenser" -> 168L;
-            case "dropper" -> 72L;
-            case "hopper" -> 1_600L;
-            case "crafter" -> 2_100L;
-            case "daylight_detector" -> 320L;
-            case "target" -> 285L;
-            case "redstone_lamp" -> 310L;
-            case "tripwire_hook" -> 320L;
-            case "tnt" -> 410L;
-            case "rail" -> 116L;
-            case "powered_rail" -> 800L;
-            case "detector_rail" -> 350L;
-            case "activator_rail" -> 250L;
-            case "minecart" -> 1_536L;
-            case "chest_minecart" -> 1_900L;
-            case "hopper_minecart" -> 3_750L;
-            case "furnace_minecart" -> 1_900L;
-            case "tnt_minecart" -> 2_350L;
+            case "stone_button" -> 8L;
+            case "repeater" -> 55L;
+            case "comparator" -> 75L;
+            case "piston" -> 65L;
+            case "sticky_piston" -> 95L;
+            case "observer" -> 60L;
+            case "dispenser" -> 105L;
+            case "dropper" -> 55L;
+            case "hopper" -> 200L;
+            case "crafter" -> 240L;
+            case "daylight_detector" -> 75L;
+            case "target" -> 60L;
+            case "redstone_lamp" -> 75L;
+            case "tripwire_hook" -> 16L;
+            case "tnt" -> 100L;
+            case "rail" -> 15L;
+            case "powered_rail" -> 75L;
+            case "detector_rail" -> 42L;
+            case "activator_rail" -> 42L;
+            case "minecart" -> 180L;
+            case "chest_minecart" -> 195L;
+            case "hopper_minecart" -> 380L;
+            case "furnace_minecart" -> 195L;
+            case "tnt_minecart" -> 280L;
             default -> 0L;
         };
     }
@@ -885,8 +921,8 @@ public class VCoinsPricing {
     private static long getIngredientPrice(String path) {
         long exactPrice = switch (path) {
             case "flint" -> 12L;
-            case "paper" -> 5L;
-            case "book" -> 76L;
+            case "paper" -> 4L;
+            case "book" -> 35L;
             case "brick" -> 16L;
             case "nether_brick" -> 8L;
             case "ink_sac", "glow_ink_sac" -> 32L;
@@ -895,9 +931,9 @@ public class VCoinsPricing {
             case "phantom_membrane" -> 512L;
             case "armadillo_scute" -> 640L;
             case "turtle_scute", "scute" -> 1_024L;
-            case "fermented_spider_eye" -> 64L;
-            case "fire_charge" -> 480L;
-            case "ender_eye" -> 2_500L;
+            case "fermented_spider_eye" -> 20L;
+            case "fire_charge" -> 45L;
+            case "ender_eye" -> 150L;
             case "wind_charge" -> 1_200L;
             case "breeze_rod" -> 4_096L;
             case "echo_shard" -> 25_000L;
@@ -922,52 +958,55 @@ public class VCoinsPricing {
 
     private static long getFoodPrice(String path) {
         return switch (path) {
-            case "beetroot", "sweet_berries", "glow_berries", "kelp" -> 8L;
-            case "pumpkin", "cocoa_beans", "sugar_cane" -> 12L;
-            case "nether_wart" -> 16L;
-            case "beetroot_seeds", "melon_seeds", "pumpkin_seeds" -> 4L;
-            case "egg" -> 12L;
-            case "sugar" -> 4L;
-            case "bread" -> 44L;
-            case "baked_potato" -> 20L;
-            case "cooked_beef", "cooked_porkchop", "cooked_mutton",
-                    "cooked_chicken", "cooked_rabbit" -> 48L;
-            case "cod", "salmon", "rabbit" -> 32L;
-            case "cooked_cod", "cooked_salmon" -> 48L;
-            case "pufferfish", "tropical_fish" -> 64L;
-            case "cookie" -> 6L;
-            case "pumpkin_pie" -> 34L;
-            case "cake" -> 220L;
-            case "mushroom_stew", "beetroot_soup", "rabbit_stew", "suspicious_stew" -> 48L;
-            case "golden_carrot", "glistering_melon_slice" -> 850L;
-            case "honey_bottle" -> 24L;
+            case "beetroot", "sweet_berries", "glow_berries", "kelp" -> 4L;
+            case "pumpkin", "cocoa_beans", "sugar_cane" -> 6L;
+            case "nether_wart" -> 12L;
+            case "beetroot_seeds", "melon_seeds", "pumpkin_seeds" -> 2L;
+            case "egg" -> 6L;
+            case "sugar" -> 2L;
+            case "bread" -> 18L;
+            case "baked_potato" -> 6L;
+            case "cooked_beef", "cooked_porkchop", "cooked_mutton" -> 12L;
+            case "cooked_chicken", "cooked_rabbit" -> 10L;
+            case "beef", "porkchop", "mutton" -> 8L;
+            case "chicken", "rabbit" -> 6L;
+            case "cod", "salmon" -> 10L;
+            case "cooked_cod", "cooked_salmon" -> 18L;
+            case "pufferfish", "tropical_fish" -> 36L;
+            case "cookie" -> 3L;
+            case "pumpkin_pie" -> 30L;
+            case "cake" -> 350L;
+            case "mushroom_stew", "beetroot_soup", "rabbit_stew", "suspicious_stew" -> 24L;
+            case "golden_carrot", "glistering_melon_slice" -> 70L;
+            case "honey_bottle" -> 20L;
             case "potion" -> 32L;
-            case "splash_potion" -> 112L;
-            case "lingering_potion" -> 256L;
+            case "splash_potion" -> 80L;
+            case "lingering_potion" -> 180L;
             default -> 0L;
         };
     }
 
     private static long getMiscItemPrice(String path) {
         return switch (path) {
-            case "bowl" -> 2L;
-            case "glass_bottle" -> 10L;
-            case "water_bucket" -> 950L;
-            case "lava_bucket", "milk_bucket", "powder_snow_bucket" -> 1_024L;
+            case "bowl" -> 3L;
+            case "glass_bottle" -> 5L;
+            case "water_bucket" -> 95L;
+            case "lava_bucket" -> 120L;
+            case "milk_bucket", "powder_snow_bucket" -> 110L;
             case "cod_bucket", "salmon_bucket", "tropical_fish_bucket",
-                    "pufferfish_bucket" -> 1_200L;
-            case "axolotl_bucket", "tadpole_bucket" -> 2_000L;
-            case "lead" -> 90L;
-            case "name_tag" -> 10_000L;
-            case "saddle" -> 8_000L;
-            case "experience_bottle" -> 10_000L;
-            case "firework_rocket" -> 28L;
-            case "firework_star" -> 96L;
-            case "map", "empty_map" -> 1_300L;
-            case "painting" -> 40L;
-            case "writable_book" -> 128L;
-            case "written_book" -> 192L;
-            case "ominous_bottle" -> 40_000L;
+                    "pufferfish_bucket" -> 130L;
+            case "axolotl_bucket", "tadpole_bucket" -> 200L;
+            case "lead" -> 18L;
+            case "name_tag" -> 8_000L;
+            case "saddle" -> 6_000L;
+            case "experience_bottle" -> 8_000L;
+            case "firework_rocket" -> 20L;
+            case "firework_star" -> 60L;
+            case "map", "empty_map" -> 120L;
+            case "painting" -> 20L;
+            case "writable_book" -> 40L;
+            case "written_book" -> 60L;
+            case "ominous_bottle" -> 30_000L;
             default -> 0L;
         };
     }
@@ -978,10 +1017,10 @@ public class VCoinsPricing {
 
     private static long getSmithingTemplatePrice(String path) {
         if (path.contains("silence_armor_trim")) {
-            return 2_500_000L; // Rơi cực hiếm tại Ancient City (1.2% rương)
+            return 2_500_000L; // Extremely rare drop in Ancient City (1.2% chest chance)
         }
         if (path.contains("netherite_upgrade")) {
-            return 800_000L; // Tìm thấy tại Bastion Remnant
+            return 800_000L; // Found in Bastion Remnants
         }
         if (containsAny(path, "ward_armor_trim", "spire_armor_trim", "rib_armor_trim")) {
             return 1_200_000L; // Ancient City, End City, Nether Fortress
@@ -1182,6 +1221,7 @@ public class VCoinsPricing {
                 return item.components().has(DataComponents.FOOD);
             }
         } catch (Throwable ignored) {
+            // Registry components may not be bound yet or food component is absent
         }
         return false;
     }

@@ -14,6 +14,9 @@ import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.item.ItemStack;
 
 public final class VCoinsCommands {
+    private static final String ARG_TARGETS = "targets";
+    private static final String ARG_AMOUNT = "amount";
+
     private VCoinsCommands() {
     }
 
@@ -30,12 +33,12 @@ public final class VCoinsCommands {
                                     return 1;
                                 })))
                 .then(Commands.literal("set")
-                        .then(Commands.argument("targets", EntityArgument.players())
-                                .then(Commands.argument("amount", LongArgumentType.longArg(0))
+                        .then(Commands.argument(ARG_TARGETS, EntityArgument.players())
+                                .then(Commands.argument(ARG_AMOUNT, LongArgumentType.longArg(0))
                                         .executes(context -> {
                                             Collection<ServerPlayer> targets =
-                                                    EntityArgument.getPlayers(context, "targets");
-                                            long amount = LongArgumentType.getLong(context, "amount");
+                                                    EntityArgument.getPlayers(context, ARG_TARGETS);
+                                            long amount = LongArgumentType.getLong(context, ARG_AMOUNT);
 
                                             for (ServerPlayer target : targets) {
                                                 VCoinsState.setCoins(target.getUUID(), amount);
@@ -46,12 +49,12 @@ public final class VCoinsCommands {
                                             return 1;
                                         }))))
                 .then(Commands.literal("add")
-                        .then(Commands.argument("targets", EntityArgument.players())
-                                .then(Commands.argument("amount", LongArgumentType.longArg(1))
+                        .then(Commands.argument(ARG_TARGETS, EntityArgument.players())
+                                .then(Commands.argument(ARG_AMOUNT, LongArgumentType.longArg(1))
                                         .executes(context -> {
                                             Collection<ServerPlayer> targets =
-                                                    EntityArgument.getPlayers(context, "targets");
-                                            long amount = LongArgumentType.getLong(context, "amount");
+                                                    EntityArgument.getPlayers(context, ARG_TARGETS);
+                                            long amount = LongArgumentType.getLong(context, ARG_AMOUNT);
 
                                             for (ServerPlayer target : targets) {
                                                 VCoinsState.addCoins(target.getUUID(), amount);
@@ -60,7 +63,22 @@ public final class VCoinsCommands {
                                             context.getSource().sendSystemMessage(Component.translatable(
                                                     "vcoins.command.add_balance", amount, targets.size()));
                                             return 1;
-                                        })))));
+                                        }))))
+                .then(Commands.literal("market")
+                        .then(Commands.literal("reset")
+                                .executes(context -> {
+                                    VMarketEngine.reset(context.getSource().getServer());
+                                    context.getSource().sendSystemMessage(Component.translatable(
+                                            "vcoins.command.market_reset").withStyle(ChatFormatting.GREEN));
+                                    return 1;
+                                }))
+                        .then(Commands.literal("status")
+                                .executes(context -> {
+                                    int count = VMarketEngine.getTrackedCount();
+                                    context.getSource().sendSystemMessage(Component.translatable(
+                                            "vcoins.command.market_status", count).withStyle(ChatFormatting.AQUA));
+                                    return 1;
+                                }))));
 
         dispatcher.register(Commands.literal("shop")
                 .executes(context -> {
@@ -70,6 +88,7 @@ public final class VCoinsCommands {
                             Component.translatable("vcoins.title")
                     ));
                     VCoinsMod.syncCoins(player);
+                    VMarketEngine.syncToPlayer(player);
                     return 1;
                 }));
 
@@ -82,7 +101,7 @@ public final class VCoinsCommands {
 
     private static int sellHand(ServerPlayer player) {
         ItemStack stack = player.getMainHandItem();
-        if (stack.isEmpty()) {
+        if (stack.isEmpty() || stack.getCount() <= 0) {
             reject(player, "vcoins.command.empty_hand");
             return 0;
         }
@@ -94,14 +113,18 @@ public final class VCoinsCommands {
         }
 
         int count = stack.getCount();
+        String itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         Component itemName = stack.getHoverName();
         long value = safeMultiply(unitPrice, count);
         VCoinsState.addCoins(player.getUUID(), value);
         VCoinsMod.syncCoins(player);
-        VTradeScreenHandler.addBuyback(player, stack);
+        VMarketEngine.recordSell(itemId, count);
+        VMarketEngine.syncToPlayer(player);
+        VTradeScreenHandler.addBuyback(player, stack.copy());
         stack.setCount(0);
 
-        player.playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
+        player.playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 0.9f, 1.2f);
+        player.playSound(SoundEvents.BUNDLE_DROP_CONTENTS, 0.7f, 1.25f);
         player.sendSystemMessage(Component.translatable("vcoins.command.sell_hand_success",
                 count, itemName, value).withStyle(ChatFormatting.GREEN));
         return 1;
@@ -114,7 +137,7 @@ public final class VCoinsCommands {
         // the offhand are intentionally left alone.
         for (int slot = 0; slot < 36; slot++) {
             ItemStack stack = player.getInventory().getItem(slot);
-            if (stack.isEmpty()) {
+            if (stack.isEmpty() || stack.getCount() <= 0) {
                 continue;
             }
 
@@ -123,8 +146,11 @@ public final class VCoinsCommands {
                 continue;
             }
 
-            totalEarned = safeAdd(totalEarned, safeMultiply(unitPrice, stack.getCount()));
-            VTradeScreenHandler.addBuyback(player, stack);
+            int count = stack.getCount();
+            String itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+            VMarketEngine.recordSell(itemId, count);
+            totalEarned = safeAdd(totalEarned, safeMultiply(unitPrice, count));
+            VTradeScreenHandler.addBuyback(player, stack.copy());
             stack.setCount(0);
         }
 
@@ -135,7 +161,9 @@ public final class VCoinsCommands {
 
         VCoinsState.addCoins(player.getUUID(), totalEarned);
         VCoinsMod.syncCoins(player);
-        player.playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
+        VMarketEngine.syncToPlayer(player);
+        player.playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 0.9f, 1.2f);
+        player.playSound(SoundEvents.BUNDLE_DROP_CONTENTS, 0.7f, 1.25f);
         player.sendSystemMessage(Component.translatable("vcoins.command.sell_all_success",
                 totalEarned).withStyle(ChatFormatting.GREEN));
         return 1;
@@ -151,6 +179,9 @@ public final class VCoinsCommands {
     }
 
     private static long safeMultiply(long value, int count) {
+        if (value <= 0 || count <= 0) {
+            return 0L;
+        }
         try {
             return Math.multiplyExact(value, (long) count);
         } catch (ArithmeticException ignored) {

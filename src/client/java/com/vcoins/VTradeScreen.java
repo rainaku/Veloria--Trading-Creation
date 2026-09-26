@@ -6,10 +6,15 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -20,22 +25,25 @@ import java.util.List;
 import java.util.Locale;
 
 public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
+    private final VCoinsPurchaseConfirm purchaseConfirm = new VCoinsPurchaseConfirm();
     private static final int TAB_WIDTH = 27;
     private static final int TAB_HEIGHT = 28;
     private static final int TAB_GAP = 1;
     private static final int TOP_TAB_COUNT = 7;
-    private static final int SCROLLBAR_X = 176;
-    private static final int SCROLLBAR_Y = 34;
-    private static final int SCROLLBAR_HEIGHT = 89;
+    private static final int SCROLLBAR_X = 194;
+    private static final int SCROLLBAR_Y = 38;
+    private static final int SCROLLBAR_HEIGHT = 90;
     private static final int SCROLL_THUMB_HEIGHT = 15;
-    private static final int SHOP_X = 9;
-    private static final int SHOP_Y = 34;
+    private static final int SHOP_X = VTradeScreenHandler.SHOP_X;
+    private static final int SHOP_Y = VTradeScreenHandler.SHOP_Y;
+    private static final int PLAYER_X = VTradeScreenHandler.PLAYER_X;
+    private static final int PLAYER_INVENTORY_Y = VTradeScreenHandler.PLAYER_INVENTORY_Y;
+    private static final int PLAYER_HOTBAR_Y = VTradeScreenHandler.PLAYER_HOTBAR_Y;
     private static final int SLOT_SPACING = 18;
     private static final int SLOT_SIZE = 16;
 
     private static final ShopCategory[] TABS = {
             ShopCategory.ALL,
-            ShopCategory.BLACK_MARKET,
             ShopCategory.BUILDING,
             ShopCategory.COLORED,
             ShopCategory.NATURAL,
@@ -56,37 +64,67 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
     private int lastScrollOffset = -1;
 
     public VTradeScreen(VTradeScreenHandler handler, Inventory inventory, Component title) {
-        super(handler, inventory, title, 195, 222);
+        super(handler, inventory, title, 236, 250);
     }
+
+    private Button verifyToggleButton;
 
     @Override
     protected void init() {
         super.init();
 
-        this.searchBox = new EditBox(this.font, this.leftPos + 91, this.topPos + 7, 95, 18,
+        this.searchBox = new EditBox(this.font, this.leftPos + 112, this.topPos + 6, 110, 15,
                 Component.translatable("vcoins.search"));
         this.searchBox.setMaxLength(50);
         this.searchBox.setHint(Component.translatable("vcoins.search"));
         this.searchBox.setResponder(this::onSearchChanged);
         this.addRenderableWidget(this.searchBox);
 
+        // Công tắc bật/tắt xác minh giao dịch >100k
+        this.verifyToggleButton = this.addRenderableWidget(Button.builder(
+                VCoinsPurchaseConfirm.getToggleLabel(),
+                button -> {
+                    boolean enabled = VCoinsPurchaseConfirm.toggleConfirmation();
+                    updateVerifyToggleButton();
+                    if (this.minecraft != null) {
+                        this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), enabled ? 1.15f : 0.85f));
+                        if (this.minecraft.player != null) {
+                            this.minecraft.player.sendOverlayMessage(
+                                    Component.translatable(enabled ? "vcoins.verify.msg_on" : "vcoins.verify.msg_off")
+                                            .withStyle(enabled ? ChatFormatting.GREEN : ChatFormatting.GOLD)
+                            );
+                        }
+                    }
+                })
+                .bounds(this.leftPos + 15, this.topPos + 132, 46, 16)
+                .tooltip(VCoinsPurchaseConfirm.getToggleTooltip())
+                .build());
+
+        // Nút mở Menu Chợ Trời riêng
         this.addRenderableWidget(Button.builder(Component.translatable("vcoins.tab.black_market"), button ->
-                        selectCategory(ShopCategory.BLACK_MARKET))
-                .bounds(this.leftPos + 31, this.topPos + 126, 50, 14)
+                        ClientPlayNetworking.send(new OpenBlackMarketPayload()))
+                .bounds(this.leftPos + 64, this.topPos + 132, 54, 16)
                 .build());
 
         this.addRenderableWidget(Button.builder(Component.translatable("vcoins.buyback"), button ->
                         selectCategory(ShopCategory.BUYBACK))
-                .bounds(this.leftPos + 83, this.topPos + 126, 51, 14)
+                .bounds(this.leftPos + 121, this.topPos + 132, 48, 16)
                 .build());
 
         this.addRenderableWidget(Button.builder(Component.translatable("vcoins.duplicate.open"), button ->
                         ClientPlayNetworking.send(new OpenDuplicatePayload()))
-                .bounds(this.leftPos + 136, this.topPos + 126, 50, 14)
+                .bounds(this.leftPos + 172, this.topPos + 132, 50, 16)
                 .build());
 
         // Opening the market should be enough to start typing a search.
         this.setInitialFocus(this.searchBox);
+    }
+
+    private void updateVerifyToggleButton() {
+        if (this.verifyToggleButton != null) {
+            this.verifyToggleButton.setMessage(VCoinsPurchaseConfirm.getToggleLabel());
+            this.verifyToggleButton.setTooltip(VCoinsPurchaseConfirm.getToggleTooltip());
+        }
     }
 
     private void onSearchChanged(String query) {
@@ -108,6 +146,9 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
         this.scrollPosition = 0.0f;
         this.lastScrollOffset = 0;
         this.menu.setCategory(category);
+        if (this.minecraft != null) {
+            this.minecraft.getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK.value(), 1.0f));
+        }
         ClientPlayNetworking.send(new ShopActionPayload("TAB", category.name()));
     }
 
@@ -116,30 +157,52 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
         super.extractBackground(extractor, mouseX, mouseY, delta);
         drawTabs(extractor);
         drawPanel(extractor);
-        drawSlotGrid(extractor, 9, 34, VTradeScreenHandler.SHOP_COLUMNS, VTradeScreenHandler.SHOP_ROWS);
-        drawSlotGrid(extractor, 9, 143, 9, 3);
-        drawSlotGrid(extractor, 9, 201, 9, 1);
+        drawSlotGrid(extractor, SHOP_X, SHOP_Y, VTradeScreenHandler.SHOP_COLUMNS, VTradeScreenHandler.SHOP_ROWS);
+        drawSlotGrid(extractor, PLAYER_X, PLAYER_INVENTORY_Y, 9, 3);
+        drawSlotGrid(extractor, PLAYER_X, PLAYER_HOTBAR_Y, 9, 1);
         drawScrollbar(extractor);
 
-        long balance = this.minecraft != null && this.minecraft.player != null
-                ? VCoinsState.getCoins(this.minecraft.player.getUUID())
-                : 0L;
-        extractor.text(this.font, Component.translatable("vcoins.balance_short", formatCompactNumber(balance)),
-                this.leftPos + 9, this.topPos + 18, 0xFFE8B829, true);
+        if (purchaseConfirm.isArmed()) {
+            purchaseConfirm.renderBanner(extractor, this.font, this.leftPos + 16, this.topPos + 22, 204, 13);
+        } else {
+            long balance = this.minecraft != null && this.minecraft.player != null
+                    ? VCoinsState.getCoins(this.minecraft.player.getUUID())
+                    : 0L;
+            extractor.fill(this.leftPos + 16, this.topPos + 22, this.leftPos + 220, this.topPos + 35, 0x88080310);
+            extractor.fill(this.leftPos + 16, this.topPos + 22, this.leftPos + 220, this.topPos + 23, 0x33D4AF37);
+            extractor.fill(this.leftPos + 16, this.topPos + 34, this.leftPos + 220, this.topPos + 35, 0x33D4AF37);
+            extractor.text(this.font, Component.translatable("vcoins.balance", formatNumber(balance)),
+                    this.leftPos + 20, this.topPos + 24, 0xFFE8B829, true);
+
+            // Dynamic Market indicator
+            extractor.fill(this.leftPos + 158, this.topPos + 23, this.leftPos + 218, this.topPos + 34, 0x3300AAAA);
+            extractor.text(this.font, Component.translatable("vcoins.market.badge"),
+                    this.leftPos + 162, this.topPos + 24, 0xFF55FFFF, true);
+        }
+
+        // Toolbar background decorative tray
+        extractor.fill(this.leftPos + 12, this.topPos + 130, this.leftPos + 224, this.topPos + 150, 0x55080310);
+        extractor.fill(this.leftPos + 12, this.topPos + 130, this.leftPos + 224, this.topPos + 131, 0x22D4AF37);
+        extractor.fill(this.leftPos + 12, this.topPos + 149, this.leftPos + 224, this.topPos + 150, 0x22D4AF37);
+
+        // Player Inventory label
         extractor.text(this.font, Component.translatable("vcoins.inventory"),
-                this.leftPos + 9, this.topPos + 130, 0xFF404040, false);
+                this.leftPos + PLAYER_X, this.topPos + 153, 0xFFC8A96E, false);
+    }
+
+    @Override
+    protected void extractSlot(GuiGraphicsExtractor extractor, Slot slot, int mouseX, int mouseY) {
+        super.extractSlot(extractor, slot, mouseX, mouseY);
+        if (slot.index < VTradeScreenHandler.SHOP_SLOT_COUNT && purchaseConfirm.isSlotPending(slot.index)) {
+            purchaseConfirm.renderSlotWarningPulse(extractor, slot.x - 1, slot.y - 1, 18);
+        }
     }
 
     private void drawPanel(GuiGraphicsExtractor extractor) {
         InventoryTextures.panel(extractor, this.leftPos, this.topPos, this.imageWidth, this.imageHeight);
 
-        Component title = this.selectedCategory == ShopCategory.BLACK_MARKET
-                ? Component.translatable("vcoins.black_market.title")
-                : Component.translatable("vcoins.title");
-
-        extractor.text(this.font, title,
-                this.leftPos + 9, this.topPos + 7,
-                this.selectedCategory == ShopCategory.BLACK_MARKET ? 0xFF8A2BE2 : 0xFF404040, false);
+        extractor.text(this.font, Component.translatable("vcoins.title"),
+                this.leftPos + 18, this.topPos + 9, 0xFFD4AF37, false);
     }
 
     private void drawSlotGrid(GuiGraphicsExtractor extractor, int relativeX, int relativeY, int columns, int rows) {
@@ -156,6 +219,13 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
                     + row + (selected ? "_selected_" : "_unselected_") + position);
             extractor.blitSprite(RenderPipelines.GUI_TEXTURED, sprite,
                     bounds.x(), bounds.y(), bounds.width(), bounds.height());
+            if (selected) {
+                if (index < TOP_TAB_COUNT) {
+                    extractor.fill(bounds.x() + 2, bounds.y() + bounds.height() - 2, bounds.x() + bounds.width() - 2, bounds.y() + bounds.height(), 0xFFD4AF37);
+                } else {
+                    extractor.fill(bounds.x() + 2, bounds.y(), bounds.x() + bounds.width() - 2, bounds.y() + 2, 0xFFD4AF37);
+                }
+            }
             Item icon = getTabIcon(TABS[index]);
             extractor.item(new ItemStack(icon), bounds.x() + 5, bounds.y() + 6);
         }
@@ -170,62 +240,19 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
         InventoryTextures.recess(extractor, trackX, trackY, 12, SCROLLBAR_HEIGHT);
         int travel = SCROLLBAR_HEIGHT - SCROLL_THUMB_HEIGHT;
         int thumbY = trackY + Math.round(this.scrollPosition * travel);
-        Identifier sprite = Identifier.withDefaultNamespace("container/creative_inventory/"
-                + (enabled ? "scroller" : "scroller_disabled"));
-        extractor.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, trackX, thumbY, 12, SCROLL_THUMB_HEIGHT);
+        InventoryTextures.scrollThumb(extractor, trackX, thumbY, 12, SCROLL_THUMB_HEIGHT, enabled);
     }
     @Override
     protected void extractLabels(GuiGraphicsExtractor extractor, int mouseX, int mouseY) {
         // All labels are positioned explicitly in extractBackground.
     }
 
+    private static final String TOOLTIP_BUY_PRICE = "vcoins.tooltip.buy_price";
+
     @Override
     protected void extractTooltip(GuiGraphicsExtractor extractor, int mouseX, int mouseY) {
         if (this.hoveredSlot != null && this.hoveredSlot.hasItem()) {
-            ItemStack stack = this.hoveredSlot.getItem();
-            List<Component> tooltip = new ArrayList<>(this.getTooltipFromContainerItem(stack));
-            long buyPrice = VCoinsPricing.getPrice(stack);
-
-            if (this.hoveredSlot.index < VTradeScreenHandler.SHOP_SLOT_COUNT) {
-                tooltip.add(Component.empty());
-                if (this.selectedCategory == ShopCategory.BUYBACK) {
-                    long totalPrice = safeMultiply(VCoinsPricing.getBuybackPrice(stack), stack.getCount());
-                    if (buyPrice > 0) {
-                        tooltip.add(Component.translatable("vcoins.tooltip.buy_price", formatNumber(buyPrice))
-                                .withStyle(ChatFormatting.YELLOW));
-                    }
-                    tooltip.add(Component.translatable("vcoins.tooltip.buyback", formatNumber(totalPrice))
-                            .withStyle(ChatFormatting.GOLD));
-                } else {
-                    if (this.selectedCategory == ShopCategory.BLACK_MARKET) {
-                        tooltip.add(Component.translatable("vcoins.black_market.merchant_tag")
-                                .withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.ITALIC));
-                    }
-                    tooltip.add(Component.translatable("vcoins.tooltip.buy_price", formatNumber(buyPrice))
-                            .withStyle(ChatFormatting.YELLOW));
-                    tooltip.add(Component.translatable("vcoins.tooltip.buy_left").withStyle(ChatFormatting.GRAY));
-                    tooltip.add(Component.translatable("vcoins.tooltip.buy_shift").withStyle(ChatFormatting.GRAY));
-                    tooltip.add(Component.translatable("vcoins.tooltip.buy_right", stack.getMaxStackSize())
-                            .withStyle(ChatFormatting.GRAY));
-                }
-            } else {
-                long sellPrice = VCoinsPricing.getSellPrice(stack);
-                if (buyPrice > 0 || sellPrice > 0) {
-                    tooltip.add(Component.empty());
-                    if (buyPrice > 0) {
-                        tooltip.add(Component.translatable("vcoins.tooltip.buy_price", formatNumber(buyPrice))
-                                .withStyle(ChatFormatting.YELLOW));
-                    }
-                }
-                if (sellPrice > 0) {
-                    tooltip.add(Component.translatable("vcoins.tooltip.sell_price", formatNumber(sellPrice))
-                            .withStyle(ChatFormatting.GREEN));
-                    tooltip.add(Component.translatable("vcoins.tooltip.sell_shift").withStyle(ChatFormatting.GRAY));
-                    tooltip.add(Component.translatable("vcoins.tooltip.sell_drag").withStyle(ChatFormatting.GRAY));
-                }
-            }
-
-            extractor.setTooltipForNextFrame(this.font, tooltip, stack.getTooltipImage(), mouseX, mouseY);
+            extractSlotTooltip(extractor, mouseX, mouseY);
             return;
         }
 
@@ -242,7 +269,105 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
             return;
         }
 
+        if (mouseX >= this.leftPos + 155 && mouseX < this.leftPos + 220 && mouseY >= this.topPos + 22 && mouseY < this.topPos + 35) {
+            List<Component> marketTips = List.of(
+                    Component.translatable("vcoins.market.tooltip_title").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD),
+                    Component.translatable("vcoins.market.tooltip_desc").withStyle(ChatFormatting.GRAY)
+            );
+            extractor.setTooltipForNextFrame(this.font, marketTips, java.util.Optional.empty(), mouseX, mouseY);
+            return;
+        }
+
         super.extractTooltip(extractor, mouseX, mouseY);
+    }
+
+    private void extractSlotTooltip(GuiGraphicsExtractor extractor, int mouseX, int mouseY) {
+        ItemStack stack = this.hoveredSlot.getItem();
+        List<Component> tooltip = new ArrayList<>(this.getTooltipFromContainerItem(stack));
+        long buyPrice = VCoinsPricing.getPrice(stack);
+
+        if (this.hoveredSlot.index < VTradeScreenHandler.SHOP_SLOT_COUNT) {
+            appendShopSlotTooltip(tooltip, stack, buyPrice);
+        } else {
+            appendInventorySlotTooltip(tooltip, stack, buyPrice);
+        }
+
+        extractor.setTooltipForNextFrame(this.font, tooltip, stack.getTooltipImage(), mouseX, mouseY);
+    }
+
+    private void appendShopSlotTooltip(List<Component> tooltip, ItemStack stack, long buyPrice) {
+        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        VMarketEngine.MarketTrend trend = VMarketEngine.getTrend(itemId);
+
+        tooltip.add(Component.empty());
+        if (this.selectedCategory == ShopCategory.BUYBACK) {
+            long totalPrice = safeMultiply(VCoinsPricing.getBuybackPrice(stack), stack.getCount());
+            if (buyPrice > 0) {
+                MutableComponent priceComp = Component.translatable(TOOLTIP_BUY_PRICE, formatNumber(buyPrice))
+                        .withStyle(ChatFormatting.YELLOW);
+                if (trend.percentChange() != 0) {
+                    priceComp.append(Component.literal(" ")).append(trend.getBadge());
+                }
+                tooltip.add(priceComp);
+            }
+            tooltip.add(Component.translatable("vcoins.tooltip.buyback", formatNumber(totalPrice))
+                    .withStyle(ChatFormatting.GOLD));
+        } else {
+            if (this.selectedCategory == ShopCategory.BLACK_MARKET) {
+                tooltip.add(Component.translatable("vcoins.black_market.merchant_tag")
+                        .withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.ITALIC));
+            }
+            MutableComponent priceComp = Component.translatable(TOOLTIP_BUY_PRICE, formatNumber(buyPrice))
+                    .withStyle(ChatFormatting.YELLOW);
+            if (trend.percentChange() != 0) {
+                priceComp.append(Component.literal(" ")).append(trend.getBadge());
+            }
+            tooltip.add(priceComp);
+
+            if (trend.percentChange() != 0) {
+                tooltip.add(Component.translatable(trend.reasonKey()).withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
+            }
+
+            tooltip.add(Component.translatable("vcoins.tooltip.buy_left").withStyle(ChatFormatting.GRAY));
+            tooltip.add(Component.translatable("vcoins.tooltip.buy_shift").withStyle(ChatFormatting.GRAY));
+            tooltip.add(Component.translatable("vcoins.tooltip.buy_right", stack.getMaxStackSize())
+                    .withStyle(ChatFormatting.GRAY));
+        }
+    }
+
+    private void appendInventorySlotTooltip(List<Component> tooltip, ItemStack stack, long buyPrice) {
+        long sellPrice = VCoinsPricing.getSellPrice(stack);
+        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        VMarketEngine.MarketTrend trend = VMarketEngine.getTrend(itemId);
+
+        if (buyPrice > 0 || sellPrice > 0) {
+            tooltip.add(Component.empty());
+            if (buyPrice > 0) {
+                MutableComponent buyComp = Component.translatable(TOOLTIP_BUY_PRICE, formatNumber(buyPrice))
+                        .withStyle(ChatFormatting.YELLOW);
+                if (trend.percentChange() != 0) {
+                    buyComp.append(Component.literal(" ")).append(trend.getBadge());
+                }
+                tooltip.add(buyComp);
+            }
+        }
+        if (sellPrice > 0) {
+            MutableComponent sellComp = Component.translatable("vcoins.tooltip.sell_price", formatNumber(sellPrice))
+                    .withStyle(ChatFormatting.GREEN);
+            if (trend.percentChange() != 0) {
+                sellComp.append(Component.literal(" ")).append(trend.getBadge());
+            }
+            tooltip.add(sellComp);
+
+            if (trend.percentChange() > 0) {
+                tooltip.add(Component.translatable("vcoins.market.sell_opportunity_high").withStyle(ChatFormatting.DARK_GREEN, ChatFormatting.ITALIC));
+            } else if (trend.percentChange() < 0) {
+                tooltip.add(Component.translatable("vcoins.market.sell_opportunity_low").withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));
+            }
+
+            tooltip.add(Component.translatable("vcoins.tooltip.sell_shift").withStyle(ChatFormatting.GRAY));
+            tooltip.add(Component.translatable("vcoins.tooltip.sell_drag").withStyle(ChatFormatting.GRAY));
+        }
     }
 
     @Override
@@ -275,7 +400,20 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
                     || click.button() == InputConstants.MOUSE_BUTTON_RIGHT) {
                 boolean buyStack = click.button() == InputConstants.MOUSE_BUTTON_RIGHT
                         || click.hasShiftDown();
-                ClientPlayNetworking.send(new ShopTransactionPayload(shopSlot, buyStack));
+
+                Slot slot = this.menu.slots.get(shopSlot);
+                if (slot != null && slot.hasItem()) {
+                    ItemStack stack = slot.getItem();
+                    long unitPrice = (this.selectedCategory == ShopCategory.BUYBACK)
+                            ? VCoinsPricing.getBuybackPrice(stack)
+                            : VCoinsPricing.getPrice(stack);
+                    int amount = buyStack ? stack.getMaxStackSize() : 1;
+                    long totalCost = safeMultiply(unitPrice, amount);
+
+                    if (purchaseConfirm.checkOrArm(shopSlot, buyStack, stack, totalCost, this.minecraft)) {
+                        ClientPlayNetworking.send(new ShopTransactionPayload(shopSlot, buyStack));
+                    }
+                }
             }
             // Never pass a shop-grid input to vanilla slot handling.
             return true;
@@ -363,6 +501,16 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
 
     @Override
     public boolean keyPressed(net.minecraft.client.input.KeyEvent keyInput) {
+        if (!this.searchBox.isFocused() && (keyInput.key() == InputConstants.KEY_SPACE || keyInput.key() == InputConstants.KEY_RETURN || keyInput.key() == InputConstants.KEY_NUMPADENTER)) {
+            if (purchaseConfirm.handleKeyPress((slot, buyStack) -> {
+                ClientPlayNetworking.send(new ShopTransactionPayload(slot, buyStack));
+                if (this.minecraft != null) {
+                    this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.0f));
+                }
+            })) {
+                return true;
+            }
+        }
         if (this.searchBox.keyPressed(keyInput)) {
             return true;
         }

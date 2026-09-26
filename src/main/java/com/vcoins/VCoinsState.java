@@ -24,7 +24,7 @@ public class VCoinsState {
     }
 
     public static void setCoins(UUID player, long amount) {
-        playerCoins.put(player, amount);
+        playerCoins.put(player, Math.max(0L, amount));
     }
 
     public static void addCoins(UUID player, long amount) {
@@ -66,9 +66,12 @@ public class VCoinsState {
     }
 
     public static void removeCoins(UUID player, long amount) {
+        if (amount <= 0) {
+            return;
+        }
         long current = getCoins(player);
         if (current >= amount) {
-            playerCoins.put(player, current - amount);
+            setCoins(player, current - amount);
         }
     }
 }

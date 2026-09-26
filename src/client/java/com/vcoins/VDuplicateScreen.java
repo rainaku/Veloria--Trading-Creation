@@ -64,22 +64,25 @@ public class VDuplicateScreen extends AbstractContainerScreen<VDuplicateScreenHa
         InventoryTextures.slots(extractor, this.leftPos + 8, this.topPos + 84, 9, 3);
         InventoryTextures.slots(extractor, this.leftPos + 8, this.topPos + 142, 9, 1);
         InventoryTextures.panel(extractor, this.leftPos + COST_PANEL_X, this.topPos + 4, COST_PANEL_WIDTH, 92);
+
+        // Golden flow arrow between sample and output slot
+        extractor.text(this.font, "➔", this.leftPos + 88, this.topPos + 51, 0xFFD4AF37, false);
     }
     @Override
     protected void extractLabels(GuiGraphicsExtractor extractor, int mouseX, int mouseY) {
-        extractor.text(this.font, this.title, this.titleLabelX, this.titleLabelY, 0x404040, false);
+        extractor.text(this.font, this.title, this.titleLabelX, this.titleLabelY, 0xFFD4AF37, false);
         extractor.text(this.font, this.playerInventoryTitle,
-                this.inventoryLabelX, this.inventoryLabelY, 0x404040, false);
+                this.inventoryLabelX, this.inventoryLabelY, 0xFFC8A96E, false);
 
         ItemStack sample = this.menu.getSampleStack();
         extractor.text(this.font, Component.translatable("vcoins.duplicate.sample_cost"),
-                COST_PANEL_X + 5, 10, 0x404040, false);
+                COST_PANEL_X + 6, 10, 0xFFD4AF37, false);
 
         if (sample.isEmpty()) {
             extractor.text(this.font, Component.translatable("vcoins.duplicate.place_sample"),
-                    8, 64, 0x777777, false);
+                    8, 68, 0xFF9E8E7E, false);
             extractor.textWithWordWrap(this.font, Component.translatable("vcoins.duplicate.no_sample_cost"),
-                    COST_PANEL_X + 5, 27, COST_PANEL_WIDTH - 10, 0x777777);
+                    COST_PANEL_X + 6, 26, COST_PANEL_WIDTH - 12, 0xFF8E887E);
             return;
         }
 
@@ -89,17 +92,17 @@ public class VDuplicateScreen extends AbstractContainerScreen<VDuplicateScreenHa
                 && VCoinsState.getCoins(this.minecraft.player.getUUID()) >= coinCost;
         boolean hasLevels = this.minecraft != null && this.minecraft.player != null
                 && this.minecraft.player.experienceLevel >= levelCost;
-        String sampleName = this.font.plainSubstrByWidth(sample.getHoverName().getString(), COST_PANEL_WIDTH - 10);
+        String sampleName = this.font.plainSubstrByWidth(sample.getHoverName().getString(), COST_PANEL_WIDTH - 12);
 
-        extractor.text(this.font, sampleName, COST_PANEL_X + 5, 23, 0xFF555555, false);
+        extractor.text(this.font, sampleName, COST_PANEL_X + 6, 24, 0xFFFFFFFF, false);
         extractor.text(this.font, Component.translatable("vcoins.duplicate.coin_usage"),
-                COST_PANEL_X + 5, 39, 0xFF777777, false);
+                COST_PANEL_X + 6, 38, 0xFFB0A898, false);
         extractor.text(this.font, formatNumber(coinCost),
-                COST_PANEL_X + 5, 50, hasCoins ? 0xFFE8B829 : 0xFFB02020, false);
+                COST_PANEL_X + 6, 49, hasCoins ? 0xFFE8B829 : 0xFFFF5555, false);
         extractor.text(this.font, Component.translatable("vcoins.duplicate.xp_usage"),
-                COST_PANEL_X + 5, 66, 0xFF777777, false);
+                COST_PANEL_X + 6, 64, 0xFFB0A898, false);
         extractor.text(this.font, Integer.toString(levelCost),
-                COST_PANEL_X + 5, 77, hasLevels ? 0xFF45B9C7 : 0xFFB02020, false);
+                COST_PANEL_X + 6, 75, hasLevels ? 0xFF45E6D8 : 0xFFFF5555, false);
     }
 
     @Override
