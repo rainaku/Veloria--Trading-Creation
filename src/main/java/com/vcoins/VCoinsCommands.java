@@ -1,6 +1,7 @@
 package com.vcoins;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import java.util.Collection;
 import net.minecraft.ChatFormatting;
@@ -97,6 +98,80 @@ public final class VCoinsCommands {
                         .executes(context -> sellHand(context.getSource().getPlayerOrException())))
                 .then(Commands.literal("all")
                         .executes(context -> sellInventory(context.getSource().getPlayerOrException()))));
+
+        dispatcher.register(Commands.literal("blackmarket")
+                .executes(context -> {
+                    ServerPlayer player = context.getSource().getPlayerOrException();
+                    player.openMenu(new SimpleMenuProvider(
+                            (syncId, inventory, playerEntity) -> new VBlackMarketScreenHandler(syncId, inventory),
+                            Component.translatable("vcoins.black_market.title")
+                    ));
+                    VCoinsMod.syncCoins(player);
+                    VBlackMarket.syncToPlayer(player);
+                    return 1;
+                })
+                .then(Commands.literal("reset")
+                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .executes(context -> {
+                            VBlackMarket.adminReset(context.getSource().getServer());
+                            context.getSource().sendSystemMessage(Component.translatable(
+                                    "vcoins.command.blackmarket.reset_all").withStyle(ChatFormatting.GREEN));
+                            return 1;
+                        })
+                        .then(Commands.argument("target", EntityArgument.player())
+                                .executes(context -> {
+                                    ServerPlayer target = EntityArgument.getPlayer(context, "target");
+                                    VBlackMarket.resetForPlayer(target);
+                                    context.getSource().sendSystemMessage(Component.translatable(
+                                            "vcoins.command.blackmarket.reset_player", target.getName()).withStyle(ChatFormatting.GREEN));
+                                    target.sendSystemMessage(Component.translatable(
+                                            "vcoins.command.blackmarket.notify_reset").withStyle(ChatFormatting.LIGHT_PURPLE));
+                                    return 1;
+                                })))
+                .then(Commands.literal("give")
+                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.argument(ARG_TARGETS, EntityArgument.players())
+                                .then(Commands.argument(ARG_AMOUNT, IntegerArgumentType.integer(1))
+                                        .executes(context -> {
+                                            Collection<ServerPlayer> targets = EntityArgument.getPlayers(context, ARG_TARGETS);
+                                            int amount = IntegerArgumentType.getInteger(context, ARG_AMOUNT);
+                                            for (ServerPlayer target : targets) {
+                                                VBlackMarket.addBankedResets(target.getUUID(), amount);
+                                                VBlackMarket.syncToPlayer(target);
+                                                target.sendSystemMessage(Component.translatable(
+                                                        "vcoins.command.blackmarket.receive_banked", amount).withStyle(ChatFormatting.LIGHT_PURPLE));
+                                            }
+                                            context.getSource().sendSystemMessage(Component.translatable(
+                                                    "vcoins.command.blackmarket.give_banked", amount, targets.size()).withStyle(ChatFormatting.GREEN));
+                                            return targets.size();
+                                        }))))
+                .then(Commands.literal("bank")
+                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.literal("add")
+                                .then(Commands.argument(ARG_TARGETS, EntityArgument.players())
+                                        .then(Commands.argument(ARG_AMOUNT, IntegerArgumentType.integer(1))
+                                                .executes(context -> {
+                                                    Collection<ServerPlayer> targets = EntityArgument.getPlayers(context, ARG_TARGETS);
+                                                    int amount = IntegerArgumentType.getInteger(context, ARG_AMOUNT);
+                                                    for (ServerPlayer target : targets) {
+                                                        VBlackMarket.addBankedResets(target.getUUID(), amount);
+                                                        VBlackMarket.syncToPlayer(target);
+                                                        target.sendSystemMessage(Component.translatable(
+                                                                "vcoins.command.blackmarket.receive_banked", amount).withStyle(ChatFormatting.LIGHT_PURPLE));
+                                                    }
+                                                    context.getSource().sendSystemMessage(Component.translatable(
+                                                            "vcoins.command.blackmarket.give_banked", amount, targets.size()).withStyle(ChatFormatting.GREEN));
+                                                    return targets.size();
+                                                }))))
+                        .then(Commands.literal("get")
+                                .then(Commands.argument("target", EntityArgument.player())
+                                        .executes(context -> {
+                                            ServerPlayer target = EntityArgument.getPlayer(context, "target");
+                                            int count = VBlackMarket.getBankedResets(target.getUUID());
+                                            context.getSource().sendSystemMessage(Component.translatable(
+                                                    "vcoins.command.blackmarket.bank_count", target.getName(), count).withStyle(ChatFormatting.AQUA));
+                                            return count;
+                                        })))));
     }
 
     private static int sellHand(ServerPlayer player) {

@@ -76,11 +76,12 @@ public class VCoinsMod implements ModInitializer {
         PayloadTypeRegistry.serverboundPlay().register(ShopTransactionPayload.ID, ShopTransactionPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(BlackMarketBuyPayload.ID, BlackMarketBuyPayload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(BlackMarketRevealPayload.ID, BlackMarketRevealPayload.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(BlackMarketResetActionPayload.ID, BlackMarketResetActionPayload.CODEC);
         
         ServerPlayNetworking.registerGlobalReceiver(ShopActionPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
                 if (context.player().containerMenu instanceof VTradeScreenHandler shop) {
-                    handleShopAction(shop, payload.action(), payload.data());
+                    handleShopAction(shop, context.player(), payload.action(), payload.data());
                 }
             });
         });
@@ -95,9 +96,7 @@ public class VCoinsMod implements ModInitializer {
 
         ServerPlayNetworking.registerGlobalReceiver(BlackMarketBuyPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
-                if (context.player().containerMenu instanceof VBlackMarketScreenHandler market) {
-                    market.handlePurchase(context.player(), payload.slotIndex(), payload.buyStack());
-                }
+                VBlackMarket.buyItem(context.player(), payload.slotIndex(), payload.buyStack());
             });
         });
 
@@ -110,9 +109,15 @@ public class VCoinsMod implements ModInitializer {
                 VBlackMarket.syncToPlayer(context.player());
             });
         });
+
+        ServerPlayNetworking.registerGlobalReceiver(BlackMarketResetActionPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                VBlackMarket.useBankedReset(context.player());
+            });
+        });
     }
 
-    private static void handleShopAction(VTradeScreenHandler shop, String action, String data) {
+    private static void handleShopAction(VTradeScreenHandler shop, ServerPlayer player, String action, String data) {
         if ("SCROLL".equals(action)) {
             try {
                 shop.setScrollOffset(Integer.parseInt(data));
@@ -125,6 +130,11 @@ public class VCoinsMod implements ModInitializer {
             shop.setSearchQuery(data);
         } else if ("SELL_ALL".equals(action)) {
             shop.sellAll();
+        } else if ("DUPLICATE".equals(action)) {
+            try {
+                int slotIndex = Integer.parseInt(data);
+                shop.handleDuplicate(player, slotIndex);
+            } catch (Exception ignored) {}
         }
     }
 

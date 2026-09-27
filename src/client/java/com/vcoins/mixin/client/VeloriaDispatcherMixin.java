@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(EntityRenderDispatcher.class)
 public class VeloriaDispatcherMixin {
     @Inject(method = "getRenderer(Lnet/minecraft/client/renderer/entity/state/EntityRenderState;)Lnet/minecraft/client/renderer/entity/EntityRenderer;", at = @At("HEAD"), cancellable = true)
-    private void veloria$model(EntityRenderState state, CallbackInfoReturnable<EntityRenderer<?, ?>> cir) {
+    private void veloriaModel(EntityRenderState state, CallbackInfoReturnable<EntityRenderer<?, ?>> cir) {
         if (VeloriaPreviewRenderers.states.contains(state) && VeloriaPreviewRenderers.get() != null)
             cir.setReturnValue(VeloriaPreviewRenderers.get());
     }

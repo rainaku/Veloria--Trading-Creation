@@ -41,14 +41,14 @@ dependencies {
 // Only full-image decorations are resized. UV atlases and 16px item sprites stay exact.
 def runtimeTextureSizes = [
     'assets/vcoins/textures/gui/veloria_obsidian.png': [256, 256],
-    'assets/vcoins/icon.png': [128, 128]
+    'assets/vcoins/icon.png': [128, 128],
+    'assets/vcoins/textures/gui/veloria_merchant.png': [512, 768]
 ]
 
 processResources {
     inputs.property 'runtimeTextureSizes', runtimeTextureSizes
     // Promotional artwork and the retired menu are retained in source control.
     exclude 'assets/vcoins/banner.png', 'assets/vcoins/textures/gui/black_market_menu.png',
-            'assets/vcoins/textures/gui/veloria_merchant.png',
             'assets/vcoins/textures/entity/veloria_merchant.png'
     doLast {
         runtimeTextureSizes.each { path, dimensions ->

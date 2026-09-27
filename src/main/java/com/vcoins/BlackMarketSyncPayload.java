@@ -6,26 +6,40 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 
+import java.util.List;
+import net.minecraft.world.item.ItemStack;
+
 public record BlackMarketSyncPayload(
         long secondsUntilReset,
         int revealedMask,
         int purchasedMask,
         long epochDay,
         int bankedResets,
-        int resetSequence
+        int resetSequence,
+        List<ItemStack> items
 ) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<BlackMarketSyncPayload> ID =
             new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "black_market_sync"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, BlackMarketSyncPayload> CODEC =
-            StreamCodec.composite(
-                    ByteBufCodecs.VAR_LONG, BlackMarketSyncPayload::secondsUntilReset,
-                    ByteBufCodecs.VAR_INT, BlackMarketSyncPayload::revealedMask,
-                    ByteBufCodecs.VAR_INT, BlackMarketSyncPayload::purchasedMask,
-                    ByteBufCodecs.VAR_LONG, BlackMarketSyncPayload::epochDay,
-                    ByteBufCodecs.VAR_INT, BlackMarketSyncPayload::bankedResets,
-                    ByteBufCodecs.VAR_INT, BlackMarketSyncPayload::resetSequence,
-                    BlackMarketSyncPayload::new
-            );
+    public static final StreamCodec<RegistryFriendlyByteBuf, BlackMarketSyncPayload> CODEC = StreamCodec.of(
+            (buf, payload) -> {
+                buf.writeVarLong(payload.secondsUntilReset());
+                buf.writeVarInt(payload.revealedMask());
+                buf.writeVarInt(payload.purchasedMask());
+                buf.writeVarLong(payload.epochDay());
+                buf.writeVarInt(payload.bankedResets());
+                buf.writeVarInt(payload.resetSequence());
+                ItemStack.OPTIONAL_LIST_STREAM_CODEC.encode(buf, payload.items());
+            },
+            buf -> new BlackMarketSyncPayload(
+                    buf.readVarLong(),
+                    buf.readVarInt(),
+                    buf.readVarInt(),
+                    buf.readVarLong(),
+                    buf.readVarInt(),
+                    buf.readVarInt(),
+                    ItemStack.OPTIONAL_LIST_STREAM_CODEC.decode(buf)
+            )
+    );
 
     @Override
     public Type<? extends CustomPacketPayload> type() {

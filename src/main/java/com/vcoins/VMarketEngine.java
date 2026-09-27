@@ -99,14 +99,16 @@ public class VMarketEngine {
         return MarketCycle.multiplier(itemId, VCoinsPricing.isRareMarketItem(itemId), epochSecond);
     }
 
-    /** Market depth decreases as the base price increases. */
+    /** Market depth decreases smoothly as the base price increases. */
     public static int calculateMarketDepth(long basePrice) {
         if (basePrice <= 0) {
             basePrice = 1;
         }
-        double sqrtPrice = Math.sqrt((double) basePrice);
-        int depth = (int) Math.round(2500.0 / sqrtPrice);
-        return Math.max(15, Math.min(5000, depth));
+        // Smoothly scale market depth according to base item valuation.
+        // Even the highest-tier endgame treasures have sufficient market depth (minimum 120),
+        // preventing a small handful of purchases from artificially and abruptly spiking prices.
+        double depth = 4500.0 / Math.pow((double) basePrice, 0.22);
+        return Math.max(120, Math.min(5000, (int) Math.round(depth)));
     }
 
     public static int getDecayedVolume(MarketItemState state, long nowEpoch) {
@@ -127,8 +129,13 @@ public class VMarketEngine {
         }
         int depth = calculateMarketDepth(basePrice);
         double ratio = (double) volume / (double) depth;
-        // 1 full depth of transactions moves the price by 25%
-        return Math.max(-0.65, Math.min(1.35, ratio * 0.25));
+        double absRatio = Math.abs(ratio);
+        // Progressive elasticity: small routine retail purchases (|volume| < 10% depth)
+        // produce gentle, cushion-absorbed price shifts rather than immediate twitchy spikes.
+        // Heavy sustained volume progressively exerts standard market pressure up to limits.
+        double progressive = Math.pow(absRatio, 1.25);
+        double delta = Math.signum(ratio) * progressive * 0.25;
+        return Math.max(-0.65, Math.min(1.35, delta));
     }
 
     public static double getVolumeModifier(String key, long basePrice, long nowEpoch) {

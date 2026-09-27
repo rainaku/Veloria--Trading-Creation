@@ -83,11 +83,12 @@ public class VCoinsClientMod implements ClientModInitializer {
                 for (int i = 0; i < VBlackMarketScreenHandler.MARKET_SLOT_COUNT; i++) {
                     if (market.slots.get(i).getItem() == stack) {
                         long day = VBlackMarketScreen.getSyncedDay();
+                        int seq = VBlackMarketScreen.getSyncedResetSequence();
                         lines.add(net.minecraft.network.chat.Component.translatable("vcoins.black_market.buy_price",
-                                String.format(java.util.Locale.ROOT, "%,d", VBlackMarket.getDiscountedPrice(stack, day)))
+                                String.format(java.util.Locale.ROOT, "%,d", VBlackMarket.getDiscountedPrice(stack, day, seq)))
                                 .withStyle(net.minecraft.ChatFormatting.YELLOW));
                         lines.add(net.minecraft.network.chat.Component.translatable("vcoins.black_market.discount",
-                                VBlackMarket.getDiscountPercent(stack, day)).withStyle(net.minecraft.ChatFormatting.GREEN));
+                                VBlackMarket.getDiscountPercent(stack, day, seq)).withStyle(net.minecraft.ChatFormatting.GREEN));
                         return;
                     }
                 }

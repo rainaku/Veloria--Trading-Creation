@@ -91,6 +91,52 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
         }
 
         updateShopItems();
+
+        if (this.player instanceof ServerPlayer serverPlayer) {
+            VBlackMarket.syncToPlayer(serverPlayer);
+        }
+    }
+
+    public boolean handleDuplicate(ServerPlayer player, int inventorySlotIndex) {
+        if (player != this.player || inventorySlotIndex < 0 || inventorySlotIndex >= player.getInventory().getContainerSize()
+                || !player.isAlive() || player.isRemoved()) {
+            return false;
+        }
+
+        ItemStack sample = player.getInventory().getItem(inventorySlotIndex);
+        if (sample.isEmpty() || !VCoinsPricing.isTradeable(sample.getItem())) {
+            player.sendOverlayMessage(Component.translatable("vcoins.duplicate.invalid_item").withStyle(ChatFormatting.RED));
+            sendSoundToPlayer(player, SoundEvents.VILLAGER_NO, 1.0f, 1.0f);
+            return false;
+        }
+
+        long coinCost = VDuplicatePricing.getCoinCost(sample);
+        int levelCost = VDuplicatePricing.getExperienceLevelCost(sample);
+        long balance = VCoinsState.getCoins(player.getUUID());
+
+        if (balance < coinCost) {
+            player.sendOverlayMessage(Component.translatable("vcoins.duplicate.not_enough_coins",
+                    formatNumber(coinCost), formatNumber(balance)).withStyle(ChatFormatting.RED));
+            sendSoundToPlayer(player, SoundEvents.VILLAGER_NO, 1.0f, 1.0f);
+            return false;
+        }
+        if (player.experienceLevel < levelCost) {
+            player.sendOverlayMessage(Component.translatable("vcoins.duplicate.not_enough_xp",
+                    levelCost, player.experienceLevel).withStyle(ChatFormatting.RED));
+            sendSoundToPlayer(player, SoundEvents.VILLAGER_NO, 1.0f, 1.0f);
+            return false;
+        }
+
+        VCoinsState.removeCoins(player.getUUID(), coinCost);
+        player.giveExperienceLevels(-levelCost);
+        player.getInventory().placeItemBackInInventory(sample.copyWithCount(1), Prediction.SERVER_ONLY);
+        VCoinsMod.syncCoins(player);
+
+        sendSoundToPlayer(player, SoundEvents.ANVIL_USE, 1.0f, 1.15f);
+        sendSoundToPlayer(player, SoundEvents.PLAYER_LEVELUP, 0.65f, 1.55f);
+        player.sendOverlayMessage(Component.translatable("vcoins.duplicate.success", sample.getHoverName(),
+                formatNumber(coinCost), levelCost).withStyle(ChatFormatting.GREEN));
+        return true;
     }
 
     public static void addBuyback(Player player, ItemStack stack) {

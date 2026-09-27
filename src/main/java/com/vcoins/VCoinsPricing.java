@@ -99,14 +99,14 @@ public class VCoinsPricing {
         setPrice("minecraft:amethyst_block", 80);
 
         // High-value finite resources (cannot be infinitely AFK farmed)
-        setPrice("minecraft:emerald", 50);
-        setPrice("minecraft:emerald_block", 450);
-        setPrice("minecraft:diamond", 18_000);
-        setPrice("minecraft:diamond_block", 162_000);
-        setPrice("minecraft:ancient_debris", 50_000);
-        setPrice("minecraft:netherite_scrap", 50_000);
-        setPrice("minecraft:netherite_ingot", 250_000);
-        setPrice("minecraft:netherite_block", 2_250_000);
+        setPrice("minecraft:emerald", 200);
+        setPrice("minecraft:emerald_block", 1_800);
+        setPrice("minecraft:diamond", 300_000);
+        setPrice("minecraft:diamond_block", 2_700_000);
+        setPrice("minecraft:ancient_debris", 3_500_000);
+        setPrice("minecraft:netherite_scrap", 3_500_000);
+        setPrice("minecraft:netherite_ingot", 15_000_000);
+        setPrice("minecraft:netherite_block", 135_000_000);
         
         // ==================== MOB & COMBAT REWARDS ====================
         // Common Spawner / AFK mob drops: reduced to prevent exploitation
@@ -127,19 +127,19 @@ public class VCoinsPricing {
         setPrice("minecraft:ender_pearl", 40);
         setPrice("minecraft:blaze_rod", 160);
         setPrice("minecraft:blaze_powder", 80);
-        setPrice("minecraft:ghast_tear", 3_000);
-        setPrice("minecraft:nautilus_shell", 5_000);
-        setPrice("minecraft:shulker_shell", 18_000);
-        setPrice("minecraft:breeze_rod", 8_000);
+        setPrice("minecraft:ghast_tear", 50_000);
+        setPrice("minecraft:nautilus_shell", 100_000);
+        setPrice("minecraft:shulker_shell", 1_500_000);
+        setPrice("minecraft:breeze_rod", 200_000);
 
         // Boss & Mini-boss Drops: high reward for combat exploration
-        setPrice("minecraft:wither_skeleton_skull", 180_000);
-        setPrice("minecraft:nether_star", 1_800_000);
-        setPrice("minecraft:heart_of_the_sea", 800_000);
-        setPrice("minecraft:echo_shard", 60_000);
-        setPrice("minecraft:heavy_core", 4_000_000);
-        setPrice("minecraft:dragon_head", 2_000_000);
-        setPrice("minecraft:dragon_egg", 35_000_000);
+        setPrice("minecraft:wither_skeleton_skull", 15_000_000);
+        setPrice("minecraft:nether_star", 80_000_000);
+        setPrice("minecraft:heart_of_the_sea", 20_000_000);
+        setPrice("minecraft:echo_shard", 2_000_000);
+        setPrice("minecraft:heavy_core", 120_000_000);
+        setPrice("minecraft:dragon_head", 50_000_000);
+        setPrice("minecraft:dragon_egg", 500_000_000);
         
         // ==================== CROPS & AGRICULTURAL PRODUCTS (Automated Farms) ====================
         setPrice("minecraft:wheat_seeds", 2);
@@ -170,7 +170,7 @@ public class VCoinsPricing {
         setPrice("minecraft:golden_carrot", 70);
         setPrice("minecraft:glistering_melon_slice", 70);
         setPrice("minecraft:golden_apple", 650);
-        setPrice("minecraft:enchanted_golden_apple", 2_000_000);
+        setPrice("minecraft:enchanted_golden_apple", 80_000_000);
         setPrice("minecraft:pumpkin_pie", 30);
         setPrice("minecraft:cake", 350);
         
@@ -189,14 +189,14 @@ public class VCoinsPricing {
         setPrice("minecraft:disc_fragment_5", 10_000);
 
         // ==================== ENDGAME / RARE PROGRESSION ITEMS ====================
-        setPrice("minecraft:enchanted_book", 5_000);
-        setPrice("minecraft:elytra", 5_000_000);
-        setPrice("minecraft:totem_of_undying", 1_000_000);
-        setPrice("minecraft:beacon", 2_500_000);
-        setPrice("minecraft:conduit", 1_200_000);
-        setPrice("minecraft:mace", 4_800_000);
-        setPrice("minecraft:trident", 1_000_000);
-        setPrice("minecraft:sniffer_egg", 500_000);
+        setPrice("minecraft:enchanted_book", 50_000);
+        setPrice("minecraft:elytra", 200_000_000);
+        setPrice("minecraft:totem_of_undying", 30_000_000);
+        setPrice("minecraft:beacon", 120_000_000);
+        setPrice("minecraft:conduit", 40_000_000);
+        setPrice("minecraft:mace", 150_000_000);
+        setPrice("minecraft:trident", 35_000_000);
+        setPrice("minecraft:sniffer_egg", 15_000_000);
         
         // Every registered item (including items added by other mods) belongs to the
         // catalogue. Explicit prices above win; everything else receives a sensible
@@ -248,10 +248,6 @@ public class VCoinsPricing {
         return Math.max(1L, Math.round(base * multiplier));
     }
 
-    /**
-     * Returns the exact price of a stack, including its normal and stored
-     * enchantments. The count is intentionally ignored; callers multiply by it.
-     */
     /** Same enchantment types share a cycle across levels, preserving level ordering. */
     public static String getMarketKey(ItemStack stack) {
         String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
@@ -305,7 +301,7 @@ public class VCoinsPricing {
 
         // Prevent infinite money exploits via Smithing Template duplication
         if (path.contains("smithing_template")) {
-            return Math.min(buyPrice / 4L, 25_000L);
+            return Math.min(buyPrice / 4L, 50_000L);
         }
 
         // Tiered Sell Margins:
@@ -418,40 +414,40 @@ public class VCoinsPricing {
             return getSmithingTemplatePrice(path);
         }
         if (path.equals("elytra")) {
-            return 5_000_000L;
+            return 200_000_000L;
         }
         if (path.equals("totem_of_undying")) {
-            return 1_000_000L;
+            return 30_000_000L;
         }
         if (path.equals("beacon")) {
-            return 2_500_000L;
+            return 120_000_000L;
         }
         if (path.equals("mace")) {
-            return 4_800_000L;
+            return 150_000_000L;
         }
         if (path.equals("trident")) {
-            return 1_000_000L;
+            return 35_000_000L;
         }
         if (path.equals("dragon_head")) {
-            return 2_000_000L;
+            return 50_000_000L;
         }
         if (path.endsWith("_head") || path.endsWith("_skull")) {
-            return path.equals("wither_skeleton_skull") ? 180_000L : 60_000L;
+            return path.equals("wither_skeleton_skull") ? 15_000_000L : 1_000_000L;
         }
         if (path.startsWith("music_disc_")) {
             return getMusicDiscPrice(path);
         }
         if (path.equals("ominous_trial_key")) {
-            return 180_000L;
+            return 800_000L;
         }
         if (path.equals("trial_key")) {
-            return 45_000L;
+            return 150_000L;
         }
         if (path.equals("enchanted_book")) {
-            return 5_000L;
+            return 50_000L;
         }
         if (path.contains("shulker_box")) {
-            return 50_000L;
+            return 5_000_000L;
         }
 
         long effortPrice = getEquipmentPrice(path);
@@ -529,20 +525,20 @@ public class VCoinsPricing {
             case "spyglass" -> 80L;
             case "compass" -> 140L;
             case "clock" -> 260L;
-            case "recovery_compass" -> 800_000L;
+            case "recovery_compass" -> 25_000_000L;
             case "bucket" -> 90L;
             case "turtle_helmet" -> 8_000L;
             case "wolf_armor" -> 6_000L;
             case "leather_horse_armor" -> 150L;
             case "iron_horse_armor" -> 15_000L;
             case "golden_horse_armor" -> 30_000L;
-            case "diamond_horse_armor" -> 180_000L;
-            case "netherite_horse_armor" -> 1_200_000L;
+            case "diamond_horse_armor" -> 8_000_000L;
+            case "netherite_horse_armor" -> 60_000_000L;
             case "copper_nautilus_armor" -> 4_000L;
             case "iron_nautilus_armor" -> 12_000L;
             case "golden_nautilus_armor" -> 24_000L;
-            case "diamond_nautilus_armor" -> 180_000L;
-            case "netherite_nautilus_armor" -> 1_200_000L;
+            case "diamond_nautilus_armor" -> 8_000_000L;
+            case "netherite_nautilus_armor" -> 60_000_000L;
             default -> 0L;
         };
         if (exactPrice > 0L) {
@@ -557,10 +553,10 @@ public class VCoinsPricing {
         if (path.startsWith("netherite_")) {
             String diamondPath = "diamond_" + path.substring("netherite_".length());
             long diamondItem = getEquipmentPrice(diamondPath);
-            // Netherite ingot (250k) + Netherite upgrade template reproduction cost (7 diamonds ~126k + catalyst)
-            long reproducibleTemplateCost = 130_000L;
+            // Netherite ingot (15M) + Netherite upgrade template reproduction cost (expensive)
+            long reproducibleTemplateCost = 5_000_000L;
             return addCraftingEffort(safeAdd(diamondItem,
-                    safeAdd(250_000L, reproducibleTemplateCost)), 10);
+                    safeAdd(15_000_000L, reproducibleTemplateCost)), 10);
         }
 
         long materialUnitPrice = getEquipmentMaterialUnitPrice(path);
@@ -602,7 +598,7 @@ public class VCoinsPricing {
         if (path.startsWith("copper_")) return 10L;
         if (path.startsWith("iron_") || path.startsWith("chainmail_")) return 30L;
         if (path.startsWith("golden_")) return 60L;
-        if (path.startsWith("diamond_")) return 18_000L;
+        if (path.startsWith("diamond_")) return 300_000L;
         if (path.startsWith("leather_")) return 16L;
         return 0L;
     }
@@ -745,10 +741,10 @@ public class VCoinsPricing {
             case "deepslate_redstone_ore" -> 176L;
             case "lapis_ore" -> 384L;
             case "deepslate_lapis_ore" -> 416L;
-            case "diamond_ore" -> 16_000L;
-            case "deepslate_diamond_ore" -> 17_000L;
-            case "emerald_ore" -> 4_000L;
-            case "deepslate_emerald_ore" -> 4_500L;
+            case "diamond_ore" -> 160_000L;
+            case "deepslate_diamond_ore" -> 175_000L;
+            case "emerald_ore" -> 30_000L;
+            case "deepslate_emerald_ore" -> 35_000L;
             case "nether_quartz_ore" -> 112L;
             case "granite", "diorite", "andesite", "tuff", "calcite",
                     "dripstone_block", "pointed_dripstone", "basalt",
@@ -865,7 +861,7 @@ public class VCoinsPricing {
             case "anvil" -> 1_100L;
             case "chipped_anvil" -> 750L;
             case "damaged_anvil" -> 400L;
-            case "enchanting_table" -> 39_000L;
+            case "enchanting_table" -> 390_000L;
             case "brewing_stand" -> 220L;
             case "ender_chest" -> 1_300L;
             case "cauldron" -> 250L;
@@ -939,12 +935,12 @@ public class VCoinsPricing {
             case "fermented_spider_eye" -> 20L;
             case "fire_charge" -> 45L;
             case "ender_eye" -> 150L;
-            case "wind_charge" -> 1_200L;
-            case "breeze_rod" -> 4_096L;
-            case "echo_shard" -> 25_000L;
-            case "heavy_core" -> 1_000_000L;
-            case "trial_key" -> 40_000L;
-            case "ominous_trial_key" -> 150_000L;
+            case "wind_charge" -> 50_000L;
+            case "breeze_rod" -> 200_000L;
+            case "echo_shard" -> 2_000_000L;
+            case "heavy_core" -> 120_000_000L;
+            case "trial_key" -> 1_000_000L;
+            case "ominous_trial_key" -> 5_000_000L;
             default -> 0L;
         };
         if (exactPrice > 0L) {
@@ -1022,34 +1018,34 @@ public class VCoinsPricing {
 
     private static long getSmithingTemplatePrice(String path) {
         if (path.contains("silence_armor_trim")) {
-            return 2_500_000L; // Extremely rare drop in Ancient City (1.2% chest chance)
+            return 60_000_000L; // Extremely rare drop in Ancient City (1.2% chest chance)
         }
         if (path.contains("netherite_upgrade")) {
-            return 800_000L; // Found in Bastion Remnants
+            return 20_000_000L; // Found in Bastion Remnants — bottleneck for netherite gear
         }
         if (containsAny(path, "ward_armor_trim", "spire_armor_trim", "rib_armor_trim")) {
-            return 1_200_000L; // Ancient City, End City, Nether Fortress
+            return 25_000_000L; // Ancient City, End City, Nether Fortress
         }
         if (containsAny(path, "eye_armor_trim", "snout_armor_trim", "vex_armor_trim",
                 "tide_armor_trim", "flow_armor_trim", "bolt_armor_trim")) {
-            return 600_000L; // Stronghold, Bastion, Woodland Mansion, Ocean Monument, Trial Chamber
+            return 12_000_000L; // Stronghold, Bastion, Woodland Mansion, Ocean Monument, Trial Chamber
         }
-        return 350_000L;
+        return 7_000_000L;
     }
 
     private static long getMusicDiscPrice(String path) {
         if (containsAny(path, "pigstep", "otherside", "relic", "creator", "precipice")) {
-            return 450_000L;
+            return 10_000_000L;
         }
-        return 120_000L;
+        return 2_500_000L;
     }
 
     private static long getRarityFloor(Rarity rarity) {
         return switch (rarity) {
             case COMMON -> 0L;
-            case UNCOMMON -> 5_000L;
-            case RARE -> 50_000L;
-            case EPIC -> 250_000L;
+            case UNCOMMON -> 50_000L;
+            case RARE -> 500_000L;
+            case EPIC -> 2_500_000L;
         };
     }
 
@@ -1098,21 +1094,21 @@ public class VCoinsPricing {
         }
 
         return switch (path) {
-            case "mending" -> 600_000L;
-            case "wind_burst" -> 400_000L;
-            case "swift_sneak" -> 250_000L;
-            case "soul_speed" -> 150_000L;
-            case "silk_touch", "infinity" -> 300_000L;
-            case "efficiency" -> 45_000L;
-            case "fortune", "looting" -> 100_000L;
-            case "unbreaking" -> 60_000L;
-            case "protection", "sharpness", "power" -> 35_000L;
-            case "channeling" -> 80_000L;
+            case "mending" -> 5_000_000L;
+            case "wind_burst" -> 3_000_000L;
+            case "swift_sneak" -> 2_000_000L;
+            case "soul_speed" -> 1_000_000L;
+            case "silk_touch", "infinity" -> 2_500_000L;
+            case "efficiency" -> 300_000L;
+            case "fortune", "looting" -> 800_000L;
+            case "unbreaking" -> 400_000L;
+            case "protection", "sharpness", "power" -> 250_000L;
+            case "channeling" -> 600_000L;
             default -> {
-                if (weight >= 10) yield 8_000L;
-                if (weight >= 5) yield 20_000L;
-                if (weight >= 2) yield 50_000L;
-                yield 100_000L;
+                if (weight >= 10) yield 50_000L;
+                if (weight >= 5) yield 150_000L;
+                if (weight >= 2) yield 400_000L;
+                yield 800_000L;
             }
         };
     }
@@ -1131,7 +1127,7 @@ public class VCoinsPricing {
         return level >= 3;
     }
 
-    private static Map<String, EnchantmentValue> getEnchantmentValues(ItemStack stack) {
+    public static Map<String, EnchantmentValue> getEnchantmentValues(ItemStack stack) {
         Map<String, EnchantmentValue> values = new HashMap<>();
         if (stack.isEmpty()) {
             return values;
@@ -1175,7 +1171,7 @@ public class VCoinsPricing {
         return left > Long.MAX_VALUE - right ? Long.MAX_VALUE : left + right;
     }
 
-    private record EnchantmentValue(Holder<Enchantment> enchantment, int level) {
+    public record EnchantmentValue(Holder<Enchantment> enchantment, int level) {
     }
 
     public static boolean matchesCategory(Item item, ShopCategory category) {

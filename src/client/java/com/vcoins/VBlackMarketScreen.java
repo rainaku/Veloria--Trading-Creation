@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -25,7 +26,6 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScreenHandler> {
-    private final VeloriaMerchantPreview merchantPreview = new VeloriaMerchantPreview();
     private static final Identifier CARD_BACK =
             Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/card_back.png");
     private static final Identifier CARD_FRONT =
@@ -56,7 +56,18 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
     private static int syncedRevealedMask = 0;
     private static int syncedPurchasedMask = 0;
     private static long syncedEpochDay = 0L;
+    private static int syncedBankedResets = 0;
+    private static int syncedResetSequence = 0;
+    private static List<ItemStack> syncedCards = new ArrayList<>();
+
     public static long getSyncedDay() { return syncedEpochDay; }
+    public static int getSyncedBankedResets() { return syncedBankedResets; }
+    public static int getSyncedResetSequence() { return syncedResetSequence; }
+    public static List<ItemStack> getSyncedCards() { return syncedCards; }
+    public static int getSyncedRevealedMask() { return syncedRevealedMask; }
+    public static int getSyncedPurchasedMask() { return syncedPurchasedMask; }
+    public static long getBaseSecondsRemaining() { return baseSecondsRemaining; }
+    public static long getLastSyncTimeMs() { return lastSyncTimeMs; }
 
     // Zero-allocation particle pool
     private static final int MAX_PARTICLES = 64;
@@ -77,12 +88,19 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
     private final boolean[] hasSpawnedStartParticles = new boolean[VBlackMarketScreenHandler.MARKET_SLOT_COUNT];
     private final boolean[] hasSpawnedFinishParticles = new boolean[VBlackMarketScreenHandler.MARKET_SLOT_COUNT];
 
+    // Reset animation state
+    private static final long RESET_ANIM_DURATION_MS = 500L;
+    private long resetAnimationStartTime = 0L;
+    private int lastObservedResetSequence = 0;
+    private long lastObservedDay = 0L;
+
     // Balance text cache
     private long lastBalance = -1L;
     private Component cachedBalanceComponent = null;
 
     private Button revealAllButton;
     private Button verifyToggleButton;
+    private Button resetButton;
     private final VCoinsPurchaseConfirm purchaseConfirm = new VCoinsPurchaseConfirm();
 
     public static void handleSyncPayload(BlackMarketSyncPayload payload) {
@@ -93,6 +111,32 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         lastSyncTimeMs = System.currentTimeMillis();
         syncedRevealedMask = payload.revealedMask();
         syncedPurchasedMask = payload.purchasedMask();
+        syncedBankedResets = payload.bankedResets();
+        syncedResetSequence = payload.resetSequence();
+        if (payload.items() != null) {
+            syncedCards = new ArrayList<>(payload.items());
+        }
+
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc != null && mc.gui != null) {
+            if (mc.gui.screen() instanceof VBlackMarketScreen screen) {
+                screen.onSyncReceived(payload.resetSequence(), payload.epochDay());
+            } else if (mc.gui.screen() instanceof VTradeScreen tradeScreen) {
+                tradeScreen.onBlackMarketSyncReceived(payload.resetSequence(), payload.epochDay());
+            }
+        }
+    }
+
+    public void onSyncReceived(int newResetSequence, long newDay) {
+        boolean sequenceChanged = (newResetSequence != this.lastObservedResetSequence);
+        boolean dayChanged = (newDay != this.lastObservedDay);
+        this.lastObservedResetSequence = newResetSequence;
+        this.lastObservedDay = newDay;
+
+        if (sequenceChanged || dayChanged) {
+            triggerResetAnimation(false);
+        }
+        updateButtonStates();
     }
 
     public VBlackMarketScreen(VBlackMarketScreenHandler handler, Inventory inventory, Component title) {
@@ -107,31 +151,14 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         super.init();
 
         // Nút quay lại Cửa hàng chính
-        this.addRenderableWidget(VeloriaButton.create(Component.translatable("vcoins.back_to_shop"), button -> {
-                    if (this.minecraft != null) {
-                        this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.0f));
-                    }
-                    ClientPlayNetworking.send(new OpenShopPayload());
-                })
+        this.addRenderableWidget(VeloriaButton.create(Component.translatable("vcoins.back_to_shop"), button -> handleBackToShopClick())
                 .bounds(this.leftPos + 8, this.topPos + 5, 36, 16)
                 .build());
 
         // Công tắc bật/tắt xác minh giao dịch >100k
         this.verifyToggleButton = this.addRenderableWidget(VeloriaButton.create(
                 VCoinsPurchaseConfirm.getToggleLabel(),
-                button -> {
-                    boolean enabled = VCoinsPurchaseConfirm.toggleConfirmation();
-                    updateVerifyToggleButton();
-                    if (this.minecraft != null) {
-                        this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), enabled ? 1.15f : 0.85f));
-                        if (this.minecraft.player != null) {
-                            this.minecraft.player.sendOverlayMessage(
-                                    Component.translatable(enabled ? "vcoins.verify.msg_on" : "vcoins.verify.msg_off")
-                                            .withStyle(enabled ? ChatFormatting.GREEN : ChatFormatting.GOLD)
-                            );
-                        }
-                    }
-                })
+                button -> handleVerifyToggleClick())
                 .bounds(this.leftPos + 46, this.topPos + 5, 52, 16)
                 .tooltip(VCoinsPurchaseConfirm.getToggleTooltip())
                 .build());
@@ -140,7 +167,98 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         this.revealAllButton = this.addRenderableWidget(VeloriaButton.create(Component.translatable("vcoins.black_market.reveal_all"), button -> revealAllCards())
                 .bounds(this.leftPos + 188, this.topPos + 5, 60, 16)
                 .build());
-        updateRevealAllButtonState();
+
+        // Nút Đặt lại Chợ đen (Banked Reset)
+        this.resetButton = this.addRenderableWidget(VeloriaButton.create(
+                Component.translatable("vcoins.black_market.banked_reset", syncedBankedResets),
+                button -> handleResetClick())
+                .bounds(this.leftPos + 188, this.topPos + 24, 60, 16)
+                .tooltip(Tooltip.create(Component.translatable("vcoins.black_market.banked_reset_tooltip")))
+                .build());
+
+        this.lastObservedResetSequence = syncedResetSequence;
+        this.lastObservedDay = syncedEpochDay;
+        updateButtonStates();
+    }
+
+    private void handleBackToShopClick() {
+        if (this.minecraft != null) {
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.0f));
+        }
+        ClientPlayNetworking.send(new OpenShopPayload());
+    }
+
+    private void handleVerifyToggleClick() {
+        boolean enabled = VCoinsPurchaseConfirm.toggleConfirmation();
+        updateVerifyToggleButton();
+        if (this.minecraft != null) {
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), enabled ? 1.15f : 0.85f));
+            if (this.minecraft.player != null) {
+                this.minecraft.player.sendOverlayMessage(
+                        Component.translatable(enabled ? "vcoins.verify.msg_on" : "vcoins.verify.msg_off")
+                                .withStyle(enabled ? ChatFormatting.GREEN : ChatFormatting.GOLD)
+                );
+            }
+        }
+    }
+
+    private void handleResetClick() {
+        if (syncedBankedResets <= 0) {
+            return;
+        }
+        if (this.minecraft != null) {
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.0f));
+        }
+        ClientPlayNetworking.send(new BlackMarketResetActionPayload());
+        triggerResetAnimation(true);
+    }
+
+    public void triggerResetAnimation(boolean playTriggerSounds) {
+        long now = System.currentTimeMillis();
+        this.resetAnimationStartTime = now;
+        this.localRevealedCards.clear();
+        for (int i = 0; i < VBlackMarketScreenHandler.MARKET_SLOT_COUNT; i++) {
+            flipStartTime[i] = 0;
+            hasSpawnedStartParticles[i] = false;
+            hasSpawnedFinishParticles[i] = false;
+        }
+
+        if (this.minecraft != null && playTriggerSounds) {
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.BUNDLE_DROP_CONTENTS, 1.25f));
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.CHISELED_BOOKSHELF_INSERT_ENCHANTED, 1.15f));
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_CHIME, 1.35f));
+        }
+
+        spawnResetWaveParticles();
+        updateButtonStates();
+    }
+
+    private void spawnResetWaveParticles() {
+        if (VCoinsPurchaseConfirm.isReducedMotion()) return;
+        long now = System.currentTimeMillis();
+        ThreadLocalRandom rng = ThreadLocalRandom.current();
+        int[] palette = {0xFFFFD700, 0xFFC586C0, 0xFF00E5FF, 0xFFFFFFFF};
+
+        for (int slot = 0; slot < VBlackMarketScreenHandler.MARKET_SLOT_COUNT; slot++) {
+            int cardX = VBlackMarketScreenHandler.MARKET_X + slot * VBlackMarketScreenHandler.MARKET_COL_SPACING;
+            int cardY = VBlackMarketScreenHandler.MARKET_Y;
+            float cx = this.leftPos + cardX + VBlackMarketScreenHandler.CARD_SIZE * 0.5f;
+            float cy = this.topPos + cardY + VBlackMarketScreenHandler.CARD_SIZE * 0.5f;
+
+            for (int p = 0; p < 6; p++) {
+                double angle = rng.nextDouble(0, TWO_PI);
+                float speed = (float) rng.nextDouble(0.5, 1.4);
+                int color = palette[rng.nextInt(palette.length)];
+                int symIdx = rng.nextInt(PARTICLE_SYMBOLS.length);
+                int life = rng.nextInt(350, 600);
+                addParticle(
+                        cx, cy,
+                        (float) Math.cos(angle) * speed,
+                        (float) Math.sin(angle) * speed,
+                        color, symIdx, life
+                );
+            }
+        }
     }
 
     private void updateVerifyToggleButton() {
@@ -173,7 +291,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
                 this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.2f));
             }
         }
-        updateRevealAllButtonState();
+        updateButtonStates();
     }
 
     private void updateRevealAllButtonState() {
@@ -188,10 +306,24 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         }
     }
 
+    private void updateButtonStates() {
+        updateRevealAllButtonState();
+        if (resetButton != null) {
+            resetButton.visible = (syncedBankedResets > 0 && !purchaseConfirm.isArmed());
+            resetButton.setMessage(Component.translatable("vcoins.black_market.banked_reset", syncedBankedResets));
+        }
+    }
+
     @Override
     public void extractBackground(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float delta) {
         super.extractBackground(extractor, mouseX, mouseY, delta);
-        merchantPreview.drawBehindMenu(extractor, this.leftPos, this.topPos, this.height, mouseX, mouseY);
+
+        if (resetButton != null) {
+            boolean shouldShow = (syncedBankedResets > 0 && !purchaseConfirm.isArmed());
+            if (resetButton.visible != shouldShow) {
+                resetButton.visible = shouldShow;
+            }
+        }
 
         InventoryTextures.panel(extractor, this.leftPos, this.topPos, this.imageWidth, this.imageHeight);
         InventoryTextures.slots(extractor, this.leftPos + VBlackMarketScreenHandler.PLAYER_X,
@@ -251,23 +383,66 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         int cardY = VBlackMarketScreenHandler.MARKET_Y;
         int cardSize = VBlackMarketScreenHandler.CARD_SIZE;
 
+        boolean isResetting = !VCoinsPurchaseConfirm.isReducedMotion()
+                && resetAnimationStartTime > 0
+                && now < resetAnimationStartTime + RESET_ANIM_DURATION_MS;
+
+        if (isResetting) {
+            float progress = (float) (now - resetAnimationStartTime) / (float) RESET_ANIM_DURATION_MS;
+            renderResettingCard(extractor, slotIndex, cardX, cardY, cardSize, progress);
+            return;
+        }
+
         boolean hasNotStartedYet = !VCoinsPurchaseConfirm.isReducedMotion() && isRevealed && start > 0 && now < start;
         boolean isFlipping = !VCoinsPurchaseConfirm.isReducedMotion() && isRevealed && start > 0 && now >= start && now < start + FLIP_DURATION_MS;
         boolean isFullyRevealed = isRevealed && (VCoinsPurchaseConfirm.isReducedMotion() || start == 0 || now >= start + FLIP_DURATION_MS);
 
         if (!isRevealed || hasNotStartedYet) {
-            renderUnrevealedCard(extractor, cardX, cardY, cardSize, isHovered, now);
+            renderUnrevealedCard(extractor, slot, cardX, cardY, cardSize, isHovered, now);
         } else if (isFlipping) {
             float progress = (float) (now - start) / (float) FLIP_DURATION_MS;
-            renderFlippingCard(extractor, slot, slotIndex, cardX, cardY, cardSize, progress, now);
+            renderFlippingCard(extractor, slot, slotIndex, cardX, cardY, cardSize, progress);
         } else if (isFullyRevealed) {
             renderRevealedCard(extractor, slot, cardX, cardY, cardSize, isPurchased, isHovered);
         }
     }
 
-    private void renderUnrevealedCard(GuiGraphicsExtractor extractor, int cardX, int cardY, int cardSize, boolean isHovered, long now) {
+    private void renderResettingCard(GuiGraphicsExtractor extractor, int slotIndex,
+                                     int cardX, int cardY, int cardSize, float progress) {
+        float delay = slotIndex * 0.08f;
+        float t = Math.clamp((progress - delay) / 0.6f, 0.0f, 1.0f);
+        float sinT = (float) Math.sin(t * PI);
+
+        float liftY = 7.0f * sinT;
+        float wobbleX = (float) Math.sin(t * TWO_PI * 1.5f) * 2.0f;
+        float cx = cardX + cardSize * 0.5f + wobbleX;
+
+        float shadowW = (cardSize - 2) * (1.0f - sinT * 0.2f);
+        extractor.fill((int) (cx - shadowW * 0.5f), cardY + cardSize - 2,
+                (int) (cx + shadowW * 0.5f), cardY + cardSize + 3, 0x44000000);
+
+        extractor.pose().pushMatrix();
+        extractor.pose().translate(wobbleX, -liftY);
+
+        drawCardTexture(extractor, CARD_BACK, cardX, cardY, cardSize, cardSize);
+
+        int shimmerAlpha = (int) (sinT * 90);
+        if (shimmerAlpha > 0) {
+            extractor.fill(cardX, cardY, cardX + cardSize, cardY + cardSize, (shimmerAlpha << 24) | 0xE0B0FF);
+        }
+        extractor.pose().popMatrix();
+    }
+
+    private void renderUnrevealedCard(GuiGraphicsExtractor extractor, Slot slot, int cardX, int cardY, int cardSize, boolean isHovered, long now) {
         int liftY = isHovered && !VCoinsPurchaseConfirm.isReducedMotion() ? 1 : 0;
         int drawY = cardY - liftY;
+
+        boolean isGod = slot != null && slot.hasItem() && VBlackMarket.isRomanGodItem(slot.getItem());
+        if (isGod) {
+            float pulse = VCoinsPurchaseConfirm.isReducedMotion() ? 0.5f : (float) (0.5 + 0.5 * Math.sin(now * 0.005));
+            int glowAlpha = (int) (60 + pulse * 65);
+            extractor.fill(cardX - 1, drawY - 1, cardX + cardSize + 1, drawY + cardSize + 1, (glowAlpha << 24) | 0xFFD700);
+        }
 
         // Draw custom card back with Veloria Golden Crest scaled to full 40x40 card
         drawCardTexture(extractor, CARD_BACK, cardX, drawY, cardSize, cardSize);
@@ -281,7 +456,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
     }
 
     private void renderFlippingCard(GuiGraphicsExtractor extractor, Slot slot, int slotIndex,
-                                    int cardX, int cardY, int cardSize, float progress, long now) {
+                                     int cardX, int cardY, int cardSize, float progress) {
         if (!hasSpawnedStartParticles[slotIndex]) {
             hasSpawnedStartParticles[slotIndex] = true;
             spawnFlipStartParticles(cardX, cardY, cardSize);
@@ -354,20 +529,49 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
 
     private void renderRevealedCard(GuiGraphicsExtractor extractor, Slot slot, int cardX, int cardY, int cardSize,
                                     boolean isPurchased, boolean isHovered) {
+        boolean isGod = slot.hasItem() && VBlackMarket.isRomanGodItem(slot.getItem());
+        if (isGod && !isPurchased) {
+            long now = System.currentTimeMillis();
+            float pulse = (float) (0.5 + 0.5 * Math.sin(now * 0.006));
+            int borderAlpha = (int) (180 + pulse * 75);
+            int innerGlow = (int) (35 + pulse * 45);
+
+            // Outer divine golden aura border
+            extractor.fill(cardX - 2, cardY - 2, cardX + cardSize + 2, cardY + cardSize + 2, (borderAlpha << 24) | 0xFFD700);
+            // Inner imperial crimson border
+            extractor.fill(cardX - 1, cardY - 1, cardX + cardSize + 1, cardY + cardSize + 1, 0xFF8B0000);
+            // Inner pedestal shimmer
+            extractor.fill(cardX + 2, cardY + 2, cardX + cardSize - 2, cardY + cardSize - 2, (innerGlow << 24) | 0xFFA500);
+
+            if (now % 8 == 0) {
+                spawnGodCardAmbientParticle(cardX, cardY, cardSize);
+            }
+        }
+
         // Draw Card Front (golden ornate frame and circular pedestal)
         drawCardTexture(extractor, CARD_FRONT, cardX, cardY, cardSize, cardSize);
 
         // Subtle rarity glow on pedestal (skip common for maximum performance)
         if (slot.hasItem()) {
-            int rarityGlow = getRarityGlowColor(slot.getItem().getRarity());
-            if (rarityGlow != 0 && !isPurchased) {
-                extractor.fill(cardX + 4, cardY + 4, cardX + cardSize - 4, cardY + cardSize - 4, rarityGlow);
+            if (!isGod) {
+                int rarityGlow = getRarityGlowColor(slot.getItem().getRarity());
+                if (rarityGlow != 0 && !isPurchased) {
+                    extractor.fill(cardX + 4, cardY + 4, cardX + cardSize - 4, cardY + cardSize - 4, rarityGlow);
+                }
+            } else if (!isPurchased) {
+                extractor.fill(cardX + 4, cardY + 4, cardX + cardSize - 4, cardY + cardSize - 4, 0x44FFD700);
             }
             extractor.item(slot.getItem(), slot.x, slot.y);
             extractor.itemDecorations(this.font, slot.getItem(), slot.x, slot.y);
-            extractor.centeredText(this.font,
-                    Component.literal("↓ -" + VBlackMarket.getDiscountPercent(slot.getItem(), syncedEpochDay) + "%"),
-                    cardX + cardSize / 2, cardY + cardSize - 10, 0xFF55FF55);
+            if (isGod) {
+                extractor.centeredText(this.font,
+                        Component.literal("✦ CẤP THẦN ✦"),
+                        cardX + cardSize / 2, cardY + cardSize - 10, 0xFFFFD700);
+            } else {
+                extractor.centeredText(this.font,
+                        Component.literal("↓ -" + VBlackMarket.getDiscountPercent(slot.getItem(), syncedEpochDay, syncedResetSequence) + "%"),
+                        cardX + cardSize / 2, cardY + cardSize - 10, 0xFF55FF55);
+            }
         }
 
         if (isPurchased) {
@@ -397,7 +601,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         renderParticles(extractor);
     }
 
-    private void addParticle(float x, float y, float vx, float vy, int color, int symbol, long now, int life) {
+    private void addParticle(float x, float y, float vx, float vy, int color, int symbol, int life) {
         int idx = particleCount < MAX_PARTICLES ? particleCount++ : ThreadLocalRandom.current().nextInt(MAX_PARTICLES);
         partX[idx] = x;
         partY[idx] = y;
@@ -405,7 +609,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         partVy[idx] = vy;
         partColor[idx] = color;
         partSymbol[idx] = (byte) symbol;
-        partSpawn[idx] = now;
+        partSpawn[idx] = System.currentTimeMillis();
         partLife[idx] = life;
     }
 
@@ -430,23 +634,24 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
                     partLife[i] = partLife[last];
                 }
                 particleCount--;
-                continue;
+                i--;
+            } else {
+                float progress = (float) elapsed / life;
+                float alpha = 1.0f - progress;
+                int a = (int) (alpha * 255.0f);
+                if (a > 0) {
+                    float curX = partX[i] + partVx[i] * progress * 20.0f;
+                    float curY = partY[i] + partVy[i] * progress * 20.0f - progress * 14.0f;
+                    int argb = (a << 24) | (partColor[i] & 0x00FFFFFF);
+                    extractor.text(this.font, PARTICLE_SYMBOLS[partSymbol[i]], (int) curX, (int) curY, argb, false);
+                }
             }
-            float progress = (float) elapsed / life;
-            float alpha = 1.0f - progress;
-            float curX = partX[i] + partVx[i] * progress * 20.0f;
-            float curY = partY[i] + partVy[i] * progress * 20.0f - progress * 14.0f;
-            int a = (int) (alpha * 255.0f);
-            if (a <= 0) continue;
-            int argb = (a << 24) | (partColor[i] & 0x00FFFFFF);
-            extractor.text(this.font, PARTICLE_SYMBOLS[partSymbol[i]], (int) curX, (int) curY, argb, false);
         }
     }
 
     private void spawnFlipStartParticles(int cardX, int cardY, int cardSize) {
         float originX = this.leftPos + cardX + cardSize * 0.5f;
         float originY = this.topPos + cardY + cardSize * 0.5f;
-        long now = System.currentTimeMillis();
 
         ThreadLocalRandom rng = ThreadLocalRandom.current();
         for (int i = 0; i < 4; i++) {
@@ -457,16 +662,29 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
                     originX, originY,
                     (float) Math.cos(angle) * speed,
                     (float) Math.sin(angle) * speed,
-                    0xFFD700, 1, now, life
+                    0xFFD700, 1, life
             );
         }
+    }
+
+    private void spawnGodCardAmbientParticle(int cardX, int cardY, int cardSize) {
+        float originX = this.leftPos + cardX + ThreadLocalRandom.current().nextFloat(cardSize);
+        float originY = this.topPos + cardY + ThreadLocalRandom.current().nextFloat(cardSize);
+        addParticle(
+                originX, originY,
+                (ThreadLocalRandom.current().nextFloat() - 0.5f) * 0.4f,
+                -0.6f - ThreadLocalRandom.current().nextFloat() * 0.4f,
+                ThreadLocalRandom.current().nextBoolean() ? 0xFFFFD700 : 0xFFFF4500,
+                ThreadLocalRandom.current().nextInt(PARTICLE_SYMBOLS.length),
+                ThreadLocalRandom.current().nextInt(300, 600)
+        );
     }
 
     private void spawnFinishParticles(int cardX, int cardY, int cardSize, int slotIndex, ItemStack stack) {
         float originX = this.leftPos + cardX + cardSize * 0.5f;
         float originY = this.topPos + cardY + cardSize * 0.5f;
-        long now = System.currentTimeMillis();
 
+        boolean isGod = VBlackMarket.isRomanGodItem(stack);
         Rarity rarity = stack.getRarity();
         int baseColor = switch (rarity) {
             case EPIC -> 0xFF3DF0;      // Magenta
@@ -476,26 +694,39 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         };
 
         ThreadLocalRandom rng = ThreadLocalRandom.current();
-        int count = rarity == Rarity.EPIC ? 12 : (rarity == Rarity.RARE ? 8 : 5);
+        int count = isGod ? 28 : switch (rarity) {
+            case EPIC -> 12;
+            case RARE -> 8;
+            default -> 5;
+        };
         float angleStep = TWO_PI / count;
 
         for (int i = 0; i < count; i++) {
             double angle = angleStep * i + rng.nextDouble(-0.3, 0.3);
-            float speed = (float) rng.nextDouble(0.6, 1.3);
+            float speed = (float) rng.nextDouble(isGod ? 0.8 : 0.6, isGod ? 1.8 : 1.3);
             int symIdx = rng.nextInt(PARTICLE_SYMBOLS.length);
-            int color = rng.nextBoolean() ? baseColor : 0xFFD700;
-            int life = rng.nextInt(350, 650);
+            int color;
+            if (isGod) {
+                color = rng.nextBoolean() ? 0xFFFFD700 : 0xFFFF2222;
+            } else {
+                color = rng.nextBoolean() ? baseColor : 0xFFD700;
+            }
+            int life = rng.nextInt(isGod ? 500 : 350, isGod ? 850 : 650);
             addParticle(
                     originX, originY,
                     (float) Math.cos(angle) * speed,
                     (float) Math.sin(angle) * speed,
-                    color, symIdx, now, life
+                    color, symIdx, life
             );
         }
 
         if (this.minecraft != null) {
-            float pitch = 1.2f + (slotIndex % 6) * 0.1f;
-            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, pitch));
+            if (isGod) {
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.1f));
+            } else {
+                float pitch = 1.2f + (slotIndex % 6) * 0.1f;
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, pitch));
+            }
         }
     }
 
@@ -517,26 +748,8 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
     @Override
     protected void extractTooltip(GuiGraphicsExtractor extractor, int mouseX, int mouseY) {
         int hoveredMarketSlot = getMarketSlotAt(mouseX, mouseY);
-        long now = System.currentTimeMillis();
         if (hoveredMarketSlot >= 0) {
-            long start = flipStartTime[hoveredMarketSlot];
-            boolean isFlipping = !VCoinsPurchaseConfirm.isReducedMotion() && start > 0 && now >= start && now < start + FLIP_DURATION_MS;
-            if (isFlipping) {
-                return;
-            }
-
-            boolean isRevealed = ((syncedRevealedMask & (1 << hoveredMarketSlot)) != 0) || localRevealedCards.contains(hoveredMarketSlot);
-            if (!isRevealed || (start > 0 && now < start)) {
-                extractor.setTooltipForNextFrame(this.font, UNREVEALED_TOOLTIP, Optional.empty(), mouseX, mouseY);
-                return;
-            }
-
-            boolean isPurchased = (syncedPurchasedMask & (1 << hoveredMarketSlot)) != 0;
-            if (isPurchased) {
-                extractor.setTooltipForNextFrame(this.font, SOLD_TOOLTIP, Optional.empty(), mouseX, mouseY);
-                return;
-            }
-            renderSlotItemTooltip(extractor, mouseX, mouseY, hoveredMarketSlot);
+            extractMarketSlotTooltip(extractor, mouseX, mouseY, hoveredMarketSlot);
             return;
         }
 
@@ -546,6 +759,35 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         }
 
         super.extractTooltip(extractor, mouseX, mouseY);
+    }
+
+    private void extractMarketSlotTooltip(GuiGraphicsExtractor extractor, int mouseX, int mouseY, int slot) {
+        long now = System.currentTimeMillis();
+        boolean isResetting = !VCoinsPurchaseConfirm.isReducedMotion()
+                && resetAnimationStartTime > 0
+                && now < resetAnimationStartTime + RESET_ANIM_DURATION_MS;
+        if (isResetting) {
+            return;
+        }
+
+        long start = flipStartTime[slot];
+        boolean isFlipping = !VCoinsPurchaseConfirm.isReducedMotion() && start > 0 && now >= start && now < start + FLIP_DURATION_MS;
+        if (isFlipping) {
+            return;
+        }
+
+        boolean isRevealed = ((syncedRevealedMask & (1 << slot)) != 0) || localRevealedCards.contains(slot);
+        if (!isRevealed || (start > 0 && now < start)) {
+            extractor.setTooltipForNextFrame(this.font, UNREVEALED_TOOLTIP, Optional.empty(), mouseX, mouseY);
+            return;
+        }
+
+        boolean isPurchased = (syncedPurchasedMask & (1 << slot)) != 0;
+        if (isPurchased) {
+            extractor.setTooltipForNextFrame(this.font, SOLD_TOOLTIP, Optional.empty(), mouseX, mouseY);
+            return;
+        }
+        renderSlotItemTooltip(extractor, mouseX, mouseY, slot);
     }
 
     private void renderSlotItemTooltip(GuiGraphicsExtractor extractor, int mouseX, int mouseY, int slotIdx) {
@@ -564,7 +806,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         long buyPrice = VCoinsPricing.getPrice(stack);
 
         if (slotIdx < VBlackMarketScreenHandler.MARKET_SLOT_COUNT) {
-            buildMarketItemTooltip(tooltip, stack, VBlackMarket.getDiscountedPrice(stack, syncedEpochDay));
+            buildMarketItemTooltip(tooltip, stack, VBlackMarket.getDiscountedPrice(stack, syncedEpochDay, syncedResetSequence));
         } else {
             buildInventoryItemTooltip(tooltip, stack, buyPrice);
         }
@@ -574,9 +816,17 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
     }
 
     private void buildMarketItemTooltip(List<Component> tooltip, ItemStack stack, long buyPrice) {
+        if (VBlackMarket.isRomanGodItem(stack)) {
+            tooltip.add(Component.empty());
+            tooltip.add(Component.literal("✦ BẢO VẬT LA MÃ CẤP THẦN ✦").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+            tooltip.add(Component.literal("Định giá Độc Lập Chợ Đen:").withStyle(ChatFormatting.GRAY));
+            tooltip.add(Component.literal("★ " + formatNumber(buyPrice) + " Velicoins ★").withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD));
+            tooltip.add(BUY_LEFT);
+            return;
+        }
         tooltip.add(Component.empty());
         tooltip.add(MERCHANT_TAG);
-        tooltip.add(Component.translatable("vcoins.black_market.discount", VBlackMarket.getDiscountPercent(stack, syncedEpochDay)).withStyle(ChatFormatting.GREEN));
+        tooltip.add(Component.translatable("vcoins.black_market.discount", VBlackMarket.getDiscountPercent(stack, syncedEpochDay, syncedResetSequence)).withStyle(ChatFormatting.GREEN));
         if (buyPrice > 0) {
             tooltip.add(Component.translatable("vcoins.black_market.buy_price", formatNumber(buyPrice))
                     .withStyle(ChatFormatting.YELLOW));
@@ -601,77 +851,93 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
 
     @Override
     public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent click, boolean doubled) {
-        double mouseX = click.x();
-        double mouseY = click.y();
-
-        int slot = getMarketSlotAt(mouseX, mouseY);
+        int slot = getMarketSlotAt(click.x(), click.y());
         if (slot >= 0) {
-            long now = System.currentTimeMillis();
-            long start = flipStartTime[slot];
-            boolean isRevealed = ((syncedRevealedMask & (1 << slot)) != 0) || localRevealedCards.contains(slot);
-            boolean isPurchased = (syncedPurchasedMask & (1 << slot)) != 0;
+            return handleMarketSlotClick(slot, click);
+        }
+        return super.mouseClicked(click, doubled);
+    }
 
-            // If already purchased or currently flipping, ignore click
-            if (isPurchased || (!VCoinsPurchaseConfirm.isReducedMotion() && isRevealed && start > 0 && now >= start && now < start + FLIP_DURATION_MS)) {
-                return true;
-            }
-
-            if (!isRevealed) {
-                // Click to Flip Card (Lật lá bài!)
-                localRevealedCards.add(slot);
-                flipStartTime[slot] = now;
-                hasSpawnedStartParticles[slot] = false;
-                hasSpawnedFinishParticles[slot] = false;
-
-                ClientPlayNetworking.send(new BlackMarketRevealPayload(slot));
-
-                if (this.minecraft != null) {
-                    float pitch = 0.9f + (slot % 8) * 0.1f;
-                    this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.BOOK_PAGE_TURN, 1.3f));
-                    this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.CHISELED_BOOKSHELF_INSERT_ENCHANTED, 1.1f));
-                    this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_CHIME, 1.1f));
-                    this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_BELL.value(), pitch));
-                }
-                updateRevealAllButtonState();
-                return true;
-            }
-
-            // Already revealed -> Purchase card item
-            if (click.button() == InputConstants.MOUSE_BUTTON_LEFT || click.button() == InputConstants.MOUSE_BUTTON_RIGHT) {
-                boolean buyStack = click.button() == InputConstants.MOUSE_BUTTON_RIGHT || click.hasShiftDown();
-
-                Slot s = this.menu.slots.get(slot);
-                if (s != null && s.hasItem()) {
-                    ItemStack stack = s.getItem();
-                    long unitPrice = VBlackMarket.getDiscountedPrice(stack, syncedEpochDay);
-                    int amount = buyStack ? stack.getMaxStackSize() : 1;
-                    long totalCost = safeMultiply(unitPrice, amount);
-
-                    if (purchaseConfirm.checkOrArm(slot, buyStack, stack, totalCost, this.minecraft)) {
-                        if (this.minecraft != null) {
-                            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.0f));
-                        }
-                        ClientPlayNetworking.send(new BlackMarketBuyPayload(slot, buyStack));
-                    }
-                }
-            }
+    private boolean handleMarketSlotClick(int slot, net.minecraft.client.input.MouseButtonEvent click) {
+        long now = System.currentTimeMillis();
+        boolean isResetting = !VCoinsPurchaseConfirm.isReducedMotion()
+                && resetAnimationStartTime > 0
+                && now < resetAnimationStartTime + RESET_ANIM_DURATION_MS;
+        if (isResetting) {
             return true;
         }
 
-        return super.mouseClicked(click, doubled);
+        long start = flipStartTime[slot];
+        boolean isRevealed = ((syncedRevealedMask & (1 << slot)) != 0) || localRevealedCards.contains(slot);
+        boolean isPurchased = (syncedPurchasedMask & (1 << slot)) != 0;
+
+        // If already purchased or currently flipping, ignore click
+        if (isPurchased || (!VCoinsPurchaseConfirm.isReducedMotion() && isRevealed && start > 0 && now >= start && now < start + FLIP_DURATION_MS)) {
+            return true;
+        }
+
+        if (!isRevealed) {
+            flipCard(slot, now);
+            return true;
+        }
+
+        purchaseMarketSlot(slot, click);
+        return true;
+    }
+
+    private void flipCard(int slot, long now) {
+        localRevealedCards.add(slot);
+        flipStartTime[slot] = now;
+        hasSpawnedStartParticles[slot] = false;
+        hasSpawnedFinishParticles[slot] = false;
+
+        ClientPlayNetworking.send(new BlackMarketRevealPayload(slot));
+
+        if (this.minecraft != null) {
+            float pitch = 0.9f + (slot % 8) * 0.1f;
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.BOOK_PAGE_TURN, 1.3f));
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.CHISELED_BOOKSHELF_INSERT_ENCHANTED, 1.1f));
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_CHIME, 1.1f));
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_BELL.value(), pitch));
+        }
+        updateButtonStates();
+    }
+
+    private void purchaseMarketSlot(int slot, net.minecraft.client.input.MouseButtonEvent click) {
+        if (click.button() != InputConstants.MOUSE_BUTTON_LEFT && click.button() != InputConstants.MOUSE_BUTTON_RIGHT) {
+            return;
+        }
+        boolean buyStack = click.button() == InputConstants.MOUSE_BUTTON_RIGHT || click.hasShiftDown();
+
+        Slot s = this.menu.slots.get(slot);
+        if (s == null || !s.hasItem()) {
+            return;
+        }
+        ItemStack stack = s.getItem();
+        long unitPrice = VBlackMarket.getDiscountedPrice(stack, syncedEpochDay, syncedResetSequence);
+        int amount = buyStack ? stack.getMaxStackSize() : 1;
+        long totalCost = safeMultiply(unitPrice, amount);
+
+        if (purchaseConfirm.checkOrArm(slot, buyStack, stack, totalCost, this.minecraft)) {
+            if (this.minecraft != null) {
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.0f));
+            }
+            ClientPlayNetworking.send(new BlackMarketBuyPayload(slot, buyStack));
+        }
     }
 
     @Override
     public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
-        if (event.key() == InputConstants.KEY_SPACE || event.key() == InputConstants.KEY_RETURN || event.key() == InputConstants.KEY_NUMPADENTER) {
-            if (purchaseConfirm.handleKeyPress((slot, buyStack) -> {
-                ClientPlayNetworking.send(new BlackMarketBuyPayload(slot, buyStack));
-                if (this.minecraft != null) {
-                    this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.0f));
-                }
-            })) {
-                return true;
+        boolean isConfirmKey = event.key() == InputConstants.KEY_SPACE
+                || event.key() == InputConstants.KEY_RETURN
+                || event.key() == InputConstants.KEY_NUMPADENTER;
+        if (isConfirmKey && purchaseConfirm.handleKeyPress((slot, buyStack) -> {
+            ClientPlayNetworking.send(new BlackMarketBuyPayload(slot, buyStack));
+            if (this.minecraft != null) {
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.0f));
             }
+        })) {
+            return true;
         }
         return super.keyPressed(event);
     }

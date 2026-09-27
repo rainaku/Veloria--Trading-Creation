@@ -80,7 +80,7 @@ public class VBlackMarketScreenHandler extends AbstractContainerMenu {
     }
 
     public void refreshMarketSlots() {
-        List<ItemStack> items = VBlackMarket.getDailyItems();
+        List<ItemStack> items = VBlackMarket.getItemsForPlayer(this.player.getUUID());
         displayedEpochDay = VBlackMarket.getCurrentDay();
         marketInventory.clearContent();
         for (int i = 0; i < Math.min(items.size(), MARKET_SLOT_COUNT); i++) {
@@ -123,7 +123,8 @@ public class VBlackMarketScreenHandler extends AbstractContainerMenu {
         }
 
         ItemStack displayed = slot.getItem();
-        long unitPrice = VBlackMarket.getDiscountedPrice(displayed, VBlackMarket.getCurrentDay());
+        int resetSequence = VBlackMarket.getPlayerRecord(player.getUUID()).resetSequence;
+        long unitPrice = VBlackMarket.getDiscountedPrice(displayed, VBlackMarket.getCurrentDay(), resetSequence);
         if (unitPrice <= 0) {
             return;
         }
@@ -158,6 +159,10 @@ public class VBlackMarketScreenHandler extends AbstractContainerMenu {
         VTradeScreenHandler.sendSoundToPlayer(player, SoundEvents.PLAYER_LEVELUP, 0.5f, 1.5f);
         player.sendOverlayMessage(Component.translatable("vcoins.message.buy_success",
                 amount, displayed.getHoverName(), formatNumber(totalCost)).withStyle(ChatFormatting.GREEN));
+
+        if (VBlackMarket.isRomanGodItem(displayed)) {
+            VBlackMarket.broadcastGodItemPurchased(player, displayed, totalCost);
+        }
 
         // Sync updated state to client immediately
         VBlackMarket.syncToPlayer(player);

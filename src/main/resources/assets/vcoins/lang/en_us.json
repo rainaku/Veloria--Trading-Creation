@@ -99,5 +99,13 @@
   "vcoins.motion.full": "Veloria: Full motion enabled",
   "vcoins.market.price_badge": "%s %s%% base",
   "vcoins.black_market.discount": "-%s%% off market",
-  "vcoins.black_market.buy_price": "Black market: %s V/ea"
+  "vcoins.black_market.buy_price": "Black market: %s V/ea",
+  "vcoins.black_market.banked_reset": "Reset (%s)",
+  "vcoins.black_market.banked_reset_tooltip": "Use 1 banked reset to refresh black market items immediately",
+  "vcoins.command.blackmarket.reset_all": "Reset the black market for all players!",
+  "vcoins.command.blackmarket.reset_player": "Reset black market items for %s.",
+  "vcoins.command.blackmarket.notify_reset": "Your black market has been refreshed by an admin!",
+  "vcoins.command.blackmarket.give_banked": "Granted %s banked reset(s) to %s player(s).",
+  "vcoins.command.blackmarket.receive_banked": "You received %s black market banked reset(s)!",
+  "vcoins.command.blackmarket.bank_count": "%s has %s banked black market reset(s)."
 }

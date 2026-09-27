@@ -12,7 +12,6 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 
 public class VDuplicateScreen extends AbstractContainerScreen<VDuplicateScreenHandler> {
-    private final VeloriaMerchantPreview merchantPreview = new VeloriaMerchantPreview();
     private static final int VANILLA_PANEL_WIDTH = 176;
     private static final int COST_PANEL_X = 180;
     private static final int COST_PANEL_WIDTH = 112;
@@ -59,7 +58,6 @@ public class VDuplicateScreen extends AbstractContainerScreen<VDuplicateScreenHa
     @Override
     public void extractBackground(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float delta) {
         super.extractBackground(extractor, mouseX, mouseY, delta);
-        merchantPreview.drawBehindMenu(extractor, this.leftPos, this.topPos, this.height, mouseX, mouseY);
         InventoryTextures.panel(extractor, this.leftPos, this.topPos, VANILLA_PANEL_WIDTH, this.imageHeight);
         InventoryTextures.slots(extractor, this.leftPos + 27, this.topPos + 47, 1, 1);
         InventoryTextures.slots(extractor, this.leftPos + 134, this.topPos + 47, 1, 1);

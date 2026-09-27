@@ -99,5 +99,13 @@
   "vcoins.motion.full": "Veloria: Đã bật hiệu ứng chuyển động",
   "vcoins.market.price_badge": "%s %s%% gốc",
   "vcoins.black_market.discount": "-%s%% giá chợ",
-  "vcoins.black_market.buy_price": "Chợ đen: %s V/cái"
+  "vcoins.black_market.buy_price": "Chợ đen: %s V/cái",
+  "vcoins.black_market.banked_reset": "Đặt lại (%s)",
+  "vcoins.black_market.banked_reset_tooltip": "Dùng 1 lượt đặt lại để làm mới vật phẩm chợ đen ngay lập tức",
+  "vcoins.command.blackmarket.reset_all": "Đã đặt lại chợ đen cho toàn bộ máy chủ!",
+  "vcoins.command.blackmarket.reset_player": "Đã đặt lại vật phẩm chợ đen cho %s.",
+  "vcoins.command.blackmarket.notify_reset": "Chợ đen của bạn đã được quản trị viên làm mới!",
+  "vcoins.command.blackmarket.give_banked": "Đã cấp %s lượt đặt lại cho %s người chơi.",
+  "vcoins.command.blackmarket.receive_banked": "Bạn đã nhận được %s lượt đặt lại chợ đen!",
+  "vcoins.command.blackmarket.bank_count": "%s đang có %s lượt đặt lại chợ đen."
 }
