@@ -171,7 +171,19 @@ public final class VCoinsCommands {
                                             context.getSource().sendSystemMessage(Component.translatable(
                                                     "vcoins.command.blackmarket.bank_count", target.getName(), count).withStyle(ChatFormatting.AQUA));
                                             return count;
-                                        })))));
+                                        }))))
+                .then(Commands.literal("legend")
+                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.argument("target", EntityArgument.player())
+                                .executes(context -> {
+                                    ServerPlayer target = EntityArgument.getPlayer(context, "target");
+                                    VBlackMarket.scheduleLegendGuarantee(target);
+                                    context.getSource().sendSystemMessage(Component.translatable(
+                                            "vcoins.command.blackmarket.legend_scheduled", target.getName()).withStyle(ChatFormatting.GOLD));
+                                    target.sendSystemMessage(Component.translatable(
+                                            "vcoins.command.blackmarket.legend_notify").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+                                    return 1;
+                                }))));
     }
 
     private static int sellHand(ServerPlayer player) {

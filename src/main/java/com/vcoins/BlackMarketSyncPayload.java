@@ -16,7 +16,8 @@ public record BlackMarketSyncPayload(
         long epochDay,
         int bankedResets,
         int resetSequence,
-        List<ItemStack> items
+        List<ItemStack> items,
+        int lifetimeFlipCount
 ) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<BlackMarketSyncPayload> ID =
             new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "black_market_sync"));
@@ -29,6 +30,7 @@ public record BlackMarketSyncPayload(
                 buf.writeVarInt(payload.bankedResets());
                 buf.writeVarInt(payload.resetSequence());
                 ItemStack.OPTIONAL_LIST_STREAM_CODEC.encode(buf, payload.items());
+                buf.writeVarInt(payload.lifetimeFlipCount());
             },
             buf -> new BlackMarketSyncPayload(
                     buf.readVarLong(),
@@ -37,7 +39,8 @@ public record BlackMarketSyncPayload(
                     buf.readVarLong(),
                     buf.readVarInt(),
                     buf.readVarInt(),
-                    ItemStack.OPTIONAL_LIST_STREAM_CODEC.decode(buf)
+                    ItemStack.OPTIONAL_LIST_STREAM_CODEC.decode(buf),
+                    buf.readVarInt()
             )
     );
 

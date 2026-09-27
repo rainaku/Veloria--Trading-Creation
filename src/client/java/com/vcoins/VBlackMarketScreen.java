@@ -31,7 +31,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
     private static final Identifier CARD_FRONT =
             Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/card_front.png");
 
-    private static final long FLIP_DURATION_MS = 250L;
+    private static final long FLIP_DURATION_MS = 480L;
     private static final float PI = (float) Math.PI;
     private static final float TWO_PI = (float) (Math.PI * 2.0);
 
@@ -59,6 +59,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
     private static int syncedBankedResets = 0;
     private static int syncedResetSequence = 0;
     private static List<ItemStack> syncedCards = new ArrayList<>();
+    private static int syncedLifetimeFlipCount = 0;
 
     public static long getSyncedDay() { return syncedEpochDay; }
     public static int getSyncedBankedResets() { return syncedBankedResets; }
@@ -69,9 +70,9 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
     public static long getBaseSecondsRemaining() { return baseSecondsRemaining; }
     public static long getLastSyncTimeMs() { return lastSyncTimeMs; }
 
-    // Zero-allocation particle pool
-    private static final int MAX_PARTICLES = 64;
-    private static final String[] PARTICLE_SYMBOLS = {"✦", "✧", "⋆", "•"};
+    // Zero-allocation particle pool (expanded for legendary god pull fireworks)
+    private static final int MAX_PARTICLES = 256;
+    private static final String[] PARTICLE_SYMBOLS = {"✦", "✧", "⋆", "★", "⚡", "☼", "⚜", "👑", "•", "ᛟ", "ᚱ", "◇"};
     private final float[] partX = new float[MAX_PARTICLES];
     private final float[] partY = new float[MAX_PARTICLES];
     private final float[] partVx = new float[MAX_PARTICLES];
@@ -86,7 +87,13 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
     private final Set<Integer> localRevealedCards = new HashSet<>();
     private final long[] flipStartTime = new long[VBlackMarketScreenHandler.MARKET_SLOT_COUNT];
     private final boolean[] hasSpawnedStartParticles = new boolean[VBlackMarketScreenHandler.MARKET_SLOT_COUNT];
+    private final boolean[] hasSpawnedMidParticles = new boolean[VBlackMarketScreenHandler.MARKET_SLOT_COUNT];
     private final boolean[] hasSpawnedFinishParticles = new boolean[VBlackMarketScreenHandler.MARKET_SLOT_COUNT];
+
+    // God Pull Cinematic State
+    private long godPullStartTime = 0L;
+    private int godPullCardIndex = -1;
+    private static final long GOD_CINEMATIC_DURATION_MS = 2500L;
 
     // Reset animation state
     private static final long RESET_ANIM_DURATION_MS = 500L;
@@ -113,6 +120,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         syncedPurchasedMask = payload.purchasedMask();
         syncedBankedResets = payload.bankedResets();
         syncedResetSequence = payload.resetSequence();
+        syncedLifetimeFlipCount = payload.lifetimeFlipCount();
         if (payload.items() != null) {
             syncedCards = new ArrayList<>(payload.items());
         }
@@ -216,10 +224,13 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
     public void triggerResetAnimation(boolean playTriggerSounds) {
         long now = System.currentTimeMillis();
         this.resetAnimationStartTime = now;
+        this.godPullStartTime = 0L;
+        this.godPullCardIndex = -1;
         this.localRevealedCards.clear();
         for (int i = 0; i < VBlackMarketScreenHandler.MARKET_SLOT_COUNT; i++) {
             flipStartTime[i] = 0;
             hasSpawnedStartParticles[i] = false;
+            hasSpawnedMidParticles[i] = false;
             hasSpawnedFinishParticles[i] = false;
         }
 
@@ -276,8 +287,9 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
             boolean isRevealed = ((syncedRevealedMask & (1 << i)) != 0) || localRevealedCards.contains(i);
             if (!isRevealed) {
                 localRevealedCards.add(i);
-                flipStartTime[i] = now + staggerIndex * 60L;
+                flipStartTime[i] = now + staggerIndex * 75L;
                 hasSpawnedStartParticles[i] = false;
+                hasSpawnedMidParticles[i] = false;
                 hasSpawnedFinishParticles[i] = false;
                 staggerIndex++;
                 anyNew = true;
@@ -353,8 +365,33 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
             Component timerComponent = Component.translatable("vcoins.black_market.reset_timer", timerFormatted);
             extractor.centeredText(this.font, timerComponent,
                     this.leftPos + 128, this.topPos + 31, 0xFF00E5FF);
+
+            // Pity counter: X / 300 flips until guaranteed god item
+            int flips = syncedLifetimeFlipCount;
+            int pity = VBlackMarket.PITY_THRESHOLD;
+            // Color: green when close (>= 250), yellow otherwise
+            int pityColor = flips >= 250 ? 0xFFFFD700 : 0xFFC8A96E;
+            if (flips >= 250) {
+                // Pulsing gold glow when close to pity
+                long nowMs = System.currentTimeMillis();
+                float pulse = (float)(0.5 + 0.5 * Math.sin(nowMs * 0.006));
+                pityColor = 0xFF000000 | blendColor(0xFFD700, 0xFF8C00, pulse);
+            }
+            Component pityComponent = Component.translatable("vcoins.black_market.pity_counter", flips, pity);
+            extractor.centeredText(this.font, pityComponent,
+                    this.leftPos + 128, this.topPos + 42, pityColor);
         }
         VeloriaMenuEffects.draw(extractor, this.leftPos, this.topPos, this.imageWidth, this.imageHeight);
+    }
+
+    /** Linear blend between two packed RGB colors (no alpha) */
+    private static int blendColor(int a, int b, float t) {
+        int ra = (a >> 16) & 0xFF, ga = (a >> 8) & 0xFF, ba2 = a & 0xFF;
+        int rb = (b >> 16) & 0xFF, gb = (b >> 8) & 0xFF, bb2 = b & 0xFF;
+        int r = (int)(ra + (rb - ra) * t);
+        int g = (int)(ga + (gb - ga) * t);
+        int bl = (int)(ba2 + (bb2 - ba2) * t);
+        return (r << 16) | (g << 8) | bl;
     }
 
     private Component getBalanceComponent(long balance) {
@@ -457,73 +494,171 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
 
     private void renderFlippingCard(GuiGraphicsExtractor extractor, Slot slot, int slotIndex,
                                      int cardX, int cardY, int cardSize, float progress) {
+        ItemStack stack = slot != null && slot.hasItem() ? slot.getItem() : ItemStack.EMPTY;
+        boolean isGod = !stack.isEmpty() && VBlackMarket.isRomanGodItem(stack);
+
+        float p = Math.clamp(progress, 0.0f, 1.0f);
+
+        // Smooth cosine ease-in-out curve
+        float ease = (1.0f - (float) Math.cos(p * PI)) * 0.5f;
+
+        // Angle from 0 to PI
+        float angle = ease * PI;
+        float cosVal = (float) Math.cos(angle);
+        boolean isBackSide = cosVal > 0.0f;
+        float scaleX = Math.abs(cosVal);
+
+        // 3D Elevation arc: peaks at mid-flip (God items leap higher towards camera)
+        float lift = (float) Math.sin(p * PI);
+        float liftY = isGod ? (lift * 9.5f) : (lift * 5.5f);
+
+        // 3D scale pop towards the camera at peak lift
+        float zPop = isGod ? (1.0f + 0.15f * lift) : (1.0f + 0.05f * lift);
+
+        float cx = cardX + cardSize * 0.5f;
+        float cy = cardY + cardSize * 0.5f - liftY;
+        int half = cardSize / 2;
+
+        // Soft drop shadow beneath the lifted card
+        float shadowW = (cardSize - 2) * (0.35f + 0.65f * scaleX);
+        int shadowAlpha = (int) ((0.42f - lift * 0.18f) * 255.0f);
+        if (shadowAlpha > 0) {
+            extractor.fill(
+                    (int) (cx - shadowW * 0.5f), cardY + cardSize - 2,
+                    (int) (cx + shadowW * 0.5f), cardY + cardSize + 3,
+                    (shadowAlpha << 24)
+            );
+        }
+
+        // Particle trigger: start
         if (!hasSpawnedStartParticles[slotIndex]) {
             hasSpawnedStartParticles[slotIndex] = true;
             spawnFlipStartParticles(cardX, cardY, cardSize);
         }
 
-        float progressRad = progress * PI;
-        float sinProgress = (float) Math.sin(progressRad);
-
-        // Smooth cosine easing
-        float t = (1.0f - (float) Math.cos(progressRad)) * 0.5f;
-        float rawScale = (float) Math.cos(t * PI);
-        float scaleX = Math.abs(rawScale);
-
-        // Tactile elastic spring bounce near end
-        if (progress > 0.75f) {
-            float bounce = (float) Math.sin((progress - 0.75f) * 4.0f * PI) * 0.12f;
-            scaleX = Math.min(1.08f, scaleX + bounce);
-        }
-
-        // 3D card lift off table
-        float liftY = 5.0f * sinProgress;
-        float cx = cardX + cardSize * 0.5f;
-        float cy = cardY + cardSize * 0.5f;
-
-        // Shadow beneath the lifted card
-        float shadowW = (cardSize - 2) * (0.3f + 0.7f * scaleX);
-        extractor.fill((int) (cx - shadowW * 0.5f), cardY + cardSize - 2,
-                (int) (cx + shadowW * 0.5f), cardY + cardSize + 3, 0x44000000);
-
-        // 3D Transform
-        extractor.pose().pushMatrix();
-        extractor.pose().translate(0.0f, -liftY);
-        extractor.pose().scaleAround(Math.max(0.04f, scaleX), 1.0f, cx, cy);
-
-        if (t < 0.5f) {
-            drawCardTexture(extractor, CARD_BACK, cardX, cardY, cardSize, cardSize);
-        } else {
-            drawCardTexture(extractor, CARD_FRONT, cardX, cardY, cardSize, cardSize);
-            if (slot.hasItem()) {
-                extractor.item(slot.getItem(), slot.x, slot.y);
+        // Particle trigger: mid-flip turnover
+        if (!isBackSide && !hasSpawnedMidParticles[slotIndex]) {
+            hasSpawnedMidParticles[slotIndex] = true;
+            if (isGod) {
+                godPullStartTime = System.currentTimeMillis();
+                godPullCardIndex = slotIndex;
+                triggerGodPullCelebration(cardX, cardY, cardSize, stack);
+            } else {
+                spawnFlipMidParticles(cardX, cardY, cardSize, stack);
             }
         }
 
-        // Luminous cyan light sweep shine - inside matrix so it transforms with card rotation
-        if (progress >= 0.35f && progress <= 0.75f) {
-            float shine = (float) Math.sin((progress - 0.35f) * (PI / 0.40f));
-            int shineAlpha = (int) (shine * 150);
-            int shineColor = (shineAlpha << 24) | 0x00E0FFFF;
-            extractor.fill(cardX, cardY, cardX + cardSize, cardY + cardSize, shineColor);
+        // 3D Matrix Transform
+        extractor.pose().pushMatrix();
+        extractor.pose().translate(cx, cy);
+        extractor.pose().scale(Math.max(0.015f, scaleX) * zPop, zPop);
+
+        if (isBackSide) {
+            // ─── CARD BACK ───
+            if (isGod) {
+                long nowMs = System.currentTimeMillis();
+                float auraPulse = (float) (0.5 + 0.5 * Math.sin(nowMs * 0.008));
+                int auraCol = ((int) (180 + auraPulse * 75) << 24) | 0xFFFFD700;
+                extractor.fill(-half - 2, -half - 2, half + 2, half + 2, auraCol);
+                extractor.fill(-half - 1, -half - 1, half + 1, half + 1, 0xFF8B0000);
+            }
+
+            drawCardTexture(extractor, CARD_BACK, -half, -half, cardSize, cardSize);
+
+            // Shading as it turns edge-on
+            int shadeAlpha = (int) ((1.0f - scaleX) * 70);
+            if (shadeAlpha > 0) {
+                extractor.fill(-half, -half, half, half, (shadeAlpha << 24));
+            }
+        } else {
+            // ─── CARD FRONT & REVEALED ITEM ───
+            float revealT = Math.clamp((p - 0.5f) / 0.5f, 0.0f, 1.0f);
+
+            if (isGod) {
+                long nowMs = System.currentTimeMillis();
+                float solarPulse = (float) (0.5 + 0.5 * Math.sin(nowMs * 0.01));
+                int auraAlpha = (int) (200 + solarPulse * 55);
+                // Outer molten solar corona
+                extractor.fill(-half - 3, -half - 3, half + 3, half + 3, (auraAlpha << 24) | 0xFFFF4500);
+                // Imperial gold border
+                extractor.fill(-half - 2, -half - 2, half + 2, half + 2, 0xFFFFD700);
+                // Crimson inner frame
+                extractor.fill(-half - 1, -half - 1, half + 1, half + 1, 0xFF8B0000);
+                // Molten pedestal shimmer
+                extractor.fill(-half + 2, -half + 2, half - 2, half - 2, 0x60FFA500);
+            }
+
+            // Draw Card Front
+            drawCardTexture(extractor, CARD_FRONT, -half, -half, cardSize, cardSize);
+
+            if (!stack.isEmpty()) {
+                // Rarity glow on pedestal
+                if (!isGod) {
+                    int rarityGlow = getRarityGlowColor(stack.getRarity());
+                    if (rarityGlow != 0) {
+                        extractor.fill(-half + 4, -half + 4, half - 4, half - 4, rarityGlow);
+                    }
+                } else {
+                    // Holy solar halo on pedestal behind the god item
+                    extractor.fill(-half + 3, -half + 3, half - 3, half - 3, 0x66FFD700);
+                    extractor.fill(-10, -10, 10, 10, 0x88FF4500);
+                }
+
+                // Render item centered at (0, 0)
+                extractor.item(stack, -8, -8);
+                extractor.itemDecorations(this.font, stack, -8, -8);
+
+                // Discount or God badge label smoothly appears as card widens
+                if (revealT > 0.25f) {
+                    if (isGod) {
+                        extractor.centeredText(this.font, Component.literal("✦ CẤP THẦN ✦"), 1, half - 9, 0xFF880000);
+                        extractor.centeredText(this.font, Component.literal("✦ CẤP THẦN ✦"), 0, half - 10, 0xFFFFD700);
+                    } else {
+                        extractor.centeredText(this.font,
+                                Component.literal("↓ -" + VBlackMarket.getDiscountPercent(stack, syncedEpochDay, syncedResetSequence) + "%"),
+                                0, half - 10, 0xFF55FF55);
+                    }
+                }
+            }
+
+            // Divine Supernova flash for God Item, or warm white-gold gleam for normal items
+            if (isGod && revealT <= 0.75f) {
+                float flashT = revealT / 0.75f;
+                float flashIntensity = (float) Math.sin(flashT * PI);
+                int flashAlpha = (int) (flashIntensity * 220);
+                if (flashAlpha > 0) {
+                    extractor.fill(-half - 4, -half - 4, half + 4, half + 4, (flashAlpha << 24) | 0xFFFFF0);
+                    extractor.fill(-half - 1, -half - 1, half + 1, half + 1, (flashAlpha << 24) | 0xFFFFD700);
+                }
+            } else if (revealT <= 0.65f) {
+                float gleamT = revealT / 0.65f;
+                float gleamIntensity = (float) Math.sin(gleamT * PI);
+                int gleamAlpha = (int) (gleamIntensity * 130);
+                if (gleamAlpha > 0) {
+                    extractor.fill(-half, -half, half, half, (gleamAlpha << 24) | 0xFFFDF0);
+                }
+            }
         }
+
         extractor.pose().popMatrix();
 
-        // 3D Card Edge Thickness when angled
-        if (scaleX < 0.85f) {
-            int edgeAlpha = (int) (210 * (1.0f - scaleX));
-            int edgeColor = (edgeAlpha << 24) | 0xFFE082; // Gilded gold card rim
-            int edgeW = Math.max(1, (int) (3.0f * (1.0f - scaleX)));
-            int edgeTop = (int) (cardY - liftY);
-            int edgeBottom = edgeTop + cardSize;
-            extractor.fill((int) (cx - edgeW * 0.5f), edgeTop,
-                    (int) (cx + edgeW * 0.5f), edgeBottom, edgeColor);
+        // 3D Golden Rim when edge-on (glinting edge)
+        if (scaleX < 0.12f) {
+            int edgeAlpha = (int) (240 * (1.0f - scaleX / 0.12f));
+            int edgeColor = (edgeAlpha << 24) | (isGod ? 0xFFFFD700 : 0xFFE082);
+            int top = (int) (cy - half);
+            int bottom = (int) (cy + half);
+            extractor.fill((int) (cx - 1), top, (int) (cx + 1), bottom, edgeColor);
         }
 
-        // Sparkle burst upon completion
-        if (progress >= 0.90f && !hasSpawnedFinishParticles[slotIndex]) {
+        // Fanfare particles upon completion
+        if (p >= 0.95f && !hasSpawnedFinishParticles[slotIndex]) {
             hasSpawnedFinishParticles[slotIndex] = true;
-            spawnFinishParticles(cardX, cardY, cardSize, slotIndex, slot.getItem());
+            if (isGod) {
+                triggerGodFinishCelebration(cardX, cardY, cardSize, slotIndex, stack);
+            } else {
+                spawnFinishParticles(cardX, cardY, cardSize, slotIndex, stack);
+            }
         }
     }
 
@@ -532,18 +667,29 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         boolean isGod = slot.hasItem() && VBlackMarket.isRomanGodItem(slot.getItem());
         if (isGod && !isPurchased) {
             long now = System.currentTimeMillis();
-            float pulse = (float) (0.5 + 0.5 * Math.sin(now * 0.006));
-            int borderAlpha = (int) (180 + pulse * 75);
-            int innerGlow = (int) (35 + pulse * 45);
+            float pulse = (float) (0.5 + 0.5 * Math.sin(now * 0.007));
+            int borderAlpha = (int) (190 + pulse * 65);
+            int innerGlow = (int) (45 + pulse * 50);
 
-            // Outer divine golden aura border
-            extractor.fill(cardX - 2, cardY - 2, cardX + cardSize + 2, cardY + cardSize + 2, (borderAlpha << 24) | 0xFFD700);
-            // Inner imperial crimson border
+            // Tier 1: Outer cosmic blaze
+            extractor.fill(cardX - 3, cardY - 3, cardX + cardSize + 3, cardY + cardSize + 3, ((int)(borderAlpha * 0.6f) << 24) | 0xFFFF4500);
+            // Tier 2: Outer divine golden aura border
+            extractor.fill(cardX - 2, cardY - 2, cardX + cardSize + 2, cardY + cardSize + 2, (borderAlpha << 24) | 0xFFFFD700);
+            // Tier 3: Inner imperial crimson border
             extractor.fill(cardX - 1, cardY - 1, cardX + cardSize + 1, cardY + cardSize + 1, 0xFF8B0000);
-            // Inner pedestal shimmer
-            extractor.fill(cardX + 2, cardY + 2, cardX + cardSize - 2, cardY + cardSize - 2, (innerGlow << 24) | 0xFFA500);
+            // Tier 4: Inner pedestal molten shimmer
+            extractor.fill(cardX + 2, cardY + 2, cardX + cardSize - 2, cardY + cardSize - 2, (innerGlow << 24) | 0xFFFFA500);
 
-            if (now % 8 == 0) {
+            // 4 Corner Celestial Sun Sparks
+            float cornerPhase = (float) Math.sin(now * 0.006);
+            int cornerAlpha = (int) (160 + cornerPhase * 80);
+            int cornerCol = (cornerAlpha << 24) | 0xFFFFD700;
+            extractor.text(this.font, "☼", cardX - 5, cardY - 5, cornerCol, false);
+            extractor.text(this.font, "☼", cardX + cardSize - 2, cardY - 5, cornerCol, false);
+            extractor.text(this.font, "☼", cardX - 5, cardY + cardSize - 2, cornerCol, false);
+            extractor.text(this.font, "☼", cardX + cardSize - 2, cardY + cardSize - 2, cornerCol, false);
+
+            if (now % 3 == 0) {
                 spawnGodCardAmbientParticle(cardX, cardY, cardSize);
             }
         }
@@ -559,14 +705,23 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
                     extractor.fill(cardX + 4, cardY + 4, cardX + cardSize - 4, cardY + cardSize - 4, rarityGlow);
                 }
             } else if (!isPurchased) {
-                extractor.fill(cardX + 4, cardY + 4, cardX + cardSize - 4, cardY + cardSize - 4, 0x44FFD700);
+                // Sacred pedestal halo glow
+                extractor.fill(cardX + 3, cardY + 3, cardX + cardSize - 3, cardY + cardSize - 3, 0x55FFD700);
+                extractor.fill(cardX + 6, cardY + 6, cardX + cardSize - 6, cardY + cardSize - 6, 0x40FF4500);
             }
             extractor.item(slot.getItem(), slot.x, slot.y);
             extractor.itemDecorations(this.font, slot.getItem(), slot.x, slot.y);
             if (isGod) {
-                extractor.centeredText(this.font,
-                        Component.literal("✦ CẤP THẦN ✦"),
-                        cardX + cardSize / 2, cardY + cardSize - 10, 0xFFFFD700);
+                long now = System.currentTimeMillis();
+                int badgeW = 38;
+                int badgeH = 9;
+                int badgeX = cardX + (cardSize - badgeW) / 2;
+                int badgeY = cardY + cardSize - 11;
+                extractor.fill(badgeX, badgeY, badgeX + badgeW, badgeY + badgeH, 0xEE140206);
+                extractor.fill(badgeX, badgeY, badgeX + badgeW, badgeY + 1, 0xFFFFD700);
+                extractor.fill(badgeX, badgeY + badgeH - 1, badgeX + badgeW, badgeY + badgeH, 0xFFFFD700);
+                int textColor = (now % 800 < 400) ? 0xFFFFD700 : 0xFFFFF0;
+                extractor.centeredText(this.font, Component.literal("✦ CẤP THẦN ✦"), cardX + cardSize / 2, badgeY + 1, textColor);
             } else {
                 extractor.centeredText(this.font,
                         Component.literal("↓ -" + VBlackMarket.getDiscountPercent(slot.getItem(), syncedEpochDay, syncedResetSequence) + "%"),
@@ -597,8 +752,25 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float delta) {
+        long now = System.currentTimeMillis();
+        long godElapsed = (godPullStartTime > 0L) ? (now - godPullStartTime) : 999999L;
+        boolean shaking = godElapsed < 420L && !VCoinsPurchaseConfirm.isReducedMotion();
+        if (shaking) {
+            float shakeProg = (float) godElapsed / 420.0f;
+            float shakeAmp = (1.0f - shakeProg) * (1.0f - shakeProg) * 5.5f;
+            float shakeX = (float) Math.sin(godElapsed * 0.14f) * shakeAmp;
+            float shakeY = (float) Math.cos(godElapsed * 0.18f) * (shakeAmp * 0.65f);
+            extractor.pose().pushMatrix();
+            extractor.pose().translate(shakeX, shakeY);
+        }
+
         super.extractRenderState(extractor, mouseX, mouseY, delta);
+        renderGodPullCinematic(extractor);
         renderParticles(extractor);
+
+        if (shaking) {
+            extractor.pose().popMatrix();
+        }
     }
 
     private void addParticle(float x, float y, float vx, float vy, int color, int symbol, int life) {
@@ -640,12 +812,333 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
                 float alpha = 1.0f - progress;
                 int a = (int) (alpha * 255.0f);
                 if (a > 0) {
-                    float curX = partX[i] + partVx[i] * progress * 20.0f;
-                    float curY = partY[i] + partVy[i] * progress * 20.0f - progress * 14.0f;
+                    float ease = (1.0f - (float) Math.pow(1.0f - progress, 2.5f));
+                    float curX = partX[i] + partVx[i] * ease * 42.0f;
+                    float curY = partY[i] + partVy[i] * ease * 42.0f - progress * progress * 24.0f;
                     int argb = (a << 24) | (partColor[i] & 0x00FFFFFF);
                     extractor.text(this.font, PARTICLE_SYMBOLS[partSymbol[i]], (int) curX, (int) curY, argb, false);
                 }
             }
+        }
+    }
+
+    private void renderGodPullCinematic(GuiGraphicsExtractor extractor) {
+        if (VCoinsPurchaseConfirm.isReducedMotion()) return;
+        if (godPullStartTime <= 0L || godPullCardIndex < 0) return;
+
+        long now = System.currentTimeMillis();
+        long elapsed = now - godPullStartTime;
+        if (elapsed >= GOD_CINEMATIC_DURATION_MS) {
+            return;
+        }
+
+        // Intensity curve: rises in first 200ms, holds, then gently fades
+        float intensity;
+        if (elapsed < 200L) {
+            intensity = (float) elapsed / 200.0f;
+        } else {
+            intensity = 1.0f - (float) (elapsed - 200L) / (float) (GOD_CINEMATIC_DURATION_MS - 200L);
+        }
+        intensity = Math.clamp(intensity, 0.0f, 1.0f);
+
+        // Center of the God card on screen
+        int cardX = VBlackMarketScreenHandler.MARKET_X + godPullCardIndex * VBlackMarketScreenHandler.MARKET_COL_SPACING;
+        int cardY = VBlackMarketScreenHandler.MARKET_Y;
+        int cardSize = VBlackMarketScreenHandler.CARD_SIZE;
+        float cx = this.leftPos + cardX + cardSize * 0.5f;
+        float cy = this.topPos + cardY + cardSize * 0.5f;
+
+        // 1. Time-Freeze Supernova Flash (first 260ms of turnover)
+        if (elapsed < 260L) {
+            float flashT = (float) elapsed / 260.0f;
+            float flashCurve = (1.0f - flashT) * (1.0f - flashT);
+            int flashA = (int) (flashCurve * 205);
+            if (flashA > 0) {
+                extractor.fill(0, 0, this.width, this.height, (flashA << 24) | 0xFFFFF8);
+                int haloR = (int) (cardSize * 3.2f * (1.0f - flashT * 0.4f));
+                extractor.fill((int) (cx - haloR), (int) (cy - haloR), (int) (cx + haloR), (int) (cy + haloR),
+                        ((flashA / 2) << 24) | 0xFFFFD700);
+            }
+        }
+
+        // 2. Cinematic Ambient Darkness & Letterbox Bars (Spotlight on God Card)
+        int dimAlpha = (int) (intensity * 155);
+        if (dimAlpha > 0) {
+            extractor.fill(0, 0, this.width, this.height, (dimAlpha << 24));
+        }
+        int barH = 14;
+        int barAlpha = (int) (intensity * 210);
+        if (barAlpha > 0) {
+            extractor.fill(0, 0, this.width, barH, (barAlpha << 24));
+            extractor.fill(0, barH - 1, this.width, barH, (barAlpha << 24) | 0x88FFD700);
+            extractor.fill(0, this.height - barH, this.width, this.height, (barAlpha << 24));
+            extractor.fill(0, this.height - barH, this.width, this.height - barH + 1, (barAlpha << 24) | 0x88FFD700);
+        }
+
+        // 3. Pillar of the Heavens (5-tier volumetric divine light shaft with ascending aurora ribbons)
+        int baseW = (int) (cardSize * (1.3f + 0.25f * (float) Math.sin(now * 0.007f)));
+        int w1 = (int) (baseW * 3.4f);
+        extractor.fill((int) (cx - w1 * 0.5f), 0, (int) (cx + w1 * 0.5f), this.height, ((int) (intensity * 26) << 24) | 0xFFFFD700);
+        int w2 = (int) (baseW * 2.2f);
+        extractor.fill((int) (cx - w2 * 0.5f), 0, (int) (cx + w2 * 0.5f), this.height, ((int) (intensity * 48) << 24) | 0xFFFFA000);
+        int w3 = (int) (baseW * 1.35f);
+        extractor.fill((int) (cx - w3 * 0.5f), 0, (int) (cx + w3 * 0.5f), this.height, ((int) (intensity * 80) << 24) | 0xFFFFE082);
+        int w4 = (int) (baseW * 0.7f);
+        extractor.fill((int) (cx - w4 * 0.5f), 0, (int) (cx + w4 * 0.5f), this.height, ((int) (intensity * 125) << 24) | 0xFFFFFFEE);
+        int w5 = Math.max(3, (int) (baseW * 0.28f));
+        extractor.fill((int) (cx - w5 * 0.5f), 0, (int) (cx + w5 * 0.5f), this.height, ((int) (intensity * 180) << 24) | 0xFFFFFFFF);
+
+        // Ascending Aurora Energy Ribbons
+        for (int s = 0; s < 8; s++) {
+            float xOff = (float) Math.sin(s * 1.7f + now * 0.003f) * (cardSize * 0.55f);
+            float yPos = (float) ((now * (0.32f + s * 0.07f) + s * 70) % this.height);
+            int streakH = 20 + (s % 3) * 10;
+            int streakAlpha = (int) (intensity * (60 + (s % 3) * 35));
+            extractor.fill((int) (cx + xOff - 1), (int) (this.height - yPos - streakH),
+                    (int) (cx + xOff + 1), (int) (this.height - yPos),
+                    (streakAlpha << 24) | 0xFFFFFF);
+        }
+
+        // 4. Triple Concentric Expanding Shockwaves
+        float wave1 = Math.clamp(elapsed / 900.0f, 0.0f, 1.0f);
+        if (wave1 < 1.0f) {
+            float r1 = wave1 * 260.0f;
+            int alpha1 = (int) ((1.0f - wave1) * 230 * intensity);
+            drawShockwave(extractor, cx, cy, r1, (alpha1 << 24) | 0xFFFFD700, 2);
+        }
+
+        if (elapsed > 140L) {
+            float wave2 = Math.clamp((elapsed - 140L) / 900.0f, 0.0f, 1.0f);
+            if (wave2 < 1.0f) {
+                float r2 = wave2 * 210.0f;
+                int alpha2 = (int) ((1.0f - wave2) * 200 * intensity);
+                drawShockwave(extractor, cx, cy, r2, (alpha2 << 24) | 0xFFFF4500, 2);
+            }
+        }
+
+        if (elapsed > 280L) {
+            float wave3 = Math.clamp((elapsed - 280L) / 900.0f, 0.0f, 1.0f);
+            if (wave3 < 1.0f) {
+                float r3 = wave3 * 160.0f;
+                int alpha3 = (int) ((1.0f - wave3) * 170 * intensity);
+                drawShockwave(extractor, cx, cy, r3, (alpha3 << 24) | 0xFFFFF8, 2);
+            }
+        }
+
+        // 5. Dual Counter-Rotating Celestial Mandalas (Outer Solar Wheel + Inner Octagram Seal)
+        float baseAngle = now * 0.0014f;
+        int rayAlpha = (int) (intensity * 190);
+        if (rayAlpha > 0) {
+            for (int r = 0; r < 12; r++) {
+                double a = baseAngle + r * (TWO_PI / 12.0);
+                float rayLen = 44.0f + 20.0f * (float) Math.sin(now * 0.007f + r * 0.8f);
+                float rx = cx + (float) Math.cos(a) * rayLen;
+                float ry = cy + (float) Math.sin(a) * rayLen;
+                int dotCol = (rayAlpha << 24) | (r % 3 == 0 ? 0xFFFFFFFF : (r % 2 == 0 ? 0xFFFFD700 : 0xFFFF8C00));
+                extractor.fill((int) (rx - 1.5f), (int) (ry - 1.5f), (int) (rx + 2.5f), (int) (ry + 2.5f), dotCol);
+            }
+        }
+
+        float octAngle = now * -0.0022f;
+        int sealAlpha = (int) (intensity * 180);
+        if (sealAlpha > 0) {
+            float sealRadius = 36.0f + 4.0f * (float) Math.sin(now * 0.009f);
+            String[] sealGlyphs = {"✦", "⚜", "★", "☼", "✧", "⚜", "★", "☼"};
+            for (int p = 0; p < 8; p++) {
+                double a = octAngle + p * (TWO_PI / 8.0);
+                float px = cx + (float) Math.cos(a) * sealRadius;
+                float py = cy + (float) Math.sin(a) * sealRadius;
+                int glyphCol = (sealAlpha << 24) | (p % 2 == 0 ? 0xFFFFD700 : 0xFFFF4500);
+                extractor.text(this.font, sealGlyphs[p], (int) (px - 3), (int) (py - 4), glyphCol, false);
+            }
+        }
+
+        // 6. Centerpiece: The Heroic Floating Transcended God Card
+        ItemStack godStack = (this.menu.slots.size() > godPullCardIndex) ? this.menu.slots.get(godPullCardIndex).getItem() : ItemStack.EMPTY;
+        if (!godStack.isEmpty()) {
+            float hoverBob = (float) Math.sin(now * 0.008f) * 3.5f;
+            float heroScale = 1.16f + 0.04f * (float) Math.sin(now * 0.006f);
+            int half = cardSize / 2;
+
+            extractor.pose().pushMatrix();
+            extractor.pose().translate(cx, cy - hoverBob);
+            extractor.pose().scale(heroScale, heroScale);
+
+            // 4-layer blazing solar corona
+            extractor.fill(-half - 5, -half - 5, half + 5, half + 5, 0x90FF4500);
+            extractor.fill(-half - 3, -half - 3, half + 3, half + 3, 0xD0FFD700);
+            extractor.fill(-half - 2, -half - 2, half + 2, half + 2, 0xFFFF8C00);
+            extractor.fill(-half - 1, -half - 1, half + 1, half + 1, 0xFF8B0000);
+
+            drawCardTexture(extractor, CARD_FRONT, -half, -half, cardSize, cardSize);
+
+            // Holy solar halo on pedestal
+            extractor.fill(-half + 3, -half + 3, half - 3, half - 3, 0x66FFD700);
+            extractor.fill(-10, -10, 10, 10, 0x90FFA500);
+
+            extractor.item(godStack, -8, -8);
+            extractor.itemDecorations(this.font, godStack, -8, -8);
+
+            // Golden badge
+            int badgeW = 38;
+            int badgeH = 9;
+            int badgeX = -badgeW / 2;
+            int badgeY = half - 11;
+            extractor.fill(badgeX, badgeY, badgeX + badgeW, badgeY + badgeH, 0xEE140206);
+            extractor.fill(badgeX, badgeY, badgeX + badgeW, badgeY + 1, 0xFFFFD700);
+            extractor.fill(badgeX, badgeY + badgeH - 1, badgeX + badgeW, badgeY + badgeH, 0xFFFFD700);
+            int textColor = (now % 800 < 400) ? 0xFFFFD700 : 0xFFFFF0;
+            extractor.centeredText(this.font, Component.literal("✦ CẤP THẦN ✦"), 0, badgeY + 1, textColor);
+
+            extractor.pose().popMatrix();
+        }
+
+        // 7. Imperial Floating Decree Banner ("✦ LA MÃ THẦN BẢO GIÁNG THẾ ✦")
+        if (elapsed > 100L) {
+            float bannerT = Math.clamp((elapsed - 100L) / 280.0f, 0.0f, 1.0f);
+            float bannerAlphaF = bannerT * intensity;
+            int textAlpha = (int) (bannerAlphaF * 255.0f);
+            if (textAlpha > 10) {
+                float bob = (float) Math.sin(now * 0.005f) * 2.5f;
+                int bannerY = (int) (this.topPos + 14 - bob);
+                int screenMidX = this.width / 2;
+
+                int plaqueW = 240;
+                int plaqueH = 26;
+                int plaqueX = screenMidX - plaqueW / 2;
+                int bgAlpha = (int) (bannerAlphaF * 230.0f);
+
+                extractor.fill(plaqueX, bannerY - 3, plaqueX + plaqueW, bannerY + plaqueH, (bgAlpha << 24) | 0x140206);
+                int borderCol = (textAlpha << 24) | 0xFFFFD700;
+                int subBorderCol = (textAlpha << 24) | 0xFF8B0000;
+                extractor.fill(plaqueX, bannerY - 4, plaqueX + plaqueW, bannerY - 3, borderCol);
+                extractor.fill(plaqueX, bannerY - 3, plaqueX + plaqueW, bannerY - 2, subBorderCol);
+                extractor.fill(plaqueX, bannerY + plaqueH - 1, plaqueX + plaqueW, bannerY + plaqueH, subBorderCol);
+                extractor.fill(plaqueX, bannerY + plaqueH, plaqueX + plaqueW, bannerY + plaqueH + 1, borderCol);
+
+                // Left & Right ornate brackets
+                extractor.text(this.font, "«« ⚜", plaqueX + 4, bannerY + 4, (textAlpha << 24) | 0xFFFFD700, false);
+                extractor.text(this.font, "⚜ »»", plaqueX + plaqueW - 28, bannerY + 4, (textAlpha << 24) | 0xFFFFD700, false);
+
+                // Crown & Sparkles centered above
+                Component crownComp = Component.literal("✧  👑  ✧");
+                extractor.centeredText(this.font, crownComp, screenMidX, bannerY - 14, (textAlpha << 24) | 0xFFFFD700);
+
+                // Main Title: ✦ LA MÃ THẦN BẢO GIÁNG THẾ ✦
+                Component titleComp = Component.translatable("vcoins.black_market.cinematic.title");
+                extractor.centeredText(this.font, titleComp, screenMidX + 1, bannerY + 2, (textAlpha << 24) | 0x880000);
+                extractor.centeredText(this.font, titleComp, screenMidX, bannerY + 1, (textAlpha << 24) | 0xFFFFF0);
+
+                // Subtitle: ⚜ QUYỀN NĂNG TỐI CAO ĐÃ THỨC TỈNH ⚜
+                Component subComp = Component.translatable("vcoins.black_market.cinematic.subtitle");
+                int subCol = (now % 600 < 300) ? 0xFFFFD700 : 0xFFFF8C00;
+                extractor.centeredText(this.font, subComp, screenMidX, bannerY + 14, (textAlpha << 24) | subCol);
+            }
+        }
+    }
+
+    private static void drawShockwave(GuiGraphicsExtractor extractor, float cx, float cy, float radius, int color, int thickness) {
+        int r = (int) radius;
+        if (r <= 2) return;
+        int d = (int) (r * 0.7071f);
+        extractor.fill((int) (cx - r * 0.4f), (int) (cy - r - thickness), (int) (cx + r * 0.4f), (int) (cy - r), color);
+        extractor.fill((int) (cx - r * 0.4f), (int) (cy + r), (int) (cx + r * 0.4f), (int) (cy + r + thickness), color);
+        extractor.fill((int) (cx - r - thickness), (int) (cy - r * 0.4f), (int) (cx - r), (int) (cy + r * 0.4f), color);
+        extractor.fill((int) (cx + r), (int) (cy - r * 0.4f), (int) (cx + r + thickness), (int) (cy + r * 0.4f), color);
+
+        extractor.fill((int) (cx - d - thickness), (int) (cy - d - thickness), (int) (cx - d * 0.5f), (int) (cy - d), color);
+        extractor.fill((int) (cx + d * 0.5f), (int) (cy - d - thickness), (int) (cx + d + thickness), (int) (cy - d), color);
+        extractor.fill((int) (cx - d - thickness), (int) (cy + d), (int) (cx - d * 0.5f), (int) (cy + d + thickness), color);
+        extractor.fill((int) (cx + d * 0.5f), (int) (cy + d), (int) (cx + d + thickness), (int) (cy + d + thickness), color);
+    }
+
+    private void triggerGodPullCelebration(int cardX, int cardY, int cardSize, ItemStack stack) {
+        float originX = this.leftPos + cardX + cardSize * 0.5f;
+        float originY = this.topPos + cardY + cardSize * 0.5f;
+
+        ThreadLocalRandom rng = ThreadLocalRandom.current();
+
+        // 1. Audio Orchestra: Totem of Undying + Toast Challenge + Level Up + Beacon hum
+        if (this.minecraft != null) {
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.TOTEM_USE, 0.90f));
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.15f));
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.PLAYER_LEVELUP, 0.70f));
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.BEACON_ACTIVATE, 1.35f));
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.ENCHANTMENT_TABLE_USE, 1.4f));
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_CHIME, 1.6f));
+        }
+
+        // 2. High-speed Shockwave Starburst Ring (42 particles shooting outward)
+        int[] palette = {0xFFFFD700, 0xFFFF4500, 0xFFFF2244, 0xFFFFFFFF, 0xFFFFE082, 0xFFFF8C00, 0xFFFF1744};
+        for (int i = 0; i < 42; i++) {
+            double angle = (TWO_PI / 42.0) * i + rng.nextDouble(-0.15, 0.15);
+            float speed = (float) rng.nextDouble(1.8, 3.6);
+            int color = palette[rng.nextInt(palette.length)];
+            int symIdx = rng.nextInt(PARTICLE_SYMBOLS.length);
+            int life = rng.nextInt(650, 1050);
+            addParticle(
+                    originX, originY,
+                    (float) Math.cos(angle) * speed,
+                    (float) Math.sin(angle) * speed,
+                    color, symIdx, life
+            );
+        }
+
+        // 3. Ascending Divine Embers (24 holy embers floating upwards towards heavens)
+        for (int i = 0; i < 24; i++) {
+            float ox = originX + (rng.nextFloat() - 0.5f) * cardSize * 1.4f;
+            float oy = originY + (rng.nextFloat() - 0.5f) * cardSize * 0.6f;
+            float vx = (rng.nextFloat() - 0.5f) * 0.7f;
+            float vy = -1.2f - rng.nextFloat() * 1.8f;
+            int color = rng.nextBoolean() ? 0xFFFFD700 : 0xFFFF8C00;
+            int symIdx = rng.nextInt(4); // ✦, ✧, ⋆, ★
+            int life = rng.nextInt(850, 1500);
+            addParticle(ox, oy, vx, vy, color, symIdx, life);
+        }
+
+        // 4. Sacred Crown & Lightning Runes (12 majestic symbols)
+        int[] royalSyms = {4, 6, 7, 5, 9, 10}; // ⚡, ⚜, 👑, ☼, ᛟ, ᚱ
+        for (int i = 0; i < 12; i++) {
+            double angle = rng.nextDouble(0, TWO_PI);
+            float speed = (float) rng.nextDouble(0.8, 1.8);
+            int color = rng.nextBoolean() ? 0xFFFFD700 : 0xFFFF2244;
+            int symIdx = royalSyms[rng.nextInt(royalSyms.length)];
+            int life = rng.nextInt(750, 1200);
+            addParticle(
+                    originX, originY,
+                    (float) Math.cos(angle) * speed,
+                    (float) Math.sin(angle) * speed,
+                    color, symIdx, life
+            );
+        }
+    }
+
+    private void triggerGodFinishCelebration(int cardX, int cardY, int cardSize, int slotIndex, ItemStack stack) {
+        float originX = this.leftPos + cardX + cardSize * 0.5f;
+        float originY = this.topPos + cardY + cardSize * 0.5f;
+
+        ThreadLocalRandom rng = ThreadLocalRandom.current();
+
+        if (this.minecraft != null) {
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.PLAYER_LEVELUP, 1.25f));
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_CHIME, 1.6f));
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_BELL.value(), 1.45f));
+        }
+
+        // Grand Fanfare Nova: 42 sparkling particles bursting outward
+        int[] palette = {0xFFFFD700, 0xFFFFE082, 0xFFFF8C00, 0xFFFFFFFF, 0xFFFF1744, 0xFFFF4500};
+        for (int i = 0; i < 42; i++) {
+            double angle = (TWO_PI / 42.0) * i + rng.nextDouble(-0.1, 0.1);
+            float speed = (float) rng.nextDouble(1.2, 3.0);
+            int color = palette[rng.nextInt(palette.length)];
+            int symIdx = rng.nextInt(PARTICLE_SYMBOLS.length);
+            int life = rng.nextInt(700, 1200);
+            addParticle(
+                    originX, originY,
+                    (float) Math.cos(angle) * speed,
+                    (float) Math.sin(angle) * speed,
+                    color, symIdx, life
+            );
         }
     }
 
@@ -654,16 +1147,45 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         float originY = this.topPos + cardY + cardSize * 0.5f;
 
         ThreadLocalRandom rng = ThreadLocalRandom.current();
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 6; i++) {
             double angle = rng.nextDouble(0, TWO_PI);
-            float speed = (float) rng.nextDouble(0.4, 0.9);
-            int life = rng.nextInt(250, 450);
+            float speed = (float) rng.nextDouble(0.4, 1.0);
+            int life = rng.nextInt(250, 480);
             addParticle(
                     originX, originY,
                     (float) Math.cos(angle) * speed,
                     (float) Math.sin(angle) * speed,
                     0xFFD700, 1, life
             );
+        }
+    }
+
+    private void spawnFlipMidParticles(int cardX, int cardY, int cardSize, ItemStack stack) {
+        float originX = this.leftPos + cardX + cardSize * 0.5f;
+        float originY = this.topPos + cardY + cardSize * 0.5f;
+
+        boolean isGod = !stack.isEmpty() && VBlackMarket.isRomanGodItem(stack);
+        int baseColor = isGod ? 0xFFFFD700 : 0xFFE0FFFF;
+
+        ThreadLocalRandom rng = ThreadLocalRandom.current();
+        int count = isGod ? 12 : 8;
+        for (int i = 0; i < count; i++) {
+            double angle = rng.nextDouble(0, TWO_PI);
+            float speed = (float) rng.nextDouble(0.8, 1.8);
+            int color = rng.nextBoolean() ? baseColor : 0xFFFFFFFF;
+            int symIdx = rng.nextInt(PARTICLE_SYMBOLS.length);
+            int life = rng.nextInt(280, 500);
+            addParticle(
+                    originX, originY,
+                    (float) Math.cos(angle) * speed,
+                    (float) Math.sin(angle) * speed,
+                    color, symIdx, life
+            );
+        }
+
+        if (this.minecraft != null) {
+            float pitch = 1.15f + (rng.nextFloat() * 0.2f);
+            this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.CHISELED_BOOKSHELF_INSERT_ENCHANTED, pitch));
         }
     }
 
@@ -889,6 +1411,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         localRevealedCards.add(slot);
         flipStartTime[slot] = now;
         hasSpawnedStartParticles[slot] = false;
+        hasSpawnedMidParticles[slot] = false;
         hasSpawnedFinishParticles[slot] = false;
 
         ClientPlayNetworking.send(new BlackMarketRevealPayload(slot));
