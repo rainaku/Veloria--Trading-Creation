@@ -330,5 +330,22 @@
   "vcoins.roman.noun.aquila_wings": "Aquila Eagle Wings",
   "vcoins.roman.noun.triumphal_wings": "Triumphal Glider Wings",
   "vcoins.roman.noun.aeterna_wings": "Roma Aeterna Wings",
-  "vcoins.roman.noun.sky_wings": "Celestial Wings"
+  "vcoins.roman.noun.sky_wings": "Celestial Wings",
+  "vcoins.roman.chat.discovered": "✦ A LEGEND AWAKENS ✦",
+  "vcoins.roman.chat.purchased": "◆ A RELIC FINDS ITS OWNER ◆",
+  "vcoins.roman.chat.finder": "%s has uncovered a legend!",
+  "vcoins.roman.chat.buyer": "%s now holds a divine relic.",
+  "vcoins.roman.chat.item": "[View relic]",
+  "vcoins.roman.chat.value": "Black Market: %s V",
+  "vcoins.roman.chat.paid": "Paid: %s V",
+  "vcoins.roman.chat.hover": "Hover to inspect",
+  "vcoins.roman.reveal.dismiss": "Click to continue",
+  "vcoins.black_market.back_shop": "◀ Shop",
+  "vcoins.black_market.reset_count": "↺ ×%s",
+  "vcoins.black_market.reset_hint": "Reset Black Market (%s banked resets)",
+  "vcoins.black_market.pity_remaining": "Pity: %s",
+  "vcoins.black_market.purchased_short": "Bought",
+  "vcoins.black_market.god_badge": "DIVINE",
+  "vcoins.black_market.god_tooltip": "✦ ROMAN DIVINE RELIC ✦",
+  "vcoins.roman.reveal.title": "L E G E N D A R Y"
 }

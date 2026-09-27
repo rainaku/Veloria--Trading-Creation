@@ -81,6 +81,10 @@ public class VCoinsPurchaseConfirm {
         saveConfig();
     }
 
+    public static Component getCompactToggleLabel() {
+        return Component.literal(isConfirmationEnabled() ? "✓" : "–");
+    }
+
     public static Component getToggleLabel() {
         return Component.translatable(isConfirmationEnabled() ? "vcoins.verify.toggle_on" : "vcoins.verify.toggle_off");
     }

@@ -152,16 +152,23 @@ public class VCoinsMod implements ModInitializer {
             });
         });
 
+        PayloadTypeRegistry.serverboundPlay().register(DuplicateActionPayload.ID, DuplicateActionPayload.CODEC);
+        ServerPlayNetworking.registerGlobalReceiver(DuplicateActionPayload.ID, (payload, context) -> {
+            context.server().execute(() -> {
+                if (context.player().containerMenu instanceof VDuplicateScreenHandler duplicateMenu) {
+                    duplicateMenu.handleDuplicate(context.player(), payload.slotIndex());
+                }
+            });
+        });
+
         PayloadTypeRegistry.serverboundPlay().register(OpenDuplicatePayload.ID, OpenDuplicatePayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(OpenDuplicatePayload.ID, (payload, context) -> {
             context.server().execute(() -> {
-                if (!(context.player().containerMenu instanceof VTradeScreenHandler)) {
-                    return;
-                }
                 context.player().openMenu(new net.minecraft.world.SimpleMenuProvider(
                         (syncId, inv, player) -> new VDuplicateScreenHandler(syncId, inv),
                         Component.translatable("vcoins.duplicate.title")
                 ));
+                context.player().playSound(SoundEvents.ANVIL_USE, 0.4f, 1.2f);
                 syncCoins(context.player());
             });
         });
@@ -176,6 +183,7 @@ public class VCoinsMod implements ModInitializer {
                 context.player().playSound(SoundEvents.PORTAL_TRAVEL, 0.35f, 1.8f);
                 context.player().playSound(SoundEvents.CHEST_OPEN, 0.65f, 1.2f);
                 syncCoins(context.player());
+                VBlackMarket.syncToPlayer(context.player());
             });
         });
     }

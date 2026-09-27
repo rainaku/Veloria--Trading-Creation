@@ -12,7 +12,7 @@ public final class VDuplicatePricing {
     }
 
     public static long getCoinCost(ItemStack sample) {
-        if (sample.isEmpty() || !VCoinsPricing.isTradeable(sample.getItem())) {
+        if (sample.isEmpty() || !VCoinsPricing.isTradeable(sample)) {
             return 0L;
         }
 
@@ -28,7 +28,7 @@ public final class VDuplicatePricing {
     }
 
     public static int getExperienceLevelCost(ItemStack sample) {
-        if (sample.isEmpty() || !VCoinsPricing.isTradeable(sample.getItem())) {
+        if (sample.isEmpty() || !VCoinsPricing.isTradeable(sample)) {
             return 0;
         }
 

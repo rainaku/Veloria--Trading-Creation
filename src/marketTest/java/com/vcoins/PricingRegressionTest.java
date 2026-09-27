@@ -173,6 +173,11 @@ public final class PricingRegressionTest {
         // Verify Roman God Item generation, pricing (>= 300M), durability (>= 200), and enchantments
         ItemStack godMin = VBlackMarket.generateRomanGodItem(new java.util.Random(42L), 300_000_000L);
         require(VBlackMarket.isRomanGodItem(godMin), "Is Roman god item");
+        require(!VCoinsPricing.isTradeable(godMin), "God relic excluded from normal market");
+        require(VCoinsPricing.getPrice(godMin) == 0, "God relic has no market buy quote");
+        require(VCoinsPricing.getSellPrice(godMin) == 0, "God relic cannot be sold");
+        require(VCoinsPricing.getBuybackPrice(godMin) == 0, "God relic has no buyback quote");
+        require(VDuplicatePricing.getCoinCost(godMin) == 0, "God relic cannot become a cheap duplicate");
         require(VBlackMarket.getRomanGodItemPrice(godMin) == 300_000_000L, "God item minimum price 300M");
         require(VBlackMarket.getDiscountedPrice(godMin, 100) == 300_000_000L, "God item price is fixed independently");
         require(VBlackMarket.getDiscountPercent(godMin, 100) == 0, "God item has 0 discount (fixed prestige price)");
@@ -202,6 +207,27 @@ public final class PricingRegressionTest {
         require(VBlackMarket.getBankedResets(testPlayer) == 3, "Banked resets incremented to 3");
         VBlackMarket.addBankedResets(testPlayer, -1);
         require(VBlackMarket.getBankedResets(testPlayer) == 2, "Banked resets decremented to 2");
+
+        var record = VBlackMarket.getPlayerRecord(testPlayer);
+        record.customItems = new java.util.ArrayList<>();
+        for (int i = 0; i < 5; i++) record.customItems.add(new ItemStack(Items.DIAMOND));
+        record.legendNextReset = true;
+        record.revealedMask = 31;
+        VBlackMarket.consumeLegendGuarantee(record);
+        int legendSlot = -1;
+        int legendCount = 0;
+        for (int i = 0; i < 5; i++) {
+            if (VBlackMarket.isRomanGodItem(record.customItems.get(i))) {
+                legendSlot = i;
+                legendCount++;
+            }
+        }
+        require(legendCount == 1, "Pending legend replaces exactly one of five reset cards");
+        require(!record.legendNextReset, "Successful guarantee consumes pending legend");
+        require(record.revealedMask == (31 & ~(1 << legendSlot)), "Only the chosen legend card becomes hidden");
+        record.customItems.set(legendSlot, new ItemStack(Items.DIAMOND));
+        VBlackMarket.consumeLegendGuarantee(record);
+        require(record.customItems.stream().noneMatch(VBlackMarket::isRomanGodItem), "Legend guarantee only applies once");
     }
 
     private static void testMarketEngineVolumesAndThreading(ItemStack mending, ItemStack infinity) throws Exception {

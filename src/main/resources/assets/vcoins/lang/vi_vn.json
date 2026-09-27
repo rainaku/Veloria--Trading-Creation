@@ -330,5 +330,22 @@
   "vcoins.roman.noun.aquila_wings": "Cánh Ưng Biểu Aquila",
   "vcoins.roman.noun.triumphal_wings": "Đôi Cánh Khải Hoàn",
   "vcoins.roman.noun.aeterna_wings": "Cánh Lượn Roma Aeterna",
-  "vcoins.roman.noun.sky_wings": "Đôi Cánh Bầu Trời"
+  "vcoins.roman.noun.sky_wings": "Đôi Cánh Bầu Trời",
+  "vcoins.roman.chat.discovered": "✦ HUYỀN THOẠI THỨC TỈNH ✦",
+  "vcoins.roman.chat.purchased": "◆ BẢO VẬT QUY CHỦ ◆",
+  "vcoins.roman.chat.finder": "%s vừa chạm tới huyền thoại!",
+  "vcoins.roman.chat.buyer": "%s đã nắm giữ thần bảo.",
+  "vcoins.roman.chat.item": "[Xem bảo vật]",
+  "vcoins.roman.chat.value": "Chợ Đen: %s V",
+  "vcoins.roman.chat.paid": "Đã trả: %s V",
+  "vcoins.roman.chat.hover": "Rê chuột xem",
+  "vcoins.roman.reveal.dismiss": "Nhấp để tiếp tục",
+  "vcoins.black_market.back_shop": "◀ Mua",
+  "vcoins.black_market.reset_count": "↺ ×%s",
+  "vcoins.black_market.reset_hint": "Đặt lại Chợ Đen (%s lượt tích lũy)",
+  "vcoins.black_market.pity_remaining": "Bù: %s",
+  "vcoins.black_market.purchased_short": "Đã mua",
+  "vcoins.black_market.god_badge": "THẦN",
+  "vcoins.black_market.god_tooltip": "✦ LA MÃ THẦN BẢO ✦",
+  "vcoins.roman.reveal.title": "H U Y Ề N  T H O Ạ I"
 }

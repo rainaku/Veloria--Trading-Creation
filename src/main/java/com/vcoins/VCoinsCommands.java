@@ -99,6 +99,17 @@ public final class VCoinsCommands {
                 .then(Commands.literal("all")
                         .executes(context -> sellInventory(context.getSource().getPlayerOrException()))));
 
+        dispatcher.register(Commands.literal("duplicate")
+                .executes(context -> {
+                    ServerPlayer player = context.getSource().getPlayerOrException();
+                    player.openMenu(new SimpleMenuProvider(
+                            (syncId, inventory, playerEntity) -> new VDuplicateScreenHandler(syncId, inventory),
+                            Component.translatable("vcoins.duplicate.title")
+                    ));
+                    VCoinsMod.syncCoins(player);
+                    return 1;
+                }));
+
         dispatcher.register(Commands.literal("blackmarket")
                 .executes(context -> {
                     ServerPlayer player = context.getSource().getPlayerOrException();

@@ -256,7 +256,7 @@ public class VCoinsPricing {
     }
 
     public static long getReferencePrice(ItemStack stack) {
-        if (stack.isEmpty()) return 0L;
+        if (!isTradeable(stack)) return 0L;
         String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         long base = getBasePrice(id);
         if (base <= 0) return 0L;
@@ -399,6 +399,10 @@ public class VCoinsPricing {
     public static Map<String, Long> getAllPrices() {
         ensureInitialized();
         return prices;
+    }
+
+    public static boolean isTradeable(ItemStack stack) {
+        return !stack.isEmpty() && !VBlackMarket.isRomanGodItem(stack) && isTradeable(stack.getItem());
     }
 
     public static boolean isTradeable(Item item) {

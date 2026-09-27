@@ -68,7 +68,7 @@ public class VBlackMarket {
         public List<ItemStack> customItems;
         /** Lifetime flip counter; resets to 0 after pity triggers */
         public int lifetimeFlipCount;
-        /** OP-scheduled legend guarantee: inject god item on next daily reset */
+        /** OP-scheduled legend guarantee: inject god item on next successful reset */
         public boolean legendNextReset;
 
         public PlayerDailyRecord(long day, int revealedMask, int purchasedMask, int bankedResets, int resetSequence, List<ItemStack> customItems, int lifetimeFlipCount, boolean legendNextReset) {
@@ -564,49 +564,9 @@ public class VBlackMarket {
 
     public static GeneratedName generateLocalizedRomanName(Random random, RomanArchetype archetype) {
         RomanNoun noun = archetype.nouns()[random.nextInt(archetype.nouns().length)];
-        RomanModifier mod = ROMAN_MODIFIERS[random.nextInt(ROMAN_MODIFIERS.length)];
         RomanFigure fig = ROMAN_FIGURES[random.nextInt(ROMAN_FIGURES.length)];
-        RomanSuffix suf = ROMAN_SUFFIXES[random.nextInt(ROMAN_SUFFIXES.length)];
-
-        int pattern = random.nextInt(5);
-        Component comp = switch (pattern) {
-            case 0 -> Component.translatable("vcoins.roman.pattern.0",
-                    Component.translatable(noun.key()),
-                    Component.translatable(mod.key()),
-                    Component.translatable(fig.key()));
-            case 1 -> Component.translatable("vcoins.roman.pattern.1",
-                    Component.translatable(noun.key()),
-                    Component.translatable(fig.key()));
-            case 2 -> Component.translatable("vcoins.roman.pattern.2",
-                    Component.translatable(noun.key()),
-                    Component.translatable(mod.key()),
-                    Component.translatable(suf.key()));
-            case 3 -> Component.translatable("vcoins.roman.pattern.3",
-                    Component.translatable(noun.key()),
-                    Component.translatable(fig.key()),
-                    Component.translatable(suf.key()));
-            default -> Component.translatable("vcoins.roman.pattern.4",
-                    Component.translatable(noun.key()),
-                    Component.translatable(mod.key()));
-        };
-
-        String vi = switch (pattern) {
-            case 0 -> noun.vi() + " " + mod.vi() + " " + fig.vi();
-            case 1 -> noun.vi() + " Của " + fig.vi();
-            case 2 -> noun.vi() + " " + mod.vi() + ": " + suf.vi();
-            case 3 -> noun.vi() + " " + fig.vi() + " (" + suf.vi() + ")";
-            default -> noun.vi() + " " + mod.vi();
-        };
-
-        String en = switch (pattern) {
-            case 0 -> mod.en() + " " + noun.en() + " of " + fig.en();
-            case 1 -> noun.en() + " of " + fig.en();
-            case 2 -> mod.en() + " " + noun.en() + ": " + suf.en();
-            case 3 -> fig.en() + "'s " + noun.en() + " (" + suf.en() + ")";
-            default -> mod.en() + " " + noun.en();
-        };
-
-        return new GeneratedName(comp, vi, en);
+        Component name = Component.translatable(noun.key()).append(" ").append(Component.translatable(fig.key()));
+        return new GeneratedName(name, noun.vi() + " " + fig.vi(), noun.en() + " " + fig.en());
     }
 
     public static String generateHumanizedRomanName(Random random, RomanArchetype archetype) {
@@ -769,56 +729,46 @@ public class VBlackMarket {
     public static void broadcastGodItemDiscovery(UUID uuid, ItemStack stack) {
         if (activeServer == null) return;
         ServerPlayer player = activeServer.getPlayerList().getPlayer(uuid);
-        String playerName = player != null ? player.getName().getString() : "Người chơi";
-        long price = getRomanGodItemPrice(stack);
-        int remainingDurability = stack.getMaxDamage() > 0 ? stack.getMaxDamage() - stack.getDamageValue() : 0;
-        int maxDurability = stack.getMaxDamage();
-
-        Component separator = Component.literal("§6§l╔════════════════════════════════════════════════╗");
-        Component header = Component.translatable("vcoins.roman.broadcast.discovery.header");
-        Component playerInfo = Component.translatable("vcoins.roman.broadcast.discovery.player", playerName);
-        Component itemNameComp = Component.translatable("vcoins.roman.item_wrapper", stack.getHoverName());
-        Component statsComp = Component.translatable("vcoins.roman.broadcast.discovery.stats",
-                String.format(Locale.ROOT, "%,d", price),
-                maxDurability > 0 ? Component.translatable("vcoins.roman.broadcast.discovery.durability", remainingDurability, maxDurability) : Component.empty());
-        Component loreComp = Component.translatable("vcoins.roman.broadcast.discovery.lore");
-        Component footer = Component.literal("§6§l╚════════════════════════════════════════════════╝");
-
-        for (ServerPlayer p : activeServer.getPlayerList().getPlayers()) {
-            p.sendSystemMessage(separator);
-            p.sendSystemMessage(header);
-            p.sendSystemMessage(playerInfo);
-            p.sendSystemMessage(itemNameComp);
-            p.sendSystemMessage(statsComp);
-            p.sendSystemMessage(loreComp);
-            p.sendSystemMessage(footer);
-
-            VTradeScreenHandler.sendSoundToPlayer(p, SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
-            VTradeScreenHandler.sendSoundToPlayer(p, SoundEvents.PLAYER_LEVELUP, 1.0f, 0.8f);
-        }
+        String playerName = player != null ? player.getName().getString() : "Player";
+        broadcastRelic(playerName, stack, getRomanGodItemPrice(stack), false);
     }
 
     public static void broadcastGodItemPurchased(ServerPlayer player, ItemStack stack, long cost) {
+        broadcastRelic(player.getName().getString(), stack, cost, true);
+    }
+
+    private static void broadcastRelic(String playerName, ItemStack stack, long price, boolean purchased) {
         if (activeServer == null) return;
-        String playerName = player.getName().getString();
-
-        Component separator = Component.literal("§6§l╔════════════════════════════════════════════════╗");
-        Component title = Component.translatable("vcoins.roman.broadcast.purchased.title");
-        Component body = Component.translatable("vcoins.roman.broadcast.purchased.body", playerName, String.format(Locale.ROOT, "%,d", cost));
-        Component itemComp = Component.translatable("vcoins.roman.broadcast.purchased.item", stack.getHoverName());
-        Component lore = Component.translatable("vcoins.roman.broadcast.purchased.lore");
-        Component footer = Component.literal("§6§l╚════════════════════════════════════════════════╝");
-
-        for (ServerPlayer p : activeServer.getPlayerList().getPlayers()) {
-            p.sendSystemMessage(separator);
-            p.sendSystemMessage(title);
-            p.sendSystemMessage(body);
-            p.sendSystemMessage(itemComp);
-            p.sendSystemMessage(lore);
-            p.sendSystemMessage(footer);
-
-            VTradeScreenHandler.sendSoundToPlayer(p, SoundEvents.TOTEM_USE, 0.9f, 1.0f);
-            VTradeScreenHandler.sendSoundToPlayer(p, SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.2f);
+        Component heading = Component.translatable(purchased
+                ? "vcoins.roman.chat.purchased" : "vcoins.roman.chat.discovered")
+                .withStyle(ChatFormatting.BOLD)
+                .withStyle(style -> style.withColor(purchased ? 0xE8C989 : 0xFFD76A));
+        Component actor = Component.translatable(purchased
+                ? "vcoins.roman.chat.buyer" : "vcoins.roman.chat.finder",
+                Component.literal(playerName).withStyle(ChatFormatting.AQUA))
+                .withStyle(ChatFormatting.GRAY);
+        // Keep old long relic names out of the chat line; full details remain on hover.
+        String relicName = getRomanGodItemName(stack).replaceAll("\\s*\\([^)]*\\)", "");
+        if (relicName.isBlank()) relicName = "Relic";
+        int nameLength = relicName.codePointCount(0, relicName.length());
+        if (nameLength > 30) relicName = relicName.substring(0, relicName.offsetByCodePoints(0, 29)).stripTrailing() + "…";
+        Component itemLink = Component.literal("[" + relicName + "]")
+                .withStyle(ChatFormatting.BOLD)
+                .withStyle(style -> style.withColor(0xFFF0C2)
+                        .withHoverEvent(stack.getDisplayName().getStyle().getHoverEvent()));
+        String amount = price >= 1_000_000_000L
+                ? String.format(Locale.ROOT, "%.2fB", price / 1_000_000_000.0)
+                : String.format(Locale.ROOT, "%.1fM", price / 1_000_000.0);
+        Component detail = Component.literal("  ◆ ").withStyle(ChatFormatting.GOLD).append(itemLink);
+        Component value = Component.literal("  ").append(Component.translatable(
+                purchased ? "vcoins.roman.chat.paid" : "vcoins.roman.chat.value", amount)
+                .withStyle(style -> style.withColor(0xD7B56D)))
+                .append(Component.literal("  ·  ").withStyle(ChatFormatting.DARK_GRAY))
+                .append(Component.translatable("vcoins.roman.chat.hover").withStyle(ChatFormatting.GRAY));
+        for (ServerPlayer recipient : activeServer.getPlayerList().getPlayers()) {
+            recipient.sendSystemMessage(Component.empty().append(heading).append("\n")
+                    .append(actor).append("\n").append(detail).append("\n").append(value));
+            VTradeScreenHandler.sendSoundToPlayer(recipient, SoundEvents.AMETHYST_BLOCK_CHIME, 0.45f, purchased ? 1.25f : 0.85f);
         }
     }
 
@@ -915,8 +865,8 @@ public class VBlackMarket {
     }
 
     /**
-     * OP command: guarantee a Roman God item at the player's next daily reset.
-     * The god item will be injected into slot 0 of their custom items when the day rolls over.
+     * OP command: guarantee a Roman God item at the player's next successful reset.
+     * The god item will be injected into a random slot of their next batch of cards.
      */
     public static synchronized void scheduleLegendGuarantee(ServerPlayer target) {
         PlayerDailyRecord rec = getPlayerRecord(target.getUUID());
@@ -944,6 +894,8 @@ public class VBlackMarket {
         for (int i = 0; i < DAILY_ITEM_COUNT && i < candidates.size(); i++) {
             playerRecord.customItems.add(rollCardItem(random, candidates.get(i)));
         }
+
+        consumeLegendGuarantee(playerRecord);
 
         // Native sounds
         player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
@@ -985,6 +937,7 @@ public class VBlackMarket {
             dailyRecord.purchasedMask = 0;
             dailyRecord.resetSequence = 0;
             dailyRecord.customItems = null;
+            consumeLegendGuarantee(dailyRecord);
         }
 
         if (server != null) {
@@ -1013,6 +966,8 @@ public class VBlackMarket {
         for (int i = 0; i < DAILY_ITEM_COUNT && i < candidates.size(); i++) {
             playerRecord.customItems.add(rollCardItem(random, candidates.get(i)));
         }
+
+        consumeLegendGuarantee(playerRecord);
 
         if (player.containerMenu instanceof VBlackMarketScreenHandler market) {
             market.refreshMarketSlots();
@@ -1063,7 +1018,7 @@ public class VBlackMarket {
 
     /**
      * Injects a god-tier Roman item into this player's current custom card set as a pity reward.
-     * Replaces the first non-purchased, non-god card in the set with a newly generated god item.
+     * Replaces a random non-purchased, non-god card in the set with a newly generated god item.
      * If the player has no custom items, initialises a fresh set first.
      */
     private static void triggerPityGodItem(UUID uuid, PlayerDailyRecord playerRecord) {
@@ -1077,16 +1032,19 @@ public class VBlackMarket {
         Random rng = new Random();
         int targetSlot = -1;
         for (int pass = 0; pass < 2; pass++) {
+            List<Integer> eligibleSlots = new ArrayList<>();
             for (int i = 0; i < playerRecord.customItems.size() && i < DAILY_ITEM_COUNT; i++) {
                 boolean purchased = (playerRecord.purchasedMask & (1 << i)) != 0;
                 boolean revealed  = (playerRecord.revealedMask  & (1 << i)) != 0;
                 boolean isGod = isRomanGodItem(playerRecord.customItems.get(i));
                 if (isGod || purchased) continue;
                 if (pass == 0 && revealed) continue; // pass 0: prefer unrevealed
-                targetSlot = i;
+                eligibleSlots.add(i);
+            }
+            if (!eligibleSlots.isEmpty()) {
+                targetSlot = eligibleSlots.get(rng.nextInt(eligibleSlots.size()));
                 break;
             }
-            if (targetSlot >= 0) break;
         }
         if (targetSlot < 0) return;
 
@@ -1252,19 +1210,22 @@ public class VBlackMarket {
             dailyItems.add(rollCardItem(random, candidates.get(i)));
         }
 
-        // Apply any pending legend guarantees for online players
+        // Reset daily progress before applying guarantees so a later read cannot erase them.
         if (server != null) {
-            for (PlayerDailyRecord rec : playerRecords.values()) {
-                if (rec.legendNextReset) {
-                    rec.legendNextReset = false;
-                    applyLegendGuarantee(rec);
-                }
+            for (UUID uuid : playerRecords.keySet()) {
+                consumeLegendGuarantee(getPlayerRecord(uuid));
             }
         }
 
         if (server != null) {
             save(server);
         }
+    }
+
+    static void consumeLegendGuarantee(PlayerDailyRecord rec) {
+        if (!rec.legendNextReset) return;
+        applyLegendGuarantee(rec);
+        rec.legendNextReset = false;
     }
 
     private static void applyLegendGuarantee(PlayerDailyRecord rec) {
@@ -1275,9 +1236,9 @@ public class VBlackMarket {
         long price = 750_000_000L + (long)(rng.nextDouble() * 250_000_000L);
         price = (price / 1_000_000L) * 1_000_000L;
         ItemStack godItem = generateRomanGodItem(rng, price);
-        // Replace slot 0 (guaranteed visible)
-        rec.customItems.set(0, godItem);
-        rec.revealedMask &= ~1; // un-reveal slot 0 so the player flips it themselves
+        int targetSlot = rng.nextInt(Math.min(DAILY_ITEM_COUNT, rec.customItems.size()));
+        rec.customItems.set(targetSlot, godItem);
+        rec.revealedMask &= ~(1 << targetSlot); // let the player flip the chosen card
     }
 
     public static void registerEvents() {

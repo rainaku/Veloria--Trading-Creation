@@ -104,7 +104,7 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
         }
 
         ItemStack sample = player.getInventory().getItem(inventorySlotIndex);
-        if (sample.isEmpty() || !VCoinsPricing.isTradeable(sample.getItem())) {
+        if (sample.isEmpty() || !VCoinsPricing.isTradeable(sample)) {
             player.sendOverlayMessage(Component.translatable("vcoins.duplicate.invalid_item").withStyle(ChatFormatting.RED));
             sendSoundToPlayer(player, SoundEvents.VILLAGER_NO, 1.0f, 1.0f);
             return false;

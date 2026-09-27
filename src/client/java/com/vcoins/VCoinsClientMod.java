@@ -78,20 +78,32 @@ public class VCoinsClientMod implements ClientModInitializer {
 
     private static void registerTooltips() {
         net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback.EVENT.register((stack, tooltipContext, tooltipType, lines) -> {
-            var player = net.minecraft.client.Minecraft.getInstance().player;
-            if (player != null && player.containerMenu instanceof VBlackMarketScreenHandler market) {
-                for (int i = 0; i < VBlackMarketScreenHandler.MARKET_SLOT_COUNT; i++) {
-                    if (market.slots.get(i).getItem() == stack) {
-                        long day = VBlackMarketScreen.getSyncedDay();
-                        int seq = VBlackMarketScreen.getSyncedResetSequence();
-                        lines.add(net.minecraft.network.chat.Component.translatable("vcoins.black_market.buy_price",
-                                String.format(java.util.Locale.ROOT, "%,d", VBlackMarket.getDiscountedPrice(stack, day, seq)))
-                                .withStyle(net.minecraft.ChatFormatting.YELLOW));
-                        lines.add(net.minecraft.network.chat.Component.translatable("vcoins.black_market.discount",
-                                VBlackMarket.getDiscountPercent(stack, day, seq)).withStyle(net.minecraft.ChatFormatting.GREEN));
-                        return;
-                    }
+            if (VBlackMarket.isRomanGodItem(stack)) {
+                // Existing relics retain their saved identity; constrain their tooltip too.
+                var font = net.minecraft.client.Minecraft.getInstance().font;
+                if (!lines.isEmpty()) {
+                    var title = lines.get(0);
+                    String name = title.getString().replaceAll("\\s*\\([^)]*\\)", "");
+                    if (font.width(name) > 260) name = font.plainSubstrByWidth(name, 250) + "…";
+                    lines.set(0, net.minecraft.network.chat.Component.literal(name).withStyle(title.getStyle()));
                 }
+                for (int i = 1; i < lines.size(); i++) {
+                    var line = lines.get(i);
+                    String text = line.getString();
+                    if (font.width(text) <= 280) continue;
+                    var wrapped = new java.util.ArrayList<net.minecraft.network.chat.Component>();
+                    while (!text.isEmpty()) {
+                        String part = font.plainSubstrByWidth(text, 280);
+                        if (part.isEmpty()) break;
+                        if (part.length() < text.length() && part.lastIndexOf(' ') > 0) part = part.substring(0, part.lastIndexOf(' '));
+                        wrapped.add(net.minecraft.network.chat.Component.literal(part).withStyle(line.getStyle()));
+                        text = text.substring(part.length()).stripLeading();
+                    }
+                    lines.remove(i);
+                    lines.addAll(i, wrapped);
+                    i += wrapped.size() - 1;
+                }
+                return;
             }
             long sellPrice = VCoinsPricing.getSellPrice(stack);
             long buyPrice = VCoinsPricing.getPrice(stack);
