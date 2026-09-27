@@ -347,5 +347,15 @@
   "vcoins.black_market.purchased_short": "Đã mua",
   "vcoins.black_market.god_badge": "THẦN",
   "vcoins.black_market.god_tooltip": "✦ LA MÃ THẦN BẢO ✦",
-  "vcoins.roman.reveal.title": "H U Y Ề N  T H O Ạ I"
+  "vcoins.roman.reveal.title": "H U Y Ề N  T H O Ạ I",
+  "vcoins.mythic.name": "✧ %s ✧",
+  "vcoins.mythic.header": "✧ THẦN THOẠI · SIÊU VIỆT ✧",
+  "vcoins.mythic.badge": "THẦN THOẠI",
+  "vcoins.mythic.reveal": "T H Ầ N  T H O Ạ I",
+  "vcoins.mythic.chat.discovered": "✧ THẦN THOẠI GIÁNG THẾ ✧",
+  "vcoins.mythic.chat.purchased": "✧ THẦN THOẠI ĐÃ CÓ CHỦ ✧",
+  "vcoins.mythic.chat.finder": "%s vừa đánh thức Thần Khí Siêu Việt!",
+  "vcoins.mythic.chat.buyer": "%s đã trở thành chủ nhân của Thần Khí Siêu Việt.",
+  "vcoins.command.blackmarket.mythic_scheduled": "Thần Thoại được đảm bảo ở lần reset kế tiếp của %s.",
+  "vcoins.command.blackmarket.mythic_notify": "Lần reset Chợ Đen kế tiếp của bạn chắc chắn có Thần Thoại!"
 }

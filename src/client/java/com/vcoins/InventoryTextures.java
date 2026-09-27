@@ -54,7 +54,12 @@ final class InventoryTextures {
 
     static void button(GuiGraphicsExtractor g, int x, int y, int w, int h, boolean enabled, boolean focused, float hover) {
         g.fill(x, y, x + w, y + h, enabled ? 0xFF211D30 : 0xFF181721);
-        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, ((int)(hover * 80) << 24) | 0x39BDA6);
+        int hoverAlpha = enabled ? (int) (Math.clamp(hover, 0f, 1f) * 80) : 0;
+        // Do not submit RGB-only (zero-alpha) colors: GUI compatibility renderers
+        // may interpret them as opaque, flashing cyan on every inactive tab.
+        if (hoverAlpha > 0) {
+            g.fill(x + 1, y + 1, x + w - 1, y + h - 1, (hoverAlpha << 24) | 0x39BDA6);
+        }
         frame(g, x, y, w, h, !enabled ? 0xFF44404B : focused ? 0xFF7AE5D1 : hover > 0.1f ? 0xFFD5BA79 : 0xFF826B48);
         g.fill(x + 2, y + 1, x + w - 2, y + 2, 0x446CD4C3);
     }

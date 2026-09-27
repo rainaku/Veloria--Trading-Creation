@@ -8,9 +8,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.server.level.ServerPlayer;
 
 public class VBlackMarketScreenHandler extends AbstractContainerMenu {
-    public static final int PLAYER_X = VTradeScreenHandler.PLAYER_X;
-    public static final int PLAYER_INVENTORY_Y = VTradeScreenHandler.PLAYER_INVENTORY_Y;
-    public static final int PLAYER_HOTBAR_Y = VTradeScreenHandler.PLAYER_HOTBAR_Y;
+    public static final int MENU_W = 354;
+    public static final int MENU_H = 286;
+    public static final int PLAYER_X = (MENU_W - 9 * 18) / 2; // = 96
+    public static final int PLAYER_INVENTORY_Y = 196;
+    public static final int PLAYER_HOTBAR_Y = 254;
 
     private final Inventory playerInventory;
     private final Player player;

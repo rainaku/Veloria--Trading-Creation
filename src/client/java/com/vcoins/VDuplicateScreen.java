@@ -11,6 +11,8 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public class VDuplicateScreen extends VeloriaContainerScreen<VDuplicateScreenHandler> {
@@ -260,21 +262,27 @@ public class VDuplicateScreen extends VeloriaContainerScreen<VDuplicateScreenHan
     @Override
     protected void extractTooltip(GuiGraphicsExtractor extractor, int mouseX, int mouseY) {
         if (mouseX >= this.leftPos + 40 && mouseX < this.leftPos + 72 && mouseY >= this.topPos + 44 && mouseY < this.topPos + 76 && !selectedDuplicateStack.isEmpty()) {
-            extractor.setTooltipForNextFrame(this.font, this.getTooltipFromContainerItem(selectedDuplicateStack), selectedDuplicateStack.getTooltipImage(), mouseX, mouseY,
+            extractor.setTooltipForNextFrame(this.font, getCleanTooltip(selectedDuplicateStack), selectedDuplicateStack.getTooltipImage(), mouseX, mouseY,
                     selectedDuplicateStack.get(net.minecraft.core.component.DataComponents.TOOLTIP_STYLE), true);
             return;
         }
         if (mouseX >= this.leftPos + 164 && mouseX < this.leftPos + 196 && mouseY >= this.topPos + 44 && mouseY < this.topPos + 76 && !selectedDuplicateStack.isEmpty()) {
-            extractor.setTooltipForNextFrame(this.font, this.getTooltipFromContainerItem(selectedDuplicateStack), selectedDuplicateStack.getTooltipImage(), mouseX, mouseY,
+            extractor.setTooltipForNextFrame(this.font, getCleanTooltip(selectedDuplicateStack), selectedDuplicateStack.getTooltipImage(), mouseX, mouseY,
                     selectedDuplicateStack.get(net.minecraft.core.component.DataComponents.TOOLTIP_STYLE), true);
             return;
         }
 
         if (this.hoveredSlot != null && this.hoveredSlot.hasItem()) {
             ItemStack stack = this.hoveredSlot.getItem();
-            extractor.setTooltipForNextFrame(this.font, this.getTooltipFromContainerItem(stack), stack.getTooltipImage(), mouseX, mouseY,
+            extractor.setTooltipForNextFrame(this.font, getCleanTooltip(stack), stack.getTooltipImage(), mouseX, mouseY,
                     stack.get(net.minecraft.core.component.DataComponents.TOOLTIP_STYLE), true);
         }
+    }
+
+    private List<Component> getCleanTooltip(ItemStack stack) {
+        List<Component> lines = new ArrayList<>(this.getTooltipFromContainerItem(stack));
+        VeloriaTooltip.removeDebugLines(lines, stack);
+        return lines;
     }
 
     private static String formatCompactNumber(long value) {

@@ -30,26 +30,35 @@ public class VCoinsPricing {
         prices.clear();
         categories.clear();
         // ==================== BASIC / EASILY FARMABLE BLOCKS (Priced to eliminate AFK exploit loops) ====================
-        setPrice("minecraft:cobblestone", 5);
-        setPrice("minecraft:dirt", 5);
-        setPrice("minecraft:sand", 5);
-        setPrice("minecraft:red_sand", 6);
-        setPrice("minecraft:gravel", 5);
-        setPrice("minecraft:netherrack", 5);
-        setPrice("minecraft:stone", 6);
-        setPrice("minecraft:cobbled_deepslate", 5);
-        setPrice("minecraft:deepslate", 6);
-        setPrice("minecraft:blackstone", 5);
-        setPrice("minecraft:end_stone", 10);
-        setPrice("minecraft:obsidian", 120);
-        setPrice("minecraft:crying_obsidian", 600);
-        setPrice("minecraft:clay_ball", 4);
-        setPrice("minecraft:clay", 16);
+        // ==================== BASIC / EASILY FARMABLE BLOCKS (Priced to eliminate AFK exploit loops) ====================
+        setPrice("minecraft:cobblestone", 4);
+        setPrice("minecraft:dirt", 4);
+        setPrice("minecraft:sand", 4);
+        setPrice("minecraft:red_sand", 5);
+        setPrice("minecraft:gravel", 4);
+        setPrice("minecraft:netherrack", 4);
+        setPrice("minecraft:stone", 5);
+        setPrice("minecraft:smooth_stone", 6);
+        setPrice("minecraft:cobbled_deepslate", 4);
+        setPrice("minecraft:deepslate", 5);
+        setPrice("minecraft:blackstone", 4);
+        setPrice("minecraft:basalt", 5);
+        setPrice("minecraft:smooth_basalt", 6);
+        setPrice("minecraft:end_stone", 8);
+        setPrice("minecraft:obsidian", 60);
+        setPrice("minecraft:crying_obsidian", 250);
+        setPrice("minecraft:clay_ball", 3);
+        setPrice("minecraft:clay", 12);
+        setPrice("minecraft:mud", 4);
+        setPrice("minecraft:packed_mud", 10);
+        setPrice("minecraft:mud_bricks", 12);
+        setPrice("minecraft:pointed_dripstone", 8);
+        setPrice("minecraft:dripstone_block", 10);
         setPrice("minecraft:snowball", 2);
-        setPrice("minecraft:snow_block", 8);
-        setPrice("minecraft:ice", 8);
-        setPrice("minecraft:packed_ice", 72);
-        setPrice("minecraft:blue_ice", 648);
+        setPrice("minecraft:snow_block", 6);
+        setPrice("minecraft:ice", 6);
+        setPrice("minecraft:packed_ice", 54);
+        setPrice("minecraft:blue_ice", 486);
         
         // ==================== WOOD & BAMBOO (Tree Farms / Bamboo Farms) ====================
         setPrice("minecraft:oak_log", 8);
@@ -95,12 +104,13 @@ public class VCoinsPricing {
         setPrice("minecraft:lapis_block", 144);
         setPrice("minecraft:quartz", 16);
         setPrice("minecraft:quartz_block", 64);
-        setPrice("minecraft:amethyst_shard", 20);
-        setPrice("minecraft:amethyst_block", 80);
+        setPrice("minecraft:amethyst_shard", 16);
+        setPrice("minecraft:amethyst_block", 64);
+        setPrice("minecraft:amethyst_cluster", 64);
 
-        // High-value finite resources (cannot be infinitely AFK farmed)
-        setPrice("minecraft:emerald", 200);
-        setPrice("minecraft:emerald_block", 1_800);
+        // Economy Currencies & Finite High-Value Minerals (Raid Farm / Villager Trading balanced)
+        setPrice("minecraft:emerald", 25);
+        setPrice("minecraft:emerald_block", 225);
         setPrice("minecraft:diamond", 300_000);
         setPrice("minecraft:diamond_block", 2_700_000);
         setPrice("minecraft:ancient_debris", 3_500_000);
@@ -108,15 +118,14 @@ public class VCoinsPricing {
         setPrice("minecraft:netherite_ingot", 15_000_000);
         setPrice("minecraft:netherite_block", 135_000_000);
         
-        // ==================== MOB & COMBAT REWARDS ====================
-        // Common Spawner / AFK mob drops: reduced to prevent exploitation
+        // ==================== MOB & COMBAT REWARDS (AFK Farm Adjusted - Donut SMP Balanced) ====================
         setPrice("minecraft:rotten_flesh", 3);
         setPrice("minecraft:bone", 6);
         setPrice("minecraft:bone_meal", 2);
         setPrice("minecraft:string", 5);
         setPrice("minecraft:spider_eye", 6);
         setPrice("minecraft:feather", 4);
-        setPrice("minecraft:leather", 16);
+        setPrice("minecraft:leather", 12);
         setPrice("minecraft:gunpowder", 15);
         setPrice("minecraft:slime_ball", 16);
         setPrice("minecraft:slime_block", 144);
@@ -124,17 +133,66 @@ public class VCoinsPricing {
         setPrice("minecraft:magma_block", 80);
         setPrice("minecraft:prismarine_shard", 12);
         setPrice("minecraft:prismarine_crystals", 24);
-        setPrice("minecraft:ender_pearl", 40);
-        setPrice("minecraft:blaze_rod", 160);
-        setPrice("minecraft:blaze_powder", 80);
-        setPrice("minecraft:ghast_tear", 50_000);
-        setPrice("minecraft:nautilus_shell", 100_000);
+        setPrice("minecraft:ender_pearl", 25);
+        setPrice("minecraft:blaze_rod", 45);
+        setPrice("minecraft:blaze_powder", 25);
+        setPrice("minecraft:ghast_tear", 180);
+        setPrice("minecraft:nautilus_shell", 600);
         setPrice("minecraft:shulker_shell", 1_500_000);
         setPrice("minecraft:breeze_rod", 200_000);
+        setPrice("minecraft:phantom_membrane", 120);
+        setPrice("minecraft:ink_sac", 15);
+        setPrice("minecraft:glow_ink_sac", 20);
+        setPrice("minecraft:rabbit_hide", 8);
+        setPrice("minecraft:rabbit_foot", 60);
+        setPrice("minecraft:turtle_scute", 180);
+        setPrice("minecraft:armadillo_scute", 120);
+        setPrice("minecraft:saddle", 1_500);
+        setPrice("minecraft:sponge", 4_000);
+        setPrice("minecraft:wet_sponge", 3_500);
+        setPrice("minecraft:dragon_breath", 250);
+
+        // Mob Heads (Charged Creeper farm balanced)
+        setPrice("minecraft:creeper_head", 5_000);
+        setPrice("minecraft:zombie_head", 5_000);
+        setPrice("minecraft:skeleton_skull", 5_000);
+        setPrice("minecraft:piglin_head", 5_000);
+
+        // Music Discs (Skeleton-Killed-Creeper farm balanced)
+        setPrice("minecraft:music_disc_13", 350);
+        setPrice("minecraft:music_disc_cat", 350);
+        setPrice("minecraft:music_disc_blocks", 350);
+        setPrice("minecraft:music_disc_chirp", 350);
+        setPrice("minecraft:music_disc_far", 350);
+        setPrice("minecraft:music_disc_mall", 350);
+        setPrice("minecraft:music_disc_mellohi", 350);
+        setPrice("minecraft:music_disc_stal", 350);
+        setPrice("minecraft:music_disc_strad", 350);
+        setPrice("minecraft:music_disc_ward", 350);
+        setPrice("minecraft:music_disc_11", 350);
+        setPrice("minecraft:music_disc_wait", 350);
+        setPrice("minecraft:music_disc_otherside", 25_000);
+        setPrice("minecraft:music_disc_relic", 50_000);
+        setPrice("minecraft:music_disc_creator", 25_000);
+        setPrice("minecraft:music_disc_creator_music_box", 25_000);
+        setPrice("minecraft:music_disc_precipice", 35_000);
+        setPrice("minecraft:music_disc_pigstep", 50_000);
+
+        // Froglights (Magma Cube Frog Farm)
+        setPrice("minecraft:ochre_froglight", 45);
+        setPrice("minecraft:verdant_froglight", 45);
+        setPrice("minecraft:pearlescent_froglight", 45);
+
+        // Sculk (Warden / Sculk Farm)
+        setPrice("minecraft:sculk", 12);
+        setPrice("minecraft:sculk_vein", 4);
+        setPrice("minecraft:sculk_sensor", 96);
+        setPrice("minecraft:sculk_catalyst", 1_200);
+        setPrice("minecraft:sculk_shrieker", 2_500);
 
         // Boss & Mini-boss Drops: high reward for combat exploration
-        setPrice("minecraft:wither_skeleton_skull", 15_000_000);
-        setPrice("minecraft:nether_star", 80_000_000);
+        setPrice("minecraft:wither_skeleton_skull", 1_800_000);
+        setPrice("minecraft:nether_star", 40_000_000);
         setPrice("minecraft:heart_of_the_sea", 20_000_000);
         setPrice("minecraft:echo_shard", 2_000_000);
         setPrice("minecraft:heavy_core", 120_000_000);
@@ -147,12 +205,13 @@ public class VCoinsPricing {
         setPrice("minecraft:hay_block", 45);
         setPrice("minecraft:potato", 4);
         setPrice("minecraft:baked_potato", 6);
+        setPrice("minecraft:poisonous_potato", 2);
         setPrice("minecraft:carrot", 4);
         setPrice("minecraft:beetroot", 4);
         setPrice("minecraft:beetroot_seeds", 2);
         setPrice("minecraft:melon_slice", 2);
-        setPrice("minecraft:melon", 18);
-        setPrice("minecraft:pumpkin", 12);
+        setPrice("minecraft:melon", 14);
+        setPrice("minecraft:pumpkin", 8);
         setPrice("minecraft:sugar_cane", 4);
         setPrice("minecraft:kelp", 2);
         setPrice("minecraft:dried_kelp", 3);
@@ -173,17 +232,22 @@ public class VCoinsPricing {
         setPrice("minecraft:enchanted_golden_apple", 80_000_000);
         setPrice("minecraft:pumpkin_pie", 30);
         setPrice("minecraft:cake", 350);
+        setPrice("minecraft:chorus_fruit", 8);
+        setPrice("minecraft:chorus_flower", 32);
+        setPrice("minecraft:sea_pickle", 8);
+        setPrice("minecraft:shroomlight", 24);
         
         // ==================== COMMONLY CRAFTED MATERIALS ====================
         setPrice("minecraft:glass", 4);
-        setPrice("minecraft:white_wool", 6);
+        setPrice("minecraft:white_wool", 8);
         setPrice("minecraft:torch", 6);
         setPrice("minecraft:bone_block", 54);
         setPrice("minecraft:glowstone_dust", 8);
         setPrice("minecraft:glowstone", 32);
-        setPrice("minecraft:honeycomb", 10);
-        setPrice("minecraft:honeycomb_block", 40);
-        setPrice("minecraft:honey_block", 60);
+        setPrice("minecraft:honeycomb", 8);
+        setPrice("minecraft:honeycomb_block", 32);
+        setPrice("minecraft:honey_block", 48);
+        setPrice("minecraft:honey_bottle", 16);
         setPrice("minecraft:resin_clump", 12);
         setPrice("minecraft:resin_block", 108);
         setPrice("minecraft:disc_fragment_5", 10_000);
@@ -191,12 +255,12 @@ public class VCoinsPricing {
         // ==================== ENDGAME / RARE PROGRESSION ITEMS ====================
         setPrice("minecraft:enchanted_book", 50_000);
         setPrice("minecraft:elytra", 200_000_000);
-        setPrice("minecraft:totem_of_undying", 30_000_000);
-        setPrice("minecraft:beacon", 120_000_000);
+        setPrice("minecraft:totem_of_undying", 20_000_000);
+        setPrice("minecraft:beacon", 80_000_000);
         setPrice("minecraft:conduit", 40_000_000);
         setPrice("minecraft:mace", 150_000_000);
-        setPrice("minecraft:trident", 35_000_000);
-        setPrice("minecraft:sniffer_egg", 15_000_000);
+        setPrice("minecraft:trident", 3_500_000);
+        setPrice("minecraft:sniffer_egg", 80_000);
         
         // Every registered item (including items added by other mods) belongs to the
         // catalogue. Explicit prices above win; everything else receives a sensible
@@ -347,7 +411,13 @@ public class VCoinsPricing {
                 "piston", "repeater", "comparator", "observer", "dispenser", "dropper", "hopper",
                 "crafter", "daylight_detector", "target", "tripwire_hook", "rail", "minecart", "tnt",
                 // Metal building materials
-                "iron_bars", "chain");
+                "iron_bars", "chain",
+                // High-yield mob / AFK drops & boss / ocean farm products
+                "ghast_tear", "blaze_rod", "blaze_powder", "phantom_membrane", "prismarine",
+                "nautilus_shell", "shulker_shell", "wither_skeleton_skull", "totem_of_undying",
+                "emerald", "froglight", "scute", "rabbit_foot", "rabbit_hide", "ink_sac",
+                "glow_ink_sac", "music_disc", "sponge", "sculk", "mud", "clay", "ice",
+                "amethyst", "shroomlight", "vine", "moss", "dripstone", "saddle", "chorus", "sniffer_egg");
     }
 
     private static long getDurabilityAdjustedPrice(ItemStack stack, long fullPrice) {
@@ -421,22 +491,22 @@ public class VCoinsPricing {
             return 200_000_000L;
         }
         if (path.equals("totem_of_undying")) {
-            return 30_000_000L;
+            return 20_000_000L;
         }
         if (path.equals("beacon")) {
-            return 120_000_000L;
+            return 80_000_000L;
         }
         if (path.equals("mace")) {
             return 150_000_000L;
         }
         if (path.equals("trident")) {
-            return 35_000_000L;
+            return 3_500_000L;
         }
         if (path.equals("dragon_head")) {
             return 50_000_000L;
         }
         if (path.endsWith("_head") || path.endsWith("_skull")) {
-            return path.equals("wither_skeleton_skull") ? 15_000_000L : 1_000_000L;
+            return path.equals("wither_skeleton_skull") ? 1_800_000L : 5_000L;
         }
         if (path.startsWith("music_disc_")) {
             return getMusicDiscPrice(path);
@@ -451,7 +521,7 @@ public class VCoinsPricing {
             return 50_000L;
         }
         if (path.contains("shulker_box")) {
-            return 5_000_000L;
+            return 3_000_000L;
         }
 
         long effortPrice = getEquipmentPrice(path);
@@ -720,12 +790,12 @@ public class VCoinsPricing {
         if (path.endsWith("_terracotta")) return 58L;
         if (path.endsWith("_concrete_powder")) return 7L;
         if (path.endsWith("_concrete")) return 10L;
-        if (path.endsWith("_carpet")) return 12L;
-        if (path.endsWith("_wool")) return 16L;
+        if (path.endsWith("_carpet")) return 6L;
+        if (path.endsWith("_wool")) return 8L;
         if (path.endsWith("_bed")) return 72L;
         if (path.endsWith("_banner")) return 120L;
         if (path.endsWith("_candle")) return 60L;
-        if (path.endsWith("_dye")) return 8L;
+        if (path.endsWith("_dye")) return 4L;
         if (path.endsWith("_bundle")) return 96L;
         if (path.endsWith("_harness")) return 210L;
         return 0L;
@@ -752,27 +822,27 @@ public class VCoinsPricing {
             case "nether_quartz_ore" -> 112L;
             case "granite", "diorite", "andesite", "tuff", "calcite",
                     "dripstone_block", "pointed_dripstone", "basalt",
-                    "smooth_basalt", "magma_block" -> 12L;
+                    "smooth_basalt", "magma_block" -> 8L;
             case "grass_block", "podzol", "mycelium", "rooted_dirt", "mud",
-                    "coarse_dirt", "moss_block", "pale_moss_block" -> 8L;
-            case "soul_sand", "soul_soil" -> 12L;
-            case "amethyst_cluster" -> 256L;
-            case "large_amethyst_bud" -> 192L;
-            case "medium_amethyst_bud" -> 128L;
-            case "small_amethyst_bud" -> 64L;
-            case "sponge", "wet_sponge" -> 20_000L;
-            case "sculk" -> 32L;
-            case "sculk_sensor" -> 512L;
-            case "calibrated_sculk_sensor" -> 896L;
-            case "sculk_catalyst" -> 4_000L;
-            case "sculk_shrieker" -> 8_000L;
+                    "coarse_dirt", "moss_block", "pale_moss_block" -> 6L;
+            case "soul_sand", "soul_soil" -> 8L;
+            case "amethyst_cluster" -> 64L;
+            case "large_amethyst_bud" -> 48L;
+            case "medium_amethyst_bud" -> 32L;
+            case "small_amethyst_bud" -> 16L;
+            case "sponge", "wet_sponge" -> 3_500L;
+            case "sculk" -> 12L;
+            case "sculk_sensor" -> 96L;
+            case "calibrated_sculk_sensor" -> 180L;
+            case "sculk_catalyst" -> 1_200L;
+            case "sculk_shrieker" -> 2_500L;
             case "bee_nest" -> 512L;
             case "beehive" -> 160L;
             case "turtle_egg" -> 512L;
             case "frogspawn" -> 512L;
-            case "ochre_froglight", "pearlescent_froglight", "verdant_froglight" -> 512L;
-            case "chorus_flower" -> 96L;
-            case "chorus_plant", "chorus_fruit" -> 32L;
+            case "ochre_froglight", "pearlescent_froglight", "verdant_froglight" -> 45L;
+            case "chorus_flower" -> 32L;
+            case "chorus_plant", "chorus_fruit" -> 8L;
             case "spore_blossom", "wither_rose" -> 256L;
             default -> 0L;
         };
@@ -782,7 +852,7 @@ public class VCoinsPricing {
         if (path.contains("coral")) return 64L;
         if (containsAny(path, "flower", "tulip", "daisy", "orchid", "bluet",
                 "allium", "dandelion", "poppy", "lilac", "peony", "sunflower")) {
-            return 12L;
+            return 4L;
         }
         return 0L;
     }
@@ -930,12 +1000,13 @@ public class VCoinsPricing {
             case "book" -> 35L;
             case "brick" -> 16L;
             case "nether_brick" -> 8L;
-            case "ink_sac", "glow_ink_sac" -> 32L;
-            case "rabbit_hide" -> 16L;
-            case "rabbit_foot" -> 256L;
-            case "phantom_membrane" -> 512L;
-            case "armadillo_scute" -> 640L;
-            case "turtle_scute", "scute" -> 1_024L;
+            case "ink_sac" -> 15L;
+            case "glow_ink_sac" -> 20L;
+            case "rabbit_hide" -> 8L;
+            case "rabbit_foot" -> 60L;
+            case "phantom_membrane" -> 120L;
+            case "armadillo_scute" -> 120L;
+            case "turtle_scute", "scute" -> 180L;
             case "fermented_spider_eye" -> 20L;
             case "fire_charge" -> 45L;
             case "ender_eye" -> 150L;
@@ -950,7 +1021,7 @@ public class VCoinsPricing {
         if (exactPrice > 0L) {
             return exactPrice;
         }
-        if (path.endsWith("_dye")) return 8L;
+        if (path.endsWith("_dye")) return 4L;
         if (path.contains("pottery_sherd") || path.contains("pottery_shard")) return 2_000L;
         if (path.equals("flower_banner_pattern")) return 20L;
         if (path.equals("field_masoned_banner_pattern")) return 84L;
@@ -964,10 +1035,10 @@ public class VCoinsPricing {
     private static long getFoodPrice(String path) {
         return switch (path) {
             case "beetroot", "sweet_berries", "glow_berries", "kelp" -> 4L;
-            case "pumpkin", "cocoa_beans", "sugar_cane" -> 6L;
-            case "nether_wart" -> 12L;
+            case "pumpkin" -> 8L;
+            case "cocoa_beans", "sugar_cane", "nether_wart" -> 4L;
             case "beetroot_seeds", "melon_seeds", "pumpkin_seeds" -> 2L;
-            case "egg" -> 6L;
+            case "egg" -> 3L;
             case "sugar" -> 2L;
             case "bread" -> 18L;
             case "baked_potato" -> 6L;
@@ -983,7 +1054,7 @@ public class VCoinsPricing {
             case "cake" -> 350L;
             case "mushroom_stew", "beetroot_soup", "rabbit_stew", "suspicious_stew" -> 24L;
             case "golden_carrot", "glistering_melon_slice" -> 70L;
-            case "honey_bottle" -> 20L;
+            case "honey_bottle" -> 16L;
             case "potion" -> 32L;
             case "splash_potion" -> 80L;
             case "lingering_potion" -> 180L;
@@ -1003,7 +1074,7 @@ public class VCoinsPricing {
             case "axolotl_bucket", "tadpole_bucket" -> 200L;
             case "lead" -> 18L;
             case "name_tag" -> 8_000L;
-            case "saddle" -> 6_000L;
+            case "saddle" -> 1_500L;
             case "experience_bottle" -> 8_000L;
             case "firework_rocket" -> 20L;
             case "firework_star" -> 60L;
@@ -1038,10 +1109,13 @@ public class VCoinsPricing {
     }
 
     private static long getMusicDiscPrice(String path) {
-        if (containsAny(path, "pigstep", "otherside", "relic", "creator", "precipice")) {
-            return 10_000_000L;
+        if (containsAny(path, "pigstep", "relic")) {
+            return 50_000L;
         }
-        return 2_500_000L;
+        if (containsAny(path, "otherside", "creator", "precipice")) {
+            return 25_000L;
+        }
+        return 350L;
     }
 
     private static long getRarityFloor(Rarity rarity) {

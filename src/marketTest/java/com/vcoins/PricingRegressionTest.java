@@ -201,6 +201,45 @@ public final class PricingRegressionTest {
         require(restored.getDamageValue() == godMin.getDamageValue(), "Restored damage matches");
         require(VBlackMarket.getRomanGodItemName(restored).equals(VBlackMarket.getRomanGodItemName(godMin)), "Restored name matches");
 
+        ItemStack mythic = VBlackMarket.generateMythicItem(new java.util.Random(33L));
+        require(VBlackMarket.isMythicItem(mythic), "Mythic explicit tier");
+        require(mythic.getDamageValue() == 0, "Mythic starts at full durability");
+        require(VBlackMarket.getRomanGodItemPrice(mythic) > 15_000_000_000L, "Mythic price exceeds 15 billion without integer overflow");
+        require(VCoinsPricing.getPrice(mythic) == 0 && VCoinsPricing.getSellPrice(mythic) == 0, "Mythic excluded from ordinary market");
+        var mythicEnchantments = VCoinsPricing.getEnchantmentValues(mythic);
+        require(!mythicEnchantments.isEmpty(), "Mythic is enchanted");
+        require(mythicEnchantments.values().stream().allMatch(e -> e.level() == 10), "All Mythic enchants level ten");
+        var enchantmentRegistry = VBlackMarket.getRegistryLookup().lookupOrThrow(net.minecraft.core.registries.Registries.ENCHANTMENT);
+        enchantmentRegistry.listElements().filter(h -> h.value().canEnchant(mythic))
+                .filter(h -> !h.unwrapKey().orElseThrow().identifier().getPath().contains("curse"))
+                .forEach(h -> require(mythicEnchantments.containsKey(h.unwrapKey().orElseThrow().identifier().toString()), "Every applicable enchant included"));
+        ItemStack restoredMythic = new VBlackMarket.BlackMarketItemEntry(mythic).toItemStack();
+        require(VBlackMarket.isMythicItem(restoredMythic), "Mythic tier survives persistence");
+        require(restoredMythic.getDamageValue() == 0, "Mythic durability survives persistence");
+        require(VBlackMarket.getRomanGodItemPrice(restoredMythic) == VBlackMarket.getRomanGodItemPrice(mythic), "Mythic long price survives persistence");
+        require(new VBlackMarket.BlackMarketItemEntry(restoredMythic).enchantments.equals(new VBlackMarket.BlackMarketItemEntry(mythic).enchantments), "Mythic enchantments survive persistence");
+        for (boolean exclusive : new boolean[]{false, true}) {
+            ItemStack equipment = VBlackMarket.generateTierEquipment(new java.util.Random(77), exclusive);
+            String equipmentId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(equipment.getItem()).toString();
+            require(equipmentId.contains(exclusive ? "diamond_" : "iron_"), "Tier equipment material matches");
+            require(!VCoinsPricing.getEnchantmentValues(equipment).isEmpty(), "Tier equipment enchanted");
+            ItemStack loadedEquipment = new VBlackMarket.BlackMarketItemEntry(equipment).toItemStack();
+            require(VBlackMarket.getCardTier(loadedEquipment).equals(exclusive ? "exclusive" : "epic"), "Equipment tier persisted");
+            require(new VBlackMarket.BlackMarketItemEntry(loadedEquipment).enchantments.equals(new VBlackMarket.BlackMarketItemEntry(equipment).enchantments), "Equipment enchants persisted");
+        }
+        // Exercise every outcome of the ten-way pity draw without a flaky statistical test.
+        for (int bucket = 0; bucket < 10; bucket++) {
+            final int outcome = bucket;
+            java.util.Random pityRandom = new java.util.Random(22) {
+                private boolean first = true;
+                @Override public int nextInt(int bound) {
+                    if (first) { first = false; require(bound == 10, "Pity uses ten equal buckets"); return outcome; }
+                    return super.nextInt(bound);
+                }
+            };
+            require(VBlackMarket.isMythicItem(VBlackMarket.generatePityReward(pityRandom)) == (bucket == 0), "Pity 10 percent Mythic, 90 percent Legend");
+        }
+
         java.util.UUID testPlayer = java.util.UUID.randomUUID();
         require(VBlackMarket.getBankedResets(testPlayer) == 0, "Initial banked resets 0");
         VBlackMarket.addBankedResets(testPlayer, 3);
@@ -228,6 +267,10 @@ public final class PricingRegressionTest {
         record.customItems.set(legendSlot, new ItemStack(Items.DIAMOND));
         VBlackMarket.consumeLegendGuarantee(record);
         require(record.customItems.stream().noneMatch(VBlackMarket::isRomanGodItem), "Legend guarantee only applies once");
+        record.mythicNextReset = true;
+        VBlackMarket.consumeLegendGuarantee(record);
+        require(record.customItems.stream().filter(VBlackMarket::isMythicItem).count() == 1, "Mythic guarantee inserts exactly one card");
+        require(!record.mythicNextReset, "Mythic guarantee consumed once");
     }
 
     private static void testMarketEngineVolumesAndThreading(ItemStack mending, ItemStack infinity) throws Exception {

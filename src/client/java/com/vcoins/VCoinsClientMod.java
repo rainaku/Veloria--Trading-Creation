@@ -78,6 +78,7 @@ public class VCoinsClientMod implements ClientModInitializer {
 
     private static void registerTooltips() {
         net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback.EVENT.register((stack, tooltipContext, tooltipType, lines) -> {
+            VeloriaTooltip.removeDebugLines(lines, stack);
             if (VBlackMarket.isRomanGodItem(stack)) {
                 // Existing relics retain their saved identity; constrain their tooltip too.
                 var font = net.minecraft.client.Minecraft.getInstance().font;

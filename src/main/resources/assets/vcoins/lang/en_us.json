@@ -347,5 +347,15 @@
   "vcoins.black_market.purchased_short": "Bought",
   "vcoins.black_market.god_badge": "DIVINE",
   "vcoins.black_market.god_tooltip": "✦ ROMAN DIVINE RELIC ✦",
-  "vcoins.roman.reveal.title": "L E G E N D A R Y"
+  "vcoins.roman.reveal.title": "L E G E N D A R Y",
+  "vcoins.mythic.name": "✧ %s ✧",
+  "vcoins.mythic.header": "✧ MYTHIC · TRANSCENDENT ✧",
+  "vcoins.mythic.badge": "MYTHIC",
+  "vcoins.mythic.reveal": "M Y T H I C",
+  "vcoins.mythic.chat.discovered": "✧ A MYTHIC DESCENDS ✧",
+  "vcoins.mythic.chat.purchased": "✧ MYTHIC CLAIMED ✧",
+  "vcoins.mythic.chat.finder": "%s has awakened a transcendent mythic!",
+  "vcoins.mythic.chat.buyer": "%s now commands transcendent power.",
+  "vcoins.command.blackmarket.mythic_scheduled": "Mythic guaranteed on the next reset for %s.",
+  "vcoins.command.blackmarket.mythic_notify": "Your next Black Market reset is guaranteed to contain a Mythic!"
 }

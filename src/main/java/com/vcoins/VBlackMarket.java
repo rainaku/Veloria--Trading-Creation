@@ -70,8 +70,13 @@ public class VBlackMarket {
         public int lifetimeFlipCount;
         /** OP-scheduled legend guarantee: inject god item on next successful reset */
         public boolean legendNextReset;
+        public boolean mythicNextReset;
 
         public PlayerDailyRecord(long day, int revealedMask, int purchasedMask, int bankedResets, int resetSequence, List<ItemStack> customItems, int lifetimeFlipCount, boolean legendNextReset) {
+            this(day, revealedMask, purchasedMask, bankedResets, resetSequence, customItems, lifetimeFlipCount, legendNextReset, false);
+        }
+
+        public PlayerDailyRecord(long day, int revealedMask, int purchasedMask, int bankedResets, int resetSequence, List<ItemStack> customItems, int lifetimeFlipCount, boolean legendNextReset, boolean mythicNextReset) {
             this.day = day;
             this.revealedMask = revealedMask;
             this.purchasedMask = purchasedMask;
@@ -80,6 +85,7 @@ public class VBlackMarket {
             this.customItems = customItems != null ? new ArrayList<>(customItems) : null;
             this.lifetimeFlipCount = lifetimeFlipCount;
             this.legendNextReset = legendNextReset;
+            this.mythicNextReset = mythicNextReset;
         }
     }
 
@@ -151,7 +157,18 @@ public class VBlackMarket {
             Items.VEX_ARMOR_TRIM_SMITHING_TEMPLATE,
             Items.TIDE_ARMOR_TRIM_SMITHING_TEMPLATE,
             Items.FLOW_ARMOR_TRIM_SMITHING_TEMPLATE,
-            Items.BOLT_ARMOR_TRIM_SMITHING_TEMPLATE
+            Items.BOLT_ARMOR_TRIM_SMITHING_TEMPLATE,
+            Items.AMETHYST_SHARD, Items.COPPER_INGOT, Items.GOLD_BLOCK, Items.EMERALD,
+            Items.QUARTZ, Items.OBSIDIAN, Items.CRYING_OBSIDIAN, Items.GLOWSTONE,
+            Items.SEA_LANTERN, Items.PRISMARINE, Items.PURPUR_BLOCK, Items.END_ROD,
+            Items.EXPERIENCE_BOTTLE, Items.GOLDEN_CARROT, Items.GOLDEN_APPLE,
+            Items.FIREWORK_ROCKET, Items.NAME_TAG, Items.SADDLE, Items.LEAD,
+            Items.ENDER_PEARL, Items.BLAZE_ROD, Items.GHAST_TEAR, Items.MAGMA_CREAM,
+            Items.HONEY_BLOCK, Items.SLIME_BLOCK, Items.PISTON, Items.OBSERVER,
+            Items.HOPPER, Items.DISPENSER, Items.RAIL, Items.POWERED_RAIL,
+            Items.BOOKSHELF, Items.ENCHANTING_TABLE, Items.ANVIL, Items.LODESTONE,
+            Items.CHERRY_SAPLING, Items.MANGROVE_PROPAGULE, Items.BAMBOO,
+            Items.TURTLE_SCUTE, Items.ARMADILLO_SCUTE, Items.GOAT_HORN
     };
 
     public record RomanGodTemplate(
@@ -560,13 +577,17 @@ public class VBlackMarket {
         return total;
     }
 
-    public record GeneratedName(Component component, String canonicalViName, String canonicalEnName) {}
+    public record GeneratedName(Component component, String canonicalViName, String canonicalEnName, String nounKey, String figKey) {
+        public GeneratedName(Component component, String canonicalViName, String canonicalEnName) {
+            this(component, canonicalViName, canonicalEnName, "", "");
+        }
+    }
 
     public static GeneratedName generateLocalizedRomanName(Random random, RomanArchetype archetype) {
         RomanNoun noun = archetype.nouns()[random.nextInt(archetype.nouns().length)];
         RomanFigure fig = ROMAN_FIGURES[random.nextInt(ROMAN_FIGURES.length)];
         Component name = Component.translatable(noun.key()).append(" ").append(Component.translatable(fig.key()));
-        return new GeneratedName(name, noun.vi() + " " + fig.vi(), noun.en() + " " + fig.en());
+        return new GeneratedName(name, noun.vi() + " " + fig.vi(), noun.en() + " " + fig.en(), noun.key(), fig.key());
     }
 
     public static String generateHumanizedRomanName(Random random, RomanArchetype archetype) {
@@ -668,6 +689,8 @@ public class VBlackMarket {
             tag.putBoolean("VRomanGodItem", true);
             tag.putLong("VCoinsBlackMarketPrice", finalPrice);
             tag.putString("VRomanName", finalName);
+            tag.putString("VRomanNounKey", generatedName.nounKey());
+            tag.putString("VRomanFigKey", generatedName.figKey());
             tag.putString("VRomanLore", finalLoreKey);
             tag.putBoolean("VAnnounced", false);
         });
@@ -675,10 +698,156 @@ public class VBlackMarket {
         return stack;
     }
 
-    public static ItemStack rollCardItem(Random random, Item fallbackItem) {
-        if (random.nextDouble() < GOD_ITEM_ROLL_CHANCE) {
-            return generateRomanGodItem(random);
+    private static final Item[] EPIC_EQUIPMENT = {
+            Items.IRON_SWORD, Items.IRON_AXE, Items.IRON_PICKAXE, Items.IRON_SHOVEL, Items.IRON_HOE,
+            Items.IRON_HELMET, Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS, Items.IRON_BOOTS };
+    private static final Item[] EXCLUSIVE_EQUIPMENT = {
+            Items.DIAMOND_SWORD, Items.DIAMOND_AXE, Items.DIAMOND_PICKAXE, Items.DIAMOND_SHOVEL, Items.DIAMOND_HOE,
+            Items.DIAMOND_HELMET, Items.DIAMOND_CHESTPLATE, Items.DIAMOND_LEGGINGS, Items.DIAMOND_BOOTS };
+
+    public static String getCardTier(ItemStack stack) {
+        var data = stack.get(DataComponents.CUSTOM_DATA);
+        return data == null ? "" : data.copyTag().getString("VCardTier").orElse("");
+    }
+
+    public static boolean isMythicItem(ItemStack stack) {
+        return stack != null && !stack.isEmpty() && "mythic".equals(getCardTier(stack));
+    }
+
+    private static List<Holder<Enchantment>> applicableEnchantments(ItemStack stack) {
+        var lookup = getRegistryLookup().lookupOrThrow(Registries.ENCHANTMENT);
+        List<Holder<Enchantment>> result = lookup.listElements()
+                .filter(h -> h.value().canEnchant(stack))
+                .filter(h -> !h.unwrapKey().orElseThrow().identifier().getPath().contains("curse"))
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        // Offline generation/tests have no bound item tags. Use explicit archetype enchantments
+        // as a fallback; on a running server the registry includes every applicable enchantment.
+        if (result.isEmpty()) {
+            String path = BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath()
+                    .replace("iron_", "netherite_").replace("diamond_", "netherite_");
+            Set<ResourceKey<Enchantment>> keys = new LinkedHashSet<>();
+            for (RomanArchetype archetype : ROMAN_ARCHETYPES) {
+                if (BuiltInRegistries.ITEM.getKey(archetype.item()).getPath().equals(path)) {
+                    keys.addAll(archetype.primaryEnchants());
+                    keys.addAll(archetype.secondaryEnchants());
+                }
+            }
+            if (path.endsWith("_shovel") || path.endsWith("_hoe")) {
+                keys.add(Enchantments.EFFICIENCY); keys.add(Enchantments.UNBREAKING);
+                keys.add(Enchantments.MENDING); keys.add(Enchantments.FORTUNE); keys.add(Enchantments.SILK_TOUCH);
+            }
+            for (var key : keys) lookup.get(key).ifPresent(result::add);
         }
+        return result;
+    }
+
+    private static final List<Set<ResourceKey<Enchantment>>> INCOMPATIBLE_ENCHANTMENT_GROUPS = List.of(
+            Set.of(Enchantments.PROTECTION, Enchantments.FIRE_PROTECTION, Enchantments.BLAST_PROTECTION, Enchantments.PROJECTILE_PROTECTION),
+            Set.of(Enchantments.SHARPNESS, Enchantments.SMITE, Enchantments.BANE_OF_ARTHROPODS),
+            Set.of(Enchantments.SILK_TOUCH, Enchantments.FORTUNE),
+            Set.of(Enchantments.DEPTH_STRIDER, Enchantments.FROST_WALKER),
+            Set.of(Enchantments.INFINITY, Enchantments.MENDING),
+            Set.of(Enchantments.MULTISHOT, Enchantments.PIERCING)
+    );
+
+    private static boolean areEnchantmentsCompatible(Holder<Enchantment> first, Holder<Enchantment> second) {
+        if (first.equals(second)) {
+            return false;
+        }
+        try {
+            return Enchantment.areCompatible(first, second);
+        } catch (IllegalStateException ignored) {
+            // Tags not bound (e.g. offline/unit tests without loaded datapack tags)
+            var keyA = first.unwrapKey().orElse(null);
+            var keyB = second.unwrapKey().orElse(null);
+            if (keyA == null || keyB == null || keyA.equals(keyB)) {
+                return false;
+            }
+            if (keyA.equals(Enchantments.RIPTIDE) && (keyB.equals(Enchantments.LOYALTY) || keyB.equals(Enchantments.CHANNELING))) {
+                return false;
+            }
+            if (keyB.equals(Enchantments.RIPTIDE) && (keyA.equals(Enchantments.LOYALTY) || keyA.equals(Enchantments.CHANNELING))) {
+                return false;
+            }
+            for (Set<ResourceKey<Enchantment>> group : INCOMPATIBLE_ENCHANTMENT_GROUPS) {
+                if (group.contains(keyA) && group.contains(keyB)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    public static ItemStack generateTierEquipment(Random random, boolean exclusive) {
+        Item[] pool = exclusive ? EXCLUSIVE_EQUIPMENT : EPIC_EQUIPMENT;
+        ItemStack stack = new ItemStack(pool[random.nextInt(pool.length)]);
+        String tier = exclusive ? "exclusive" : "epic";
+        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> tag.putString("VCardTier", tier));
+        var candidates = applicableEnchantments(stack);
+        Collections.shuffle(candidates, random);
+        List<Holder<Enchantment>> chosen = new ArrayList<>();
+        for (var enchantment : candidates) {
+            if (chosen.stream().anyMatch(other -> !areEnchantmentsCompatible(other, enchantment))) continue;
+            stack.enchant(enchantment, 1 + random.nextInt(enchantment.value().getMaxLevel()));
+            chosen.add(enchantment);
+            if (chosen.size() >= (exclusive ? 4 : 2)) break;
+        }
+        return stack;
+    }
+
+    public static ItemStack generateMythicItem(Random random) {
+        // Reuse the existing relic data contract, but retain an explicit Mythic tier.
+        ItemStack stack = generateRomanGodItem(random, 1_000_000_000L);
+        long price = 15_001_000_000L + random.nextInt(10_000) * 1_000_000L;
+        stack.setDamageValue(0);
+        stack.set(DataComponents.ENCHANTMENTS, net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY);
+        applicableEnchantments(stack).forEach(h -> stack.enchant(h, 10));
+        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+            tag.putString("VCardTier", "mythic");
+            tag.putLong("VCoinsBlackMarketPrice", price);
+        });
+        applyMythicPresentation(stack);
+        return stack;
+    }
+
+    private static void applyMythicPresentation(ItemStack stack) {
+        stack.set(DataComponents.CUSTOM_NAME, Component.translatable("vcoins.mythic.name", getRomanGodItemComponent(stack))
+                .withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.BOLD));
+        stack.set(DataComponents.LORE, new ItemLore(List.of(
+                Component.translatable("vcoins.mythic.header").withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.BOLD),
+                Component.translatable("vcoins.roman.price", String.format(Locale.ROOT, "%,d", getRomanGodItemPrice(stack)))
+                        .withStyle(ChatFormatting.GOLD))));
+    }
+
+    public static Component getRomanGodItemComponent(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return Component.empty();
+        CustomData data = stack.get(DataComponents.CUSTOM_DATA);
+        if (data != null) {
+            var tag = data.copyTag();
+            if (tag.contains("VRomanNounKey") && tag.contains("VRomanFigKey")) {
+                String nounKey = tag.getString("VRomanNounKey").orElse("");
+                String figKey = tag.getString("VRomanFigKey").orElse("");
+                if (!nounKey.isEmpty() && !figKey.isEmpty()) {
+                    return Component.translatable(nounKey).append(" ").append(Component.translatable(figKey));
+                }
+            }
+        }
+        String name = getRomanGodItemName(stack);
+        return Component.literal(name);
+    }
+
+    public static ItemStack generatePityReward(Random random) {
+        if (random.nextInt(10) == 0) return generateMythicItem(random);
+        long price = 750_000_000L + random.nextInt(250) * 1_000_000L;
+        return generateRomanGodItem(random, price);
+    }
+
+    public static ItemStack rollCardItem(Random random, Item fallbackItem) {
+        double roll = random.nextDouble();
+        if (roll < GOD_ITEM_ROLL_CHANCE) return generateRomanGodItem(random);
+        if (roll < GOD_ITEM_ROLL_CHANCE + 0.00005) return generateMythicItem(random);
+        if (roll < 0.08) return generateTierEquipment(random, true);
+        if (roll < 0.25) return generateTierEquipment(random, false);
         return new ItemStack(fallbackItem);
     }
 
@@ -739,36 +908,37 @@ public class VBlackMarket {
 
     private static void broadcastRelic(String playerName, ItemStack stack, long price, boolean purchased) {
         if (activeServer == null) return;
-        Component heading = Component.translatable(purchased
-                ? "vcoins.roman.chat.purchased" : "vcoins.roman.chat.discovered")
+        boolean mythic = isMythicItem(stack);
+        Component heading = Component.translatable(mythic
+                ? (purchased ? "vcoins.mythic.chat.purchased" : "vcoins.mythic.chat.discovered")
+                : (purchased ? "vcoins.roman.chat.purchased" : "vcoins.roman.chat.discovered"))
                 .withStyle(ChatFormatting.BOLD)
-                .withStyle(style -> style.withColor(purchased ? 0xE8C989 : 0xFFD76A));
+                .withStyle(style -> style.withColor(purchased ? (mythic ? 0xE8B5FF : 0xE8C989) : (mythic ? 0x7BEBFF : 0xFFD76A)));
         Component actor = Component.translatable(purchased
-                ? "vcoins.roman.chat.buyer" : "vcoins.roman.chat.finder",
+                ? (mythic ? "vcoins.mythic.chat.buyer" : "vcoins.roman.chat.buyer")
+                : (mythic ? "vcoins.mythic.chat.finder" : "vcoins.roman.chat.finder"),
                 Component.literal(playerName).withStyle(ChatFormatting.AQUA))
                 .withStyle(ChatFormatting.GRAY);
-        // Keep old long relic names out of the chat line; full details remain on hover.
-        String relicName = getRomanGodItemName(stack).replaceAll("\\s*\\([^)]*\\)", "");
-        if (relicName.isBlank()) relicName = "Relic";
-        int nameLength = relicName.codePointCount(0, relicName.length());
-        if (nameLength > 30) relicName = relicName.substring(0, relicName.offsetByCodePoints(0, 29)).stripTrailing() + "…";
-        Component itemLink = Component.literal("[" + relicName + "]")
+        Component itemLink = Component.literal("[").append(stack.getHoverName()).append("]")
                 .withStyle(ChatFormatting.BOLD)
-                .withStyle(style -> style.withColor(0xFFF0C2)
+                .withStyle(style -> style.withColor(mythic ? 0xF2B5FF : 0xFFF0C2)
                         .withHoverEvent(stack.getDisplayName().getStyle().getHoverEvent()));
         String amount = price >= 1_000_000_000L
                 ? String.format(Locale.ROOT, "%.2fB", price / 1_000_000_000.0)
                 : String.format(Locale.ROOT, "%.1fM", price / 1_000_000.0);
-        Component detail = Component.literal("  ◆ ").withStyle(ChatFormatting.GOLD).append(itemLink);
+        Component detail = Component.literal(mythic ? "  ✧ " : "  ◆ ")
+                .withStyle(mythic ? ChatFormatting.LIGHT_PURPLE : ChatFormatting.GOLD).append(itemLink);
         Component value = Component.literal("  ").append(Component.translatable(
                 purchased ? "vcoins.roman.chat.paid" : "vcoins.roman.chat.value", amount)
-                .withStyle(style -> style.withColor(0xD7B56D)))
+                .withStyle(style -> style.withColor(mythic ? 0xD7B5FF : 0xD7B56D)))
                 .append(Component.literal("  ·  ").withStyle(ChatFormatting.DARK_GRAY))
                 .append(Component.translatable("vcoins.roman.chat.hover").withStyle(ChatFormatting.GRAY));
         for (ServerPlayer recipient : activeServer.getPlayerList().getPlayers()) {
             recipient.sendSystemMessage(Component.empty().append(heading).append("\n")
                     .append(actor).append("\n").append(detail).append("\n").append(value));
-            VTradeScreenHandler.sendSoundToPlayer(recipient, SoundEvents.AMETHYST_BLOCK_CHIME, 0.45f, purchased ? 1.25f : 0.85f);
+            VTradeScreenHandler.sendSoundToPlayer(recipient,
+                    mythic ? SoundEvents.UI_TOAST_CHALLENGE_COMPLETE : SoundEvents.AMETHYST_BLOCK_CHIME,
+                    0.45f, purchased ? 1.25f : 0.85f);
         }
     }
 
@@ -871,6 +1041,14 @@ public class VBlackMarket {
     public static synchronized void scheduleLegendGuarantee(ServerPlayer target) {
         PlayerDailyRecord rec = getPlayerRecord(target.getUUID());
         rec.legendNextReset = true;
+        rec.mythicNextReset = false;
+        if (activeServer != null) save(activeServer);
+    }
+
+    public static synchronized void scheduleMythicGuarantee(ServerPlayer target) {
+        PlayerDailyRecord rec = getPlayerRecord(target.getUUID());
+        rec.mythicNextReset = true;
+        rec.legendNextReset = false;
         if (activeServer != null) save(activeServer);
     }
 
@@ -1048,9 +1226,7 @@ public class VBlackMarket {
         }
         if (targetSlot < 0) return;
 
-        long pityPrice = 750_000_000L + (long)(rng.nextDouble() * 250_000_000L);
-        pityPrice = (pityPrice / 1_000_000L) * 1_000_000L;
-        ItemStack godItem = generateRomanGodItem(rng, pityPrice);
+        ItemStack godItem = generatePityReward(rng);
         playerRecord.customItems.set(targetSlot, godItem);
 
         playerRecord.revealedMask &= ~(1 << targetSlot);
@@ -1223,9 +1399,10 @@ public class VBlackMarket {
     }
 
     static void consumeLegendGuarantee(PlayerDailyRecord rec) {
-        if (!rec.legendNextReset) return;
+        if (!rec.legendNextReset && !rec.mythicNextReset) return;
         applyLegendGuarantee(rec);
         rec.legendNextReset = false;
+        rec.mythicNextReset = false;
     }
 
     private static void applyLegendGuarantee(PlayerDailyRecord rec) {
@@ -1235,7 +1412,7 @@ public class VBlackMarket {
         Random rng = new Random();
         long price = 750_000_000L + (long)(rng.nextDouble() * 250_000_000L);
         price = (price / 1_000_000L) * 1_000_000L;
-        ItemStack godItem = generateRomanGodItem(rng, price);
+        ItemStack godItem = rec.mythicNextReset ? generateMythicItem(rng) : generateRomanGodItem(rng, price);
         int targetSlot = rng.nextInt(Math.min(DAILY_ITEM_COUNT, rec.customItems.size()));
         rec.customItems.set(targetSlot, godItem);
         rec.revealedMask &= ~(1 << targetSlot); // let the player flip the chosen card
@@ -1338,7 +1515,7 @@ public class VBlackMarket {
             playerRecords.put(id, new PlayerDailyRecord(
                     prd.day, prd.revealedMask, prd.purchasedMask,
                     prd.bankedResets, prd.resetSequence, custom,
-                    prd.lifetimeFlipCount, prd.legendNextReset));
+                    prd.lifetimeFlipCount, prd.legendNextReset, prd.mythicNextReset));
         } catch (IllegalArgumentException e) {
             VCoinsMod.LOGGER.warn("Skipping corrupt black market player UUID entry: {}", entry.getKey());
         }
@@ -1375,7 +1552,7 @@ public class VBlackMarket {
                 recordMap.put(entry.getKey().toString(), new PlayerRecordData(
                         rec.day, rec.revealedMask, rec.purchasedMask,
                         rec.bankedResets, rec.resetSequence, customEntries,
-                        rec.lifetimeFlipCount, rec.legendNextReset));
+                        rec.lifetimeFlipCount, rec.legendNextReset, rec.mythicNextReset));
             }
 
             MarketSaveData data = new MarketSaveData(currentEpochDay, lastSavedEpochSecond, adminResetCount, itemEntries, recordMap);
@@ -1388,7 +1565,10 @@ public class VBlackMarket {
     public static class BlackMarketItemEntry {
         public String itemId;
         public boolean isGodItem;
+        public String cardTier;
         public String romanName;
+        public String nounKey;
+        public String figKey;
         public String romanLore;
         public long godPrice;
         public int damage;
@@ -1405,8 +1585,15 @@ public class VBlackMarket {
         public BlackMarketItemEntry(ItemStack stack) {
             this.itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
             this.isGodItem = isRomanGodItem(stack);
-            if (this.isGodItem) {
+            this.cardTier = getCardTier(stack);
+            if (this.isGodItem || !this.cardTier.isEmpty()) {
                 this.romanName = getRomanGodItemName(stack);
+                var data = stack.get(DataComponents.CUSTOM_DATA);
+                if (data != null) {
+                    var tag = data.copyTag();
+                    this.nounKey = tag.getString("VRomanNounKey").orElse(null);
+                    this.figKey = tag.getString("VRomanFigKey").orElse(null);
+                }
                 this.romanLore = getRomanGodItemLore(stack);
                 this.godPrice = getRomanGodItemPrice(stack);
                 this.damage = stack.getDamageValue();
@@ -1432,7 +1619,11 @@ public class VBlackMarket {
                 stack.setDamageValue(damage);
                 int remainingDur = maxDur > 0 ? Math.max(0, maxDur - damage) : 0;
 
-                stack.set(DataComponents.CUSTOM_NAME, Component.translatable("vcoins.roman.item_wrapper", Component.literal(romanName))
+                Component nameComp = (nounKey != null && !nounKey.isEmpty() && figKey != null && !figKey.isEmpty())
+                        ? Component.translatable(nounKey).append(" ").append(Component.translatable(figKey))
+                        : Component.literal(romanName != null ? romanName : "");
+
+                stack.set(DataComponents.CUSTOM_NAME, Component.translatable("vcoins.roman.item_wrapper", nameComp)
                         .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
 
                 String loreDesc = (romanLore != null && !romanLore.isEmpty())
@@ -1453,13 +1644,17 @@ public class VBlackMarket {
                 stack.set(DataComponents.LORE, new ItemLore(lore));
 
                 long finalPrice = godPrice;
-                String finalName = romanName;
+                String finalName = romanName != null ? romanName : "";
+                String finalNounKey = nounKey;
+                String finalFigKey = figKey;
                 String finalLore = loreDesc;
                 boolean finalAnnounced = broadcasted;
                 CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
                     tag.putBoolean("VRomanGodItem", true);
                     tag.putLong("VCoinsBlackMarketPrice", finalPrice);
                     tag.putString("VRomanName", finalName);
+                    if (finalNounKey != null) tag.putString("VRomanNounKey", finalNounKey);
+                    if (finalFigKey != null) tag.putString("VRomanFigKey", finalFigKey);
                     tag.putString("VRomanLore", finalLore);
                     tag.putBoolean("VAnnounced", finalAnnounced);
                 });
@@ -1471,6 +1666,15 @@ public class VBlackMarket {
                         holderOpt.ifPresent(holder -> stack.enchant(holder, e.getValue()));
                     }
                 }
+            }
+            if (cardTier != null && !cardTier.isEmpty()) {
+                CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> tag.putString("VCardTier", cardTier));
+                if (!isGodItem && enchantments != null) {
+                    var lookup = getRegistryLookup().lookupOrThrow(Registries.ENCHANTMENT);
+                    enchantments.forEach((id, level) -> lookup.get(ResourceKey.create(Registries.ENCHANTMENT, Identifier.parse(id)))
+                            .ifPresent(holder -> stack.enchant(holder, level)));
+                }
+                if (isMythicItem(stack)) applyMythicPresentation(stack);
             }
             return stack;
         }
@@ -1485,8 +1689,11 @@ public class VBlackMarket {
                 com.google.gson.JsonObject obj = json.getAsJsonObject();
                 BlackMarketItemEntry entry = new BlackMarketItemEntry();
                 entry.itemId = obj.has("itemId") ? obj.get("itemId").getAsString() : "minecraft:air";
+                entry.cardTier = obj.has("cardTier") ? obj.get("cardTier").getAsString() : "";
                 entry.isGodItem = obj.has("isGodItem") && obj.get("isGodItem").getAsBoolean();
                 entry.romanName = obj.has("romanName") ? obj.get("romanName").getAsString() : "";
+                entry.nounKey = obj.has("nounKey") ? obj.get("nounKey").getAsString() : null;
+                entry.figKey = obj.has("figKey") ? obj.get("figKey").getAsString() : null;
                 entry.romanLore = obj.has("romanLore") ? obj.get("romanLore").getAsString() : null;
                 entry.godPrice = obj.has("godPrice") ? obj.get("godPrice").getAsLong() : 0L;
                 entry.damage = obj.has("damage") ? obj.get("damage").getAsInt() : 0;
@@ -1508,6 +1715,6 @@ public class VBlackMarket {
             .setPrettyPrinting()
             .create();
 
-    private record PlayerRecordData(long day, int revealedMask, int purchasedMask, int bankedResets, int resetSequence, List<BlackMarketItemEntry> customItems, int lifetimeFlipCount, boolean legendNextReset) {}
+    private record PlayerRecordData(long day, int revealedMask, int purchasedMask, int bankedResets, int resetSequence, List<BlackMarketItemEntry> customItems, int lifetimeFlipCount, boolean legendNextReset, boolean mythicNextReset) {}
     private record MarketSaveData(long day, long lastSavedEpochSecond, int adminResetCount, List<BlackMarketItemEntry> items, Map<String, PlayerRecordData> playerRecords) {}
 }

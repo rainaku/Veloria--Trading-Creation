@@ -183,6 +183,18 @@ public final class VCoinsCommands {
                                                     "vcoins.command.blackmarket.bank_count", target.getName(), count).withStyle(ChatFormatting.AQUA));
                                             return count;
                                         }))))
+                .then(Commands.literal("mythic")
+                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.argument("target", EntityArgument.player())
+                                .executes(context -> {
+                                    ServerPlayer target = EntityArgument.getPlayer(context, "target");
+                                    VBlackMarket.scheduleMythicGuarantee(target);
+                                    context.getSource().sendSystemMessage(Component.translatable(
+                                            "vcoins.command.blackmarket.mythic_scheduled", target.getName()).withStyle(ChatFormatting.LIGHT_PURPLE));
+                                    target.sendSystemMessage(Component.translatable("vcoins.command.blackmarket.mythic_notify")
+                                            .withStyle(ChatFormatting.LIGHT_PURPLE));
+                                    return 1;
+                                })))
                 .then(Commands.literal("legend")
                         .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .then(Commands.argument("target", EntityArgument.player())

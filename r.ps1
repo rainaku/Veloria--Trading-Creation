@@ -1,6 +1,10 @@
 [CmdletBinding()]
 param(
-    [switch]$RefreshDependencies
+    [switch]$Clean,
+    [switch]$Test,
+    [switch]$Run,
+    [switch]$RefreshDependencies,
+    [switch]$NoDaemon
 )
 
 Set-StrictMode -Version Latest
@@ -16,27 +20,66 @@ if (-not (Test-Path -LiteralPath $gradleWrapper -PathType Leaf)) {
     throw "Khong tim thay Gradle Wrapper: $gradleWrapper"
 }
 
-$javaExecutable = $null
+$validJdkHome = $null
+
 if (-not [string]::IsNullOrWhiteSpace($env:JAVA_HOME)) {
-    $javaFromHome = Join-Path $env:JAVA_HOME "bin\java.exe"
-    if (Test-Path -LiteralPath $javaFromHome -PathType Leaf) {
-        $javaExecutable = (Resolve-Path -LiteralPath $javaFromHome).Path
+    $checkBin = Join-Path $env:JAVA_HOME "bin\java.exe"
+    if (Test-Path -LiteralPath $checkBin -PathType Leaf) {
+        $validJdkHome = (Resolve-Path -LiteralPath $env:JAVA_HOME).Path
     }
 }
 
-if ($null -eq $javaExecutable) {
+if ($null -eq $validJdkHome) {
+    $candidatePatterns = @(
+        "C:\Program Files\Java\jdk-21*",
+        "C:\Program Files\Eclipse Adoptium\jdk-21*",
+        "C:\Program Files\Microsoft\jdk-21*",
+        "C:\Program Files\BellSoft\LibericaJDK-21*",
+        "C:\Program Files\Amazon Corretto\jdk21*",
+        "$env:USERPROFILE\.jdks\*21*"
+    )
+    foreach ($pattern in $candidatePatterns) {
+        $found = Get-Item $pattern -ErrorAction SilentlyContinue | Sort-Object Name -Descending
+        foreach ($dir in $found) {
+            $testExe = Join-Path $dir.FullName "bin\java.exe"
+            if (Test-Path -LiteralPath $testExe -PathType Leaf) {
+                $validJdkHome = $dir.FullName
+                break
+            }
+        }
+        if ($null -ne $validJdkHome) { break }
+    }
+}
+
+# 3. Thu tim qua lenh java.exe trong PATH neu nam trong thu muc bin
+if ($null -eq $validJdkHome) {
     $javaCommand = Get-Command "java.exe" -ErrorAction SilentlyContinue
     if ($null -ne $javaCommand) {
-        $javaExecutable = $javaCommand.Source
+        $parent = Split-Path -Parent $javaCommand.Source
+        if ((Split-Path -Leaf $parent) -ieq "bin") {
+            $validJdkHome = Split-Path -Parent $parent
+        }
     }
 }
 
-if ($null -eq $javaExecutable) {
-    throw "Khong tim thay Java. Hay cai JDK 21, dat JAVA_HOME, roi chay lai .\r.ps1."
+if ($null -eq $validJdkHome) {
+    throw "Khong tim thay JDK 21 hop le. Vui long cai JDK 21 hoac dat bien moi truong JAVA_HOME."
 }
 
-$javaVersionOutput = (& $javaExecutable -version 2>&1) -join [Environment]::NewLine
-if ($LASTEXITCODE -ne 0) {
+$env:JAVA_HOME = $validJdkHome
+$javaExecutable = Join-Path $validJdkHome "bin\java.exe"
+
+$pinfo = New-Object System.Diagnostics.ProcessStartInfo
+$pinfo.FileName = $javaExecutable
+$pinfo.Arguments = "-version"
+$pinfo.RedirectStandardError = $true
+$pinfo.RedirectStandardOutput = $true
+$pinfo.UseShellExecute = $false
+$p = [System.Diagnostics.Process]::Start($pinfo)
+$javaVersionOutput = $p.StandardError.ReadToEnd() + [Environment]::NewLine + $p.StandardOutput.ReadToEnd()
+$p.WaitForExit()
+
+if ($p.ExitCode -ne 0) {
     throw "Khong the chay Java tai: $javaExecutable"
 }
 
@@ -47,39 +90,67 @@ if ($javaVersionOutput -match 'version\s+"(?<major>\d+)') {
     }
 }
 
-# Gradle Wrapper uu tien JAVA_HOME. Dat lai trong rieng tien trinh nay neu
-# JAVA_HOME cua may dang sai nhung java.exe van co san trong PATH.
-$env:JAVA_HOME = Split-Path -Parent (Split-Path -Parent $javaExecutable)
+$gradleArguments = [System.Collections.Generic.List[string]]::new()
 
-$gradleArguments = @("--no-daemon", "clean", "build")
+if ($NoDaemon) {
+    $gradleArguments.Add("--no-daemon")
+}
+else {
+    $gradleArguments.Add("--daemon")
+}
+
+if ($Clean) {
+    $gradleArguments.Add("clean")
+}
+
+if ($Test) {
+    $gradleArguments.Add("build")
+    $gradleArguments.Add("pricingRegressionTest")
+}
+else {
+    $gradleArguments.Add("assemble")
+}
+
 if ($RefreshDependencies) {
-    $gradleArguments += "--refresh-dependencies"
+    $gradleArguments.Add("--refresh-dependencies")
+}
+
+if ($Run) {
+    $gradleArguments.Add("runClient")
 }
 
 Push-Location $projectRoot
+$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 try {
-    Write-Host "Dang build JAR tu source hien tai..." -ForegroundColor Cyan
-    & $gradleWrapper @gradleArguments
+    Write-Host "==========================================" -ForegroundColor Cyan
+    Write-Host " [Veloria] Dang build mod (Fast Incremental)..." -ForegroundColor Cyan
+    Write-Host "==========================================" -ForegroundColor Cyan
+
+    & $gradleWrapper $gradleArguments
 
     if ($LASTEXITCODE -ne 0) {
         throw "Gradle build that bai (exit code: $LASTEXITCODE)."
     }
 
-    $jar = Get-ChildItem -LiteralPath $libsDirectory -Filter "*.jar" -File |
-        Where-Object {
-            $_.Name -notmatch '-(sources|javadoc|dev|all-dev)\.jar$'
-        } |
-        Sort-Object LastWriteTimeUtc -Descending |
-        Select-Object -First 1
+    $stopwatch.Stop()
+    $duration = [math]::Round($stopwatch.Elapsed.TotalSeconds, 2)
 
-    if ($null -eq $jar) {
-        throw "Build thanh cong nhung khong tim thay JAR phat hanh trong: $libsDirectory"
-    }
+    $jar = Get-ChildItem -LiteralPath $libsDirectory -Filter "*.jar" -File -ErrorAction SilentlyContinue |
+    Where-Object {
+        $_.Name -notmatch '-(sources|javadoc|dev|all-dev)\.jar$'
+    } |
+    Sort-Object LastWriteTimeUtc -Descending |
+    Select-Object -First 1
 
     Write-Host ""
-    Write-Host "Build thanh cong!" -ForegroundColor Green
-    Write-Host "JAR: $($jar.FullName)"
-    Write-Host "Kich thuoc: $([math]::Round($jar.Length / 1MB, 2)) MB"
+    Write-Host "==========================================" -ForegroundColor Green
+    Write-Host " Build thanh cong trong ${duration}s!" -ForegroundColor Green
+    if ($null -ne $jar) {
+        Write-Host " File JAR  : $($jar.Name)" -ForegroundColor Yellow
+        Write-Host " Duong dan : $($jar.FullName)" -ForegroundColor Gray
+        Write-Host " Dung luong: $([math]::Round($jar.Length / 1MB, 2)) MB" -ForegroundColor Yellow
+    }
+    Write-Host "==========================================" -ForegroundColor Green
 }
 finally {
     Pop-Location

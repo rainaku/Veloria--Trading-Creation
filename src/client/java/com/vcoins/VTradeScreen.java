@@ -15,6 +15,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
@@ -277,7 +279,8 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
     private void extractSlotTooltip(GuiGraphicsExtractor extractor, int mouseX, int mouseY) {
         Slot slot = this.hoveredSlot;
         ItemStack stack = slot.getItem();
-        var tooltip = this.getTooltipFromContainerItem(stack);
+        var tooltip = new ArrayList<>(this.getTooltipFromContainerItem(stack));
+        VeloriaTooltip.removeDebugLines(tooltip, stack);
 
         if (slot.index < VTradeScreenHandler.SHOP_SLOT_COUNT) {
             long buyPrice = (selectedCategory == ShopCategory.BUYBACK)
