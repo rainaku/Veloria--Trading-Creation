@@ -17,6 +17,8 @@ public class VCoinsClientMod implements ClientModInitializer {
     public void onInitializeClient() {
         System.out.println("Initializing Veloria client...");
         
+        VMarketEngine.registerClientThread();
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> VMarketEngine.clearClientSync());
         registerScreens();
         registerKeybindings();
         registerNetworking();
@@ -37,7 +39,14 @@ public class VCoinsClientMod implements ClientModInitializer {
             VTRADING_CATEGORY
         ));
 
+        KeyMapping motionKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.vcoins.reduced_motion", InputConstants.Type.KEYBOARD, InputConstants.UNKNOWN.getValue(), VTRADING_CATEGORY));
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (motionKey.consumeClick()) {
+                boolean reduced = VCoinsPurchaseConfirm.toggleReducedMotion();
+                if (client.player != null) client.player.sendOverlayMessage(net.minecraft.network.chat.Component.translatable(
+                        reduced ? "vcoins.motion.reduced" : "vcoins.motion.full"));
+            }
             while (openShopKey.consumeClick()) {
                 ClientPlayNetworking.send(new OpenShopPayload());
             }
@@ -48,6 +57,7 @@ public class VCoinsClientMod implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(VCoinsSyncPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
                 if (context.client().player != null) {
+                    VeloriaMenuEffects.balanceChanged(VCoinsState.getCoins(context.client().player.getUUID()), payload.coins());
                     VCoinsState.setCoins(context.client().player.getUUID(), payload.coins());
                 }
             });
@@ -61,13 +71,27 @@ public class VCoinsClientMod implements ClientModInitializer {
 
         ClientPlayNetworking.registerGlobalReceiver(MarketSyncPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
-                VMarketEngine.applyClientSync(payload.serverEpochSecond(), payload.volumeModifiers());
+                VMarketEngine.applyClientSync(payload.serverEpochSecond(), payload.volumes());
             });
         });
     }
 
     private static void registerTooltips() {
         net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback.EVENT.register((stack, tooltipContext, tooltipType, lines) -> {
+            var player = net.minecraft.client.Minecraft.getInstance().player;
+            if (player != null && player.containerMenu instanceof VBlackMarketScreenHandler market) {
+                for (int i = 0; i < VBlackMarketScreenHandler.MARKET_SLOT_COUNT; i++) {
+                    if (market.slots.get(i).getItem() == stack) {
+                        long day = VBlackMarketScreen.getSyncedDay();
+                        lines.add(net.minecraft.network.chat.Component.translatable("vcoins.black_market.buy_price",
+                                String.format(java.util.Locale.ROOT, "%,d", VBlackMarket.getDiscountedPrice(stack, day)))
+                                .withStyle(net.minecraft.ChatFormatting.YELLOW));
+                        lines.add(net.minecraft.network.chat.Component.translatable("vcoins.black_market.discount",
+                                VBlackMarket.getDiscountPercent(stack, day)).withStyle(net.minecraft.ChatFormatting.GREEN));
+                        return;
+                    }
+                }
+            }
             long sellPrice = VCoinsPricing.getSellPrice(stack);
             long buyPrice = VCoinsPricing.getPrice(stack);
 
@@ -76,31 +100,28 @@ public class VCoinsClientMod implements ClientModInitializer {
             }
 
             for (net.minecraft.network.chat.Component line : lines) {
-                if (line.getString().contains("Velicoins")) {
+                if (line.getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents text
+                        && (text.getKey().equals("vcoins.tooltip.buy_price")
+                        || text.getKey().equals("vcoins.tooltip.sell_price"))) {
                     return;
                 }
             }
 
-            String itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-            VMarketEngine.MarketTrend trend = VMarketEngine.getTrend(itemId);
+            VMarketEngine.MarketTrend trend = VMarketEngine.getTrend(stack);
 
             lines.add(net.minecraft.network.chat.Component.empty());
             if (buyPrice > 0) {
                 net.minecraft.network.chat.MutableComponent buyComp = net.minecraft.network.chat.Component.translatable(
                         "vcoins.tooltip.buy_price", String.format(java.util.Locale.ROOT, "%,d", buyPrice))
                         .withStyle(net.minecraft.ChatFormatting.YELLOW);
-                if (trend.percentChange() != 0) {
-                    buyComp.append(net.minecraft.network.chat.Component.literal(" ")).append(trend.getBadge());
-                }
+                buyComp.append(net.minecraft.network.chat.Component.literal(" ")).append(trend.getBadge());
                 lines.add(buyComp);
             }
             if (sellPrice > 0) {
                 net.minecraft.network.chat.MutableComponent sellComp = net.minecraft.network.chat.Component.translatable(
                         "vcoins.tooltip.sell_price", String.format(java.util.Locale.ROOT, "%,d", sellPrice))
                         .withStyle(net.minecraft.ChatFormatting.GREEN);
-                if (trend.percentChange() != 0) {
-                    sellComp.append(net.minecraft.network.chat.Component.literal(" ")).append(trend.getBadge());
-                }
+                sellComp.append(net.minecraft.network.chat.Component.literal(" ")).append(VMarketEngine.getSellTrend(stack).getBadge());
                 lines.add(sellComp);
             }
         });

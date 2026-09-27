@@ -25,14 +25,13 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScreenHandler> {
-    private static final Identifier BLACK_MARKET_MENU =
-            Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/black_market_menu.png");
+    private final VeloriaMerchantPreview merchantPreview = new VeloriaMerchantPreview();
     private static final Identifier CARD_BACK =
             Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/card_back.png");
     private static final Identifier CARD_FRONT =
             Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/card_front.png");
 
-    private static final long FLIP_DURATION_MS = 450L;
+    private static final long FLIP_DURATION_MS = 250L;
     private static final float PI = (float) Math.PI;
     private static final float TWO_PI = (float) (Math.PI * 2.0);
 
@@ -57,6 +56,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
     private static int syncedRevealedMask = 0;
     private static int syncedPurchasedMask = 0;
     private static long syncedEpochDay = 0L;
+    public static long getSyncedDay() { return syncedEpochDay; }
 
     // Zero-allocation particle pool
     private static final int MAX_PARTICLES = 64;
@@ -107,7 +107,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         super.init();
 
         // Nút quay lại Cửa hàng chính
-        this.addRenderableWidget(Button.builder(Component.translatable("vcoins.back_to_shop"), button -> {
+        this.addRenderableWidget(VeloriaButton.create(Component.translatable("vcoins.back_to_shop"), button -> {
                     if (this.minecraft != null) {
                         this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.0f));
                     }
@@ -117,7 +117,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
                 .build());
 
         // Công tắc bật/tắt xác minh giao dịch >100k
-        this.verifyToggleButton = this.addRenderableWidget(Button.builder(
+        this.verifyToggleButton = this.addRenderableWidget(VeloriaButton.create(
                 VCoinsPurchaseConfirm.getToggleLabel(),
                 button -> {
                     boolean enabled = VCoinsPurchaseConfirm.toggleConfirmation();
@@ -137,7 +137,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
                 .build());
 
         // Nút Lật tất cả các lá bài (Reveal All)
-        this.revealAllButton = this.addRenderableWidget(Button.builder(Component.translatable("vcoins.black_market.reveal_all"), button -> revealAllCards())
+        this.revealAllButton = this.addRenderableWidget(VeloriaButton.create(Component.translatable("vcoins.black_market.reveal_all"), button -> revealAllCards())
                 .bounds(this.leftPos + 188, this.topPos + 5, 60, 16)
                 .build());
         updateRevealAllButtonState();
@@ -191,10 +191,13 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
     @Override
     public void extractBackground(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float delta) {
         super.extractBackground(extractor, mouseX, mouseY, delta);
+        merchantPreview.drawBehindMenu(extractor, this.leftPos, this.topPos, this.height, mouseX, mouseY);
 
-        // Draw custom 256x246 Black Market GUI
-        extractor.blit(RenderPipelines.GUI_TEXTURED, BLACK_MARKET_MENU,
-                this.leftPos, this.topPos, 0.0f, 0.0f, 256, 246, 256, 256);
+        InventoryTextures.panel(extractor, this.leftPos, this.topPos, this.imageWidth, this.imageHeight);
+        InventoryTextures.slots(extractor, this.leftPos + VBlackMarketScreenHandler.PLAYER_X,
+                this.topPos + VBlackMarketScreenHandler.PLAYER_INVENTORY_Y, 9, 3);
+        InventoryTextures.slots(extractor, this.leftPos + VBlackMarketScreenHandler.PLAYER_X,
+                this.topPos + VBlackMarketScreenHandler.PLAYER_HOTBAR_Y, 9, 1);
 
         // Player coin balance (centered in header plaque)
         long balance = this.minecraft != null && this.minecraft.player != null
@@ -219,6 +222,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
             extractor.centeredText(this.font, timerComponent,
                     this.leftPos + 128, this.topPos + 31, 0xFF00E5FF);
         }
+        VeloriaMenuEffects.draw(extractor, this.leftPos, this.topPos, this.imageWidth, this.imageHeight);
     }
 
     private Component getBalanceComponent(long balance) {
@@ -247,9 +251,9 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         int cardY = VBlackMarketScreenHandler.MARKET_Y;
         int cardSize = VBlackMarketScreenHandler.CARD_SIZE;
 
-        boolean hasNotStartedYet = isRevealed && start > 0 && now < start;
-        boolean isFlipping = isRevealed && start > 0 && now >= start && now < start + FLIP_DURATION_MS;
-        boolean isFullyRevealed = isRevealed && (start == 0 || now >= start + FLIP_DURATION_MS);
+        boolean hasNotStartedYet = !VCoinsPurchaseConfirm.isReducedMotion() && isRevealed && start > 0 && now < start;
+        boolean isFlipping = !VCoinsPurchaseConfirm.isReducedMotion() && isRevealed && start > 0 && now >= start && now < start + FLIP_DURATION_MS;
+        boolean isFullyRevealed = isRevealed && (VCoinsPurchaseConfirm.isReducedMotion() || start == 0 || now >= start + FLIP_DURATION_MS);
 
         if (!isRevealed || hasNotStartedYet) {
             renderUnrevealedCard(extractor, cardX, cardY, cardSize, isHovered, now);
@@ -262,7 +266,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
     }
 
     private void renderUnrevealedCard(GuiGraphicsExtractor extractor, int cardX, int cardY, int cardSize, boolean isHovered, long now) {
-        int liftY = isHovered ? 1 : 0;
+        int liftY = isHovered && !VCoinsPurchaseConfirm.isReducedMotion() ? 1 : 0;
         int drawY = cardY - liftY;
 
         // Draw custom card back with Veloria Golden Crest scaled to full 40x40 card
@@ -270,7 +274,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
 
         if (isHovered) {
             // Smooth single-pass golden pulse overlay
-            float pulse = (float) Math.sin((now & 1023) * (TWO_PI / 1024.0f));
+            float pulse = VCoinsPurchaseConfirm.isReducedMotion() ? 0f : (float) Math.sin((now & 1023) * (TWO_PI / 1024.0f));
             int alpha = (int) (35 + 25 * Math.max(0.0f, pulse));
             extractor.fill(cardX, drawY, cardX + cardSize, drawY + cardSize, (alpha << 24) | 0xFFD700);
         }
@@ -361,6 +365,9 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
             }
             extractor.item(slot.getItem(), slot.x, slot.y);
             extractor.itemDecorations(this.font, slot.getItem(), slot.x, slot.y);
+            extractor.centeredText(this.font,
+                    Component.literal("↓ -" + VBlackMarket.getDiscountPercent(slot.getItem(), syncedEpochDay) + "%"),
+                    cardX + cardSize / 2, cardY + cardSize - 10, 0xFF55FF55);
         }
 
         if (isPurchased) {
@@ -403,6 +410,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
     }
 
     private void renderParticles(GuiGraphicsExtractor extractor) {
+        if (VCoinsPurchaseConfirm.isReducedMotion()) { particleCount = 0; return; }
         if (particleCount == 0) return;
         long now = System.currentTimeMillis();
 
@@ -512,7 +520,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
         long now = System.currentTimeMillis();
         if (hoveredMarketSlot >= 0) {
             long start = flipStartTime[hoveredMarketSlot];
-            boolean isFlipping = start > 0 && now >= start && now < start + FLIP_DURATION_MS;
+            boolean isFlipping = !VCoinsPurchaseConfirm.isReducedMotion() && start > 0 && now >= start && now < start + FLIP_DURATION_MS;
             if (isFlipping) {
                 return;
             }
@@ -528,21 +536,22 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
                 extractor.setTooltipForNextFrame(this.font, SOLD_TOOLTIP, Optional.empty(), mouseX, mouseY);
                 return;
             }
+            renderSlotItemTooltip(extractor, mouseX, mouseY, hoveredMarketSlot);
+            return;
         }
 
         if (this.hoveredSlot != null && this.hoveredSlot.hasItem()) {
-            renderSlotItemTooltip(extractor, mouseX, mouseY);
+            renderSlotItemTooltip(extractor, mouseX, mouseY, this.hoveredSlot.index);
             return;
         }
 
         super.extractTooltip(extractor, mouseX, mouseY);
     }
 
-    private void renderSlotItemTooltip(GuiGraphicsExtractor extractor, int mouseX, int mouseY) {
-        int slotIdx = this.hoveredSlot.index;
+    private void renderSlotItemTooltip(GuiGraphicsExtractor extractor, int mouseX, int mouseY, int slotIdx) {
         long now = System.currentTimeMillis();
         long start = (slotIdx >= 0 && slotIdx < VBlackMarketScreenHandler.MARKET_SLOT_COUNT) ? flipStartTime[slotIdx] : 0;
-        boolean isFlipping = start > 0 && now >= start && now < start + FLIP_DURATION_MS;
+        boolean isFlipping = !VCoinsPurchaseConfirm.isReducedMotion() && start > 0 && now >= start && now < start + FLIP_DURATION_MS;
 
         boolean isRevealed = (slotIdx < VBlackMarketScreenHandler.MARKET_SLOT_COUNT)
                 && (((syncedRevealedMask & (1 << slotIdx)) != 0) || localRevealedCards.contains(slotIdx));
@@ -550,24 +559,26 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
             return;
         }
 
-        ItemStack stack = this.hoveredSlot.getItem();
-        List<Component> tooltip = new ArrayList<>(this.getTooltipFromContainerItem(stack));
+        ItemStack stack = this.menu.slots.get(slotIdx).getItem();
+        List<Component> tooltip = VeloriaTooltip.withoutPrices(this.getTooltipFromContainerItem(stack));
         long buyPrice = VCoinsPricing.getPrice(stack);
 
         if (slotIdx < VBlackMarketScreenHandler.MARKET_SLOT_COUNT) {
-            buildMarketItemTooltip(tooltip, stack, buyPrice);
+            buildMarketItemTooltip(tooltip, stack, VBlackMarket.getDiscountedPrice(stack, syncedEpochDay));
         } else {
             buildInventoryItemTooltip(tooltip, stack, buyPrice);
         }
 
-        extractor.setTooltipForNextFrame(this.font, tooltip, stack.getTooltipImage(), mouseX, mouseY);
+        extractor.setTooltipForNextFrame(this.font, tooltip, stack.getTooltipImage(), mouseX, mouseY,
+                    stack.get(net.minecraft.core.component.DataComponents.TOOLTIP_STYLE), true);
     }
 
     private void buildMarketItemTooltip(List<Component> tooltip, ItemStack stack, long buyPrice) {
         tooltip.add(Component.empty());
         tooltip.add(MERCHANT_TAG);
+        tooltip.add(Component.translatable("vcoins.black_market.discount", VBlackMarket.getDiscountPercent(stack, syncedEpochDay)).withStyle(ChatFormatting.GREEN));
         if (buyPrice > 0) {
-            tooltip.add(Component.translatable("vcoins.tooltip.buy_price", formatNumber(buyPrice))
+            tooltip.add(Component.translatable("vcoins.black_market.buy_price", formatNumber(buyPrice))
                     .withStyle(ChatFormatting.YELLOW));
         }
         tooltip.add(BUY_LEFT);
@@ -601,7 +612,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
             boolean isPurchased = (syncedPurchasedMask & (1 << slot)) != 0;
 
             // If already purchased or currently flipping, ignore click
-            if (isPurchased || (isRevealed && start > 0 && now >= start && now < start + FLIP_DURATION_MS)) {
+            if (isPurchased || (!VCoinsPurchaseConfirm.isReducedMotion() && isRevealed && start > 0 && now >= start && now < start + FLIP_DURATION_MS)) {
                 return true;
             }
 
@@ -632,7 +643,7 @@ public class VBlackMarketScreen extends AbstractContainerScreen<VBlackMarketScre
                 Slot s = this.menu.slots.get(slot);
                 if (s != null && s.hasItem()) {
                     ItemStack stack = s.getItem();
-                    long unitPrice = VCoinsPricing.getPrice(stack);
+                    long unitPrice = VBlackMarket.getDiscountedPrice(stack, syncedEpochDay);
                     int amount = buyStack ? stack.getMaxStackSize() : 1;
                     long totalCost = safeMultiply(unitPrice, amount);
 

@@ -12,6 +12,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 
 public class VDuplicateScreen extends AbstractContainerScreen<VDuplicateScreenHandler> {
+    private final VeloriaMerchantPreview merchantPreview = new VeloriaMerchantPreview();
     private static final int VANILLA_PANEL_WIDTH = 176;
     private static final int COST_PANEL_X = 180;
     private static final int COST_PANEL_WIDTH = 112;
@@ -25,7 +26,7 @@ public class VDuplicateScreen extends AbstractContainerScreen<VDuplicateScreenHa
     @Override
     protected void init() {
         super.init();
-        this.duplicateButton = Button.builder(Component.translatable("vcoins.duplicate.action"), button -> {
+        this.duplicateButton = VeloriaButton.create(Component.translatable("vcoins.duplicate.action"), button -> {
                     if (this.minecraft != null && this.minecraft.gameMode != null) {
                         this.minecraft.gameMode.handleInventoryButtonClick(this.menu.containerId, 0);
                     }
@@ -58,6 +59,7 @@ public class VDuplicateScreen extends AbstractContainerScreen<VDuplicateScreenHa
     @Override
     public void extractBackground(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float delta) {
         super.extractBackground(extractor, mouseX, mouseY, delta);
+        merchantPreview.drawBehindMenu(extractor, this.leftPos, this.topPos, this.height, mouseX, mouseY);
         InventoryTextures.panel(extractor, this.leftPos, this.topPos, VANILLA_PANEL_WIDTH, this.imageHeight);
         InventoryTextures.slots(extractor, this.leftPos + 27, this.topPos + 47, 1, 1);
         InventoryTextures.slots(extractor, this.leftPos + 134, this.topPos + 47, 1, 1);
@@ -67,6 +69,7 @@ public class VDuplicateScreen extends AbstractContainerScreen<VDuplicateScreenHa
 
         // Golden flow arrow between sample and output slot
         extractor.text(this.font, "➔", this.leftPos + 88, this.topPos + 51, 0xFFD4AF37, false);
+        VeloriaMenuEffects.draw(extractor, this.leftPos, this.topPos, this.imageWidth, this.imageHeight);
     }
     @Override
     protected void extractLabels(GuiGraphicsExtractor extractor, int mouseX, int mouseY) {
@@ -109,7 +112,7 @@ public class VDuplicateScreen extends AbstractContainerScreen<VDuplicateScreenHa
     protected void extractTooltip(GuiGraphicsExtractor extractor, int mouseX, int mouseY) {
         if (this.hoveredSlot != null && this.hoveredSlot.hasItem()) {
             ItemStack stack = this.hoveredSlot.getItem();
-            List<Component> tooltip = new ArrayList<>(this.getTooltipFromContainerItem(stack));
+            List<Component> tooltip = VeloriaTooltip.withoutPrices(this.getTooltipFromContainerItem(stack));
             long buyPrice = VCoinsPricing.getPrice(stack);
 
             if (buyPrice > 0) {
@@ -129,7 +132,8 @@ public class VDuplicateScreen extends AbstractContainerScreen<VDuplicateScreenHa
                     tooltip.add(Component.translatable("vcoins.duplicate.preview").withStyle(ChatFormatting.GRAY));
                 }
             }
-            extractor.setTooltipForNextFrame(this.font, tooltip, stack.getTooltipImage(), mouseX, mouseY);
+            extractor.setTooltipForNextFrame(this.font, tooltip, stack.getTooltipImage(), mouseX, mouseY,
+                    stack.get(net.minecraft.core.component.DataComponents.TOOLTIP_STYLE), true);
             return;
         }
         super.extractTooltip(extractor, mouseX, mouseY);

@@ -1,15 +1,16 @@
 {
-	"required": true,
-	"package": "com.vcoins.mixin.client",
-	"compatibilityLevel": "JAVA_25",
-	"mixins": [
-	],
-	"client": [
-	],
-	"injectors": {
-		"defaultRequire": 1
-	},
-	"overwrites": {
-		"requireAnnotations": true
-	}
+  "required": true,
+  "package": "com.vcoins.mixin.client",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [],
+  "client": [
+    "VeloriaMerchantRendererMixin",
+    "VeloriaDispatcherMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
 }

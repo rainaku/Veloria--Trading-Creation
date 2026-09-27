@@ -38,7 +38,45 @@ dependencies {
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 }
 
+// Only full-image decorations are resized. UV atlases and 16px item sprites stay exact.
+def runtimeTextureSizes = [
+    'assets/vcoins/textures/gui/veloria_obsidian.png': [256, 256],
+    'assets/vcoins/icon.png': [128, 128]
+]
+
 processResources {
+    inputs.property 'runtimeTextureSizes', runtimeTextureSizes
+    // Promotional artwork and the retired menu are retained in source control.
+    exclude 'assets/vcoins/banner.png', 'assets/vcoins/textures/gui/black_market_menu.png',
+            'assets/vcoins/textures/gui/veloria_merchant.png',
+            'assets/vcoins/textures/entity/veloria_merchant.png'
+    doLast {
+        runtimeTextureSizes.each { path, dimensions ->
+            def original = javax.imageio.ImageIO.read(file("src/main/resources/${path}"))
+            if (original == null) throw new GradleException("Cannot decode texture: ${path}")
+            def optimized = new java.awt.image.BufferedImage(dimensions[0], dimensions[1],
+                    java.awt.image.BufferedImage.TYPE_INT_ARGB)
+            def graphics = optimized.createGraphics()
+            try {
+                graphics.setComposite(java.awt.AlphaComposite.Src)
+                graphics.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                        java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+                graphics.drawImage(original, 0, 0, dimensions[0], dimensions[1], null)
+            } finally {
+                graphics.dispose()
+            }
+            def output = new File(destinationDir, path)
+            if (!javax.imageio.ImageIO.write(optimized, 'png', output)) {
+                throw new GradleException("Cannot encode texture: ${path}")
+            }
+            def decoded = javax.imageio.ImageIO.read(output)
+            if (decoded.width != dimensions[0] || decoded.height != dimensions[1]
+                    || !decoded.colorModel.hasAlpha()) {
+                throw new GradleException("Invalid optimized texture: ${path}")
+            }
+        }
+    }
+
 	def version = project.version
 	inputs.property "version", version
 
@@ -84,3 +122,33 @@ publishing {
 		// retrieving dependencies.
 	}
 }
+
+// Simulate market waves without starting a Minecraft client.
+sourceSets {
+    marketTest {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+}
+tasks.register('marketCycleTest', JavaExec) {
+    dependsOn marketTestClasses
+    classpath = sourceSets.marketTest.runtimeClasspath
+    mainClass = 'com.vcoins.MarketCycleTest'
+}
+tasks.named('check') { dependsOn 'marketCycleTest' }
+
+tasks.register('pricingRegressionTest', JavaExec) {
+    dependsOn marketTestClasses
+    classpath = sourceSets.marketTest.runtimeClasspath
+    mainClass = 'com.vcoins.PricingRegressionTest'
+}
+tasks.named('check') { dependsOn 'pricingRegressionTest' }
+
+sourceSets.marketTest.compileClasspath += sourceSets.client.output + sourceSets.client.compileClasspath
+sourceSets.marketTest.runtimeClasspath += sourceSets.client.output + sourceSets.client.runtimeClasspath
+tasks.register('merchantModelTest', JavaExec) {
+    dependsOn marketTestClasses, clientClasses
+    classpath = sourceSets.marketTest.runtimeClasspath
+    mainClass = 'com.vcoins.MerchantModelTest'
+}
+tasks.named('check') { dependsOn 'merchantModelTest' }

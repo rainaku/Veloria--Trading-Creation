@@ -34,6 +34,7 @@ public class VBlackMarketScreenHandler extends AbstractContainerMenu {
 
     private final Inventory playerInventory;
     private final Player player;
+    private long displayedEpochDay;
     private final Container marketInventory = new SimpleContainer(MARKET_SLOT_COUNT);
 
     public VBlackMarketScreenHandler(int syncId, Inventory playerInventory) {
@@ -80,6 +81,7 @@ public class VBlackMarketScreenHandler extends AbstractContainerMenu {
 
     public void refreshMarketSlots() {
         List<ItemStack> items = VBlackMarket.getDailyItems();
+        displayedEpochDay = VBlackMarket.getCurrentDay();
         marketInventory.clearContent();
         for (int i = 0; i < Math.min(items.size(), MARKET_SLOT_COUNT); i++) {
             marketInventory.setItem(i, items.get(i).copy());
@@ -100,6 +102,12 @@ public class VBlackMarketScreenHandler extends AbstractContainerMenu {
             return;
         }
 
+        if (displayedEpochDay != VBlackMarket.getCurrentDay()) {
+            refreshMarketSlots();
+            VBlackMarket.syncToPlayer(player);
+            return; // Never charge a newly rotated card for a click on yesterday's card.
+        }
+
         // Anti-exploit check: Has the card already been bought today?
         if (VBlackMarket.hasPurchasedToday(player.getUUID(), slotIndex)) {
             player.sendOverlayMessage(Component.translatable("vcoins.black_market.already_bought")
@@ -115,7 +123,7 @@ public class VBlackMarketScreenHandler extends AbstractContainerMenu {
         }
 
         ItemStack displayed = slot.getItem();
-        long unitPrice = VCoinsPricing.getPrice(displayed);
+        long unitPrice = VBlackMarket.getDiscountedPrice(displayed, VBlackMarket.getCurrentDay());
         if (unitPrice <= 0) {
             return;
         }

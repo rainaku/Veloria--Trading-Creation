@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 
 public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
+    private final VeloriaMerchantPreview merchantPreview = new VeloriaMerchantPreview();
     private final VCoinsPurchaseConfirm purchaseConfirm = new VCoinsPurchaseConfirm();
     private static final int TAB_WIDTH = 27;
     private static final int TAB_HEIGHT = 28;
@@ -81,7 +82,7 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
         this.addRenderableWidget(this.searchBox);
 
         // Công tắc bật/tắt xác minh giao dịch >100k
-        this.verifyToggleButton = this.addRenderableWidget(Button.builder(
+        this.verifyToggleButton = this.addRenderableWidget(VeloriaButton.create(
                 VCoinsPurchaseConfirm.getToggleLabel(),
                 button -> {
                     boolean enabled = VCoinsPurchaseConfirm.toggleConfirmation();
@@ -101,17 +102,17 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
                 .build());
 
         // Nút mở Menu Chợ Trời riêng
-        this.addRenderableWidget(Button.builder(Component.translatable("vcoins.tab.black_market"), button ->
+        this.addRenderableWidget(VeloriaButton.create(Component.translatable("vcoins.tab.black_market"), button ->
                         ClientPlayNetworking.send(new OpenBlackMarketPayload()))
                 .bounds(this.leftPos + 64, this.topPos + 132, 54, 16)
                 .build());
 
-        this.addRenderableWidget(Button.builder(Component.translatable("vcoins.buyback"), button ->
+        this.addRenderableWidget(VeloriaButton.create(Component.translatable("vcoins.buyback"), button ->
                         selectCategory(ShopCategory.BUYBACK))
                 .bounds(this.leftPos + 121, this.topPos + 132, 48, 16)
                 .build());
 
-        this.addRenderableWidget(Button.builder(Component.translatable("vcoins.duplicate.open"), button ->
+        this.addRenderableWidget(VeloriaButton.create(Component.translatable("vcoins.duplicate.open"), button ->
                         ClientPlayNetworking.send(new OpenDuplicatePayload()))
                 .bounds(this.leftPos + 172, this.topPos + 132, 50, 16)
                 .build());
@@ -142,6 +143,7 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
             return;
         }
 
+        VeloriaMenuEffects.categoryChanged();
         this.selectedCategory = category;
         this.scrollPosition = 0.0f;
         this.lastScrollOffset = 0;
@@ -155,6 +157,7 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
     @Override
     public void extractBackground(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float delta) {
         super.extractBackground(extractor, mouseX, mouseY, delta);
+        merchantPreview.drawBehindMenu(extractor, this.leftPos, this.topPos, this.height, mouseX, mouseY);
         drawTabs(extractor);
         drawPanel(extractor);
         drawSlotGrid(extractor, SHOP_X, SHOP_Y, VTradeScreenHandler.SHOP_COLUMNS, VTradeScreenHandler.SHOP_ROWS);
@@ -174,10 +177,6 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
             extractor.text(this.font, Component.translatable("vcoins.balance", formatNumber(balance)),
                     this.leftPos + 20, this.topPos + 24, 0xFFE8B829, true);
 
-            // Dynamic Market indicator
-            extractor.fill(this.leftPos + 158, this.topPos + 23, this.leftPos + 218, this.topPos + 34, 0x3300AAAA);
-            extractor.text(this.font, Component.translatable("vcoins.market.badge"),
-                    this.leftPos + 162, this.topPos + 24, 0xFF55FFFF, true);
         }
 
         // Toolbar background decorative tray
@@ -188,11 +187,18 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
         // Player Inventory label
         extractor.text(this.font, Component.translatable("vcoins.inventory"),
                 this.leftPos + PLAYER_X, this.topPos + 153, 0xFFC8A96E, false);
+        VeloriaMenuEffects.draw(extractor, this.leftPos, this.topPos, this.imageWidth, this.imageHeight);
     }
 
     @Override
     protected void extractSlot(GuiGraphicsExtractor extractor, Slot slot, int mouseX, int mouseY) {
         super.extractSlot(extractor, slot, mouseX, mouseY);
+        if (slot.index < VTradeScreenHandler.SHOP_SLOT_COUNT && slot.hasItem()
+                && selectedCategory != ShopCategory.BUYBACK) {
+            var trend = VMarketEngine.getTrend(slot.getItem());
+            extractor.text(this.font, Component.literal(trend.getArrow()).withStyle(trend.direction().getColor()),
+                    slot.x + 11, slot.y, 0xFFFFFFFF, true);
+        }
         if (slot.index < VTradeScreenHandler.SHOP_SLOT_COUNT && purchaseConfirm.isSlotPending(slot.index)) {
             purchaseConfirm.renderSlotWarningPulse(extractor, slot.x - 1, slot.y - 1, 18);
         }
@@ -215,10 +221,8 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
             boolean selected = TABS[index] == this.selectedCategory;
             String row = index < TOP_TAB_COUNT ? "top" : "bottom";
             int position = index < TOP_TAB_COUNT ? index + 1 : index - TOP_TAB_COUNT + 1;
-            Identifier sprite = Identifier.withDefaultNamespace("container/creative_inventory/tab_"
-                    + row + (selected ? "_selected_" : "_unselected_") + position);
-            extractor.blitSprite(RenderPipelines.GUI_TEXTURED, sprite,
-                    bounds.x(), bounds.y(), bounds.width(), bounds.height());
+            InventoryTextures.button(extractor, bounds.x(), bounds.y(), bounds.width(), bounds.height(),
+                    true, selected, selected ? 0.65f : 0f);
             if (selected) {
                 if (index < TOP_TAB_COUNT) {
                     extractor.fill(bounds.x() + 2, bounds.y() + bounds.height() - 2, bounds.x() + bounds.width() - 2, bounds.y() + bounds.height(), 0xFFD4AF37);
@@ -283,21 +287,26 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
 
     private void extractSlotTooltip(GuiGraphicsExtractor extractor, int mouseX, int mouseY) {
         ItemStack stack = this.hoveredSlot.getItem();
-        List<Component> tooltip = new ArrayList<>(this.getTooltipFromContainerItem(stack));
-        long buyPrice = VCoinsPricing.getPrice(stack);
+        List<Component> tooltip = this.getTooltipFromContainerItem(stack);
 
-        if (this.hoveredSlot.index < VTradeScreenHandler.SHOP_SLOT_COUNT) {
+        extractor.setTooltipForNextFrame(this.font, tooltip, stack.getTooltipImage(), mouseX, mouseY,
+                    stack.get(net.minecraft.core.component.DataComponents.TOOLTIP_STYLE), true);
+    }
+
+    @Override
+    protected List<Component> getTooltipFromContainerItem(ItemStack stack) {
+        List<Component> tooltip = VeloriaTooltip.withoutPrices(super.getTooltipFromContainerItem(stack));
+        long buyPrice = VCoinsPricing.getPrice(stack);
+        if (this.hoveredSlot != null && this.hoveredSlot.index < VTradeScreenHandler.SHOP_SLOT_COUNT) {
             appendShopSlotTooltip(tooltip, stack, buyPrice);
         } else {
             appendInventorySlotTooltip(tooltip, stack, buyPrice);
         }
-
-        extractor.setTooltipForNextFrame(this.font, tooltip, stack.getTooltipImage(), mouseX, mouseY);
+        return tooltip;
     }
 
     private void appendShopSlotTooltip(List<Component> tooltip, ItemStack stack, long buyPrice) {
-        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        VMarketEngine.MarketTrend trend = VMarketEngine.getTrend(itemId);
+        VMarketEngine.MarketTrend trend = VMarketEngine.getTrend(stack);
 
         tooltip.add(Component.empty());
         if (this.selectedCategory == ShopCategory.BUYBACK) {
@@ -305,9 +314,7 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
             if (buyPrice > 0) {
                 MutableComponent priceComp = Component.translatable(TOOLTIP_BUY_PRICE, formatNumber(buyPrice))
                         .withStyle(ChatFormatting.YELLOW);
-                if (trend.percentChange() != 0) {
-                    priceComp.append(Component.literal(" ")).append(trend.getBadge());
-                }
+                priceComp.append(Component.literal(" ")).append(trend.getBadge());
                 tooltip.add(priceComp);
             }
             tooltip.add(Component.translatable("vcoins.tooltip.buyback", formatNumber(totalPrice))
@@ -319,14 +326,10 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
             }
             MutableComponent priceComp = Component.translatable(TOOLTIP_BUY_PRICE, formatNumber(buyPrice))
                     .withStyle(ChatFormatting.YELLOW);
-            if (trend.percentChange() != 0) {
-                priceComp.append(Component.literal(" ")).append(trend.getBadge());
-            }
+            priceComp.append(Component.literal(" ")).append(trend.getBadge());
             tooltip.add(priceComp);
 
-            if (trend.percentChange() != 0) {
-                tooltip.add(Component.translatable(trend.reasonKey()).withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
-            }
+            tooltip.add(Component.translatable(trend.reasonKey()).withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
 
             tooltip.add(Component.translatable("vcoins.tooltip.buy_left").withStyle(ChatFormatting.GRAY));
             tooltip.add(Component.translatable("vcoins.tooltip.buy_shift").withStyle(ChatFormatting.GRAY));
@@ -337,31 +340,26 @@ public class VTradeScreen extends AbstractContainerScreen<VTradeScreenHandler> {
 
     private void appendInventorySlotTooltip(List<Component> tooltip, ItemStack stack, long buyPrice) {
         long sellPrice = VCoinsPricing.getSellPrice(stack);
-        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        VMarketEngine.MarketTrend trend = VMarketEngine.getTrend(itemId);
+        VMarketEngine.MarketTrend trend = VMarketEngine.getTrend(stack);
 
         if (buyPrice > 0 || sellPrice > 0) {
             tooltip.add(Component.empty());
             if (buyPrice > 0) {
                 MutableComponent buyComp = Component.translatable(TOOLTIP_BUY_PRICE, formatNumber(buyPrice))
                         .withStyle(ChatFormatting.YELLOW);
-                if (trend.percentChange() != 0) {
-                    buyComp.append(Component.literal(" ")).append(trend.getBadge());
-                }
+                buyComp.append(Component.literal(" ")).append(trend.getBadge());
                 tooltip.add(buyComp);
             }
         }
         if (sellPrice > 0) {
             MutableComponent sellComp = Component.translatable("vcoins.tooltip.sell_price", formatNumber(sellPrice))
                     .withStyle(ChatFormatting.GREEN);
-            if (trend.percentChange() != 0) {
-                sellComp.append(Component.literal(" ")).append(trend.getBadge());
-            }
+            sellComp.append(Component.literal(" ")).append(VMarketEngine.getSellTrend(stack).getBadge());
             tooltip.add(sellComp);
 
-            if (trend.percentChange() > 0) {
+            if (VMarketEngine.getSellTrend(stack).percentChange() > 0) {
                 tooltip.add(Component.translatable("vcoins.market.sell_opportunity_high").withStyle(ChatFormatting.DARK_GREEN, ChatFormatting.ITALIC));
-            } else if (trend.percentChange() < 0) {
+            } else if (VMarketEngine.getSellTrend(stack).percentChange() < 0) {
                 tooltip.add(Component.translatable("vcoins.market.sell_opportunity_low").withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));
             }
 

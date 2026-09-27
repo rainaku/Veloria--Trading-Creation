@@ -35,6 +35,7 @@ public class VCoinsPurchaseConfirm {
     private static final File CONFIG_FILE = new File("config/vcoins_client.json");
     private static boolean confirmationEnabled = true;
     private static boolean configLoaded = false;
+    private static boolean reducedMotion = false;
 
     private int pendingSlot = -1;
     private boolean pendingBuyStack = false;
@@ -51,6 +52,15 @@ public class VCoinsPurchaseConfirm {
 
     public interface ConfirmationCallback {
         void execute(int slotIndex, boolean buyStack);
+    }
+
+    public static boolean isReducedMotion() { ensureLoaded(); return reducedMotion; }
+
+    public static boolean toggleReducedMotion() {
+        ensureLoaded();
+        reducedMotion = !reducedMotion;
+        saveConfig();
+        return reducedMotion;
     }
 
     public static boolean isConfirmationEnabled() {
@@ -86,6 +96,7 @@ public class VCoinsPurchaseConfirm {
             if (CONFIG_FILE.exists()) {
                 try (FileReader reader = new FileReader(CONFIG_FILE)) {
                     JsonObject obj = GSON.fromJson(reader, JsonObject.class);
+                    if (obj != null && obj.has("reducedMotion")) reducedMotion = obj.get("reducedMotion").getAsBoolean();
                     if (obj != null && obj.has("confirm100k")) {
                         confirmationEnabled = obj.get("confirm100k").getAsBoolean();
                     }
@@ -104,6 +115,7 @@ public class VCoinsPurchaseConfirm {
             }
             JsonObject obj = new JsonObject();
             obj.addProperty("confirm100k", confirmationEnabled);
+            obj.addProperty("reducedMotion", reducedMotion);
             try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
                 GSON.toJson(obj, writer);
             }
@@ -193,7 +205,7 @@ public class VCoinsPurchaseConfirm {
         if (!isArmed()) return;
 
         long now = System.currentTimeMillis();
-        float pulse = (float) Math.sin((now & 1023) * ((Math.PI * 2.0) / 1024.0));
+        float pulse = isReducedMotion() ? 0f : (float) Math.sin((now & 1023) * ((Math.PI * 2.0) / 1024.0));
         int alpha = (int) (220 + 35 * Math.max(0.0f, pulse));
 
         // Dark amber backdrop
@@ -224,7 +236,7 @@ public class VCoinsPurchaseConfirm {
     public void renderSlotWarningPulse(GuiGraphicsExtractor extractor, int slotX, int slotY, int slotSize) {
         if (!isArmed()) return;
         long now = System.currentTimeMillis();
-        float pulse = (float) Math.sin((now & 511) * ((Math.PI * 2.0) / 512.0));
+        float pulse = isReducedMotion() ? 0f : (float) Math.sin((now & 511) * ((Math.PI * 2.0) / 512.0));
         int a = (int) (60 + 50 * Math.max(0.0f, pulse));
         extractor.fill(slotX, slotY, slotX + slotSize, slotY + slotSize, (a << 24) | 0xFFB300);
     }

@@ -277,7 +277,7 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
             return;
         }
 
-        String cursorItemId = BuiltInRegistries.ITEM.getKey(cursorStack.getItem()).toString();
+        String cursorItemId = VCoinsPricing.getMarketKey(cursorStack);
         int count = cursorStack.getCount();
         long total = safeMultiply(unitPrice, count);
         VCoinsState.addCoins(player.getUUID(), total);
@@ -378,7 +378,7 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
         ItemStack purchased = displayedStack.copy();
         purchased.setCount(amount);
         player.getInventory().placeItemBackInInventory(purchased, Prediction.SERVER_ONLY);
-        VMarketEngine.recordBuy(itemId, amount);
+        VMarketEngine.recordBuy(VCoinsPricing.getMarketKey(displayedStack), amount);
         if (player.level().getServer() != null) {
             VMarketEngine.syncToActiveShoppers(player.level().getServer());
         }
@@ -422,7 +422,7 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
             return;
         }
 
-        String soldItemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        String soldItemId = VCoinsPricing.getMarketKey(stack);
         int count = stack.getCount();
         long total = safeMultiply(unitPrice, count);
         VCoinsState.addCoins(player.getUUID(), total);
@@ -490,7 +490,7 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
             }
 
             int count = stack.getCount();
-            String soldItemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+            String soldItemId = VCoinsPricing.getMarketKey(stack);
             VMarketEngine.recordSell(soldItemId, count);
             long stackValue = safeMultiply(unitPrice, count);
             totalEarned = totalEarned > Long.MAX_VALUE - stackValue ? Long.MAX_VALUE : totalEarned + stackValue;

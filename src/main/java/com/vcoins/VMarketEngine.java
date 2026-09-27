@@ -16,6 +16,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.time.Instant;
+import net.minecraft.world.item.ItemStack;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,8 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class VMarketEngine {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    public static final double MIN_MULTIPLIER = 0.30;
-    public static final double MAX_MULTIPLIER = 2.50;
+    public static final double MIN_MULTIPLIER = 0.25;
+    public static final double MAX_MULTIPLIER = 4.00;
     public static final double HALF_LIFE_SECONDS = 1800.0; // 30 minutes mean-reversion half-life
 
     public static class MarketItemState {
@@ -41,7 +42,7 @@ public class VMarketEngine {
         SURGING(ChatFormatting.GOLD),
         RISING(ChatFormatting.GREEN),
         STABLE(ChatFormatting.GRAY),
-        FALLING(ChatFormatting.GOLD),
+        FALLING(ChatFormatting.RED),
         CRASHING(ChatFormatting.RED);
 
         private final ChatFormatting color;
@@ -61,9 +62,17 @@ public class VMarketEngine {
             TrendDirection direction,
             String reasonKey
     ) {
+        public String getArrow() {
+            return switch (direction) {
+                case RISING, SURGING -> "↑";
+                case FALLING, CRASHING -> "↓";
+                case STABLE -> "→";
+            };
+        }
+
         public Component getBadge() {
             String prefix = percentChange > 0 ? "+" : "";
-            return Component.literal("(" + prefix + percentChange + "%)")
+            return Component.translatable("vcoins.market.price_badge", getArrow(), prefix + percentChange)
                     .withStyle(direction.getColor());
         }
     }
@@ -73,34 +82,24 @@ public class VMarketEngine {
     private static long lastSavedEpochSecond = 0L;
 
     // Client-side synchronization cache
-    private static final Map<String, Float> clientVolumeModifiers = new ConcurrentHashMap<>();
+    private static final Map<String, MarketItemState> clientItemStates = new ConcurrentHashMap<>();
+    private static volatile Thread clientThread;
+
+    public static void registerClientThread() { clientThread = Thread.currentThread(); }
+    private static boolean isClientThread() { return Thread.currentThread() == clientThread; }
+    public static void clearClientSync() { clientItemStates.clear(); clientServerEpochDelta = 0; }
     private static long clientServerEpochDelta = 0L;
 
     public static long getEffectiveEpochSecond() {
-        return Instant.now().getEpochSecond() + clientServerEpochDelta;
+        return Instant.now().getEpochSecond() + (isClientThread() ? clientServerEpochDelta : 0);
     }
 
-    /**
-     * Calculates the macroeconomic harmonic cycle for an item.
-     * Moves organically between -12% and +12% throughout real-world time.
-     */
-    public static double getMacroCycle(String itemId, ShopCategory category, long epochSecond) {
-        int hash = Math.abs(itemId.hashCode());
-        double itemPhase = (hash % 1000) * 0.006283; // 0 to 2*PI
-        double categoryPhase = (category != null ? category.ordinal() : 0) * 0.7854; // PI/4 per category
-
-        // 4-hour macroeconomic wave (amplitude 8%)
-        double cycle4h = 0.08 * Math.sin(2.0 * Math.PI * (epochSecond % 14400) / 14400.0 + categoryPhase + itemPhase);
-        // 1-hour micro commodity oscillation (amplitude 4%)
-        double cycle1h = 0.04 * Math.cos(2.0 * Math.PI * (epochSecond % 3600) / 3600.0 + itemPhase * 1.5);
-
-        return cycle4h + cycle1h;
+    /** Continuous multi-day waves; no random jump at midnight. */
+    public static double getDailyMultiplier(String itemId, long epochSecond) {
+        return MarketCycle.multiplier(itemId, VCoinsPricing.isRareMarketItem(itemId), epochSecond);
     }
 
-    /**
-     * Calculates market depth (liquidity) based on base price.
-     * High value items (diamonds) have small depth; cheap items (cobble) have large depth.
-     */
+    /** Market depth decreases as the base price increases. */
     public static int calculateMarketDepth(long basePrice) {
         if (basePrice <= 0) {
             basePrice = 1;
@@ -132,104 +131,51 @@ public class VMarketEngine {
         return Math.max(-0.65, Math.min(1.35, ratio * 0.25));
     }
 
-    public static double getVolumeModifier(String itemId, long basePrice, long nowEpoch) {
-        if (!clientVolumeModifiers.isEmpty()) {
-            // Client side or synced view
-            return clientVolumeModifiers.getOrDefault(itemId, 0.0f);
-        }
-        // Server side authoritative view
-        MarketItemState state = serverItemStates.get(itemId);
-        if (state != null) {
-            int volume = getDecayedVolume(state, nowEpoch);
-            return calculateVolumeModifier(volume, basePrice);
-        }
-        return 0.0;
+    public static double getVolumeModifier(String key, long basePrice, long nowEpoch) {
+        MarketItemState state = (isClientThread() ? clientItemStates : serverItemStates).get(key);
+        return state == null ? 0 : calculateVolumeModifier(getDecayedVolume(state, nowEpoch), basePrice);
     }
 
-    /**
-     * Retrieves the current dynamic price multiplier for buying an item.
-     */
-    public static double getMultiplier(String itemId) {
-        long basePrice = VCoinsPricing.getBasePrice(itemId);
-        if (basePrice <= 0) {
-            return 1.0;
-        }
-
-        long nowEpoch = getEffectiveEpochSecond();
-        ShopCategory category = VCoinsPricing.getCategory(itemId);
-        double macroCycle = getMacroCycle(itemId, category, nowEpoch);
-        double volumeMod = getVolumeModifier(itemId, basePrice, nowEpoch);
-
-        double total = 1.0 + macroCycle + volumeMod;
-        return Math.max(MIN_MULTIPLIER, Math.min(MAX_MULTIPLIER, total));
+    public static double getMultiplier(String key) {
+        return multiplierAt(key, getEffectiveEpochSecond(), false);
     }
 
-    /**
-     * Retrieves the dynamic price multiplier for SELLING an item.
-     * ANTI-PUMP-AND-DUMP:
-     * Buying from the shop creates positive volumeMod (surging buy price), but positive volumeMod
-     * CANNOT artificially pump the sell price above the macroeconomic baseline (1.0 + macroCycle).
-     * However, oversupply / mass-selling (volumeMod < 0) immediately pushes the sell price down towards
-     * MIN_MULTIPLIER (0.30), effectively penalizing automated farm dumping.
-     */
-    public static double getSellMultiplier(String itemId) {
-        long basePrice = VCoinsPricing.getBasePrice(itemId);
-        if (basePrice <= 0) {
-            return 1.0;
-        }
-
-        long nowEpoch = getEffectiveEpochSecond();
-        ShopCategory category = VCoinsPricing.getCategory(itemId);
-        double macroCycle = getMacroCycle(itemId, category, nowEpoch);
-        double volumeMod = getVolumeModifier(itemId, basePrice, nowEpoch);
-
-        // Clamp positive volumeMod to 0.0 so buying spikes never inflate sell payouts!
-        double effectiveVolumeMod = Math.min(0.0, volumeMod);
-        double total = 1.0 + macroCycle + effectiveVolumeMod;
-        return Math.max(MIN_MULTIPLIER, Math.min(1.0 + macroCycle, total));
+    public static double getSellMultiplier(String key) {
+        return multiplierAt(key, getEffectiveEpochSecond(), true);
     }
 
-    /**
-     * Retrieves rich trend information for UI rendering.
-     */
-    public static MarketTrend getTrend(String itemId) {
-        double mult = getMultiplier(itemId);
-        int percent = (int) Math.round((mult - 1.0) * 100.0);
+    public static double multiplierAt(String key, long epoch, boolean selling) {
+        long base = VCoinsPricing.getBasePrice(key);
+        if (base <= 0) return 1;
+        double volume = getVolumeModifier(key, base, epoch);
+        return MarketCycle.withPressure(getDailyMultiplier(key, epoch), selling ? Math.min(0, volume) : volume,
+                VCoinsPricing.isRareMarketItem(key));
+    }
 
-        long nowEpoch = getEffectiveEpochSecond();
-        ShopCategory category = VCoinsPricing.getCategory(itemId);
-        double cycle = getMacroCycle(itemId, category, nowEpoch);
+    public static MarketTrend getTrend(String key) { return trend(key, false, null); }
+    public static MarketTrend getTrend(ItemStack stack) { return trend(VCoinsPricing.getMarketKey(stack), false, stack); }
+    public static MarketTrend getSellTrend(ItemStack stack) { return trend(VCoinsPricing.getMarketKey(stack), true, stack); }
 
-        long basePrice = VCoinsPricing.getBasePrice(itemId);
-        double volumeMod;
-        if (!clientVolumeModifiers.isEmpty()) {
-            volumeMod = clientVolumeModifiers.getOrDefault(itemId, 0.0f);
-        } else {
-            MarketItemState state = serverItemStates.get(itemId);
-            volumeMod = (state != null) ? calculateVolumeModifier(getDecayedVolume(state, nowEpoch), basePrice) : 0.0;
+    private static MarketTrend trend(String key, boolean selling, ItemStack stack) {
+        long now = getEffectiveEpochSecond();
+        double mult = multiplierAt(key, now, selling);
+        int percent = (int) Math.round((mult - 1) * 100);
+        if (stack != null) {
+            long reference = selling ? VCoinsPricing.getReferenceSellPrice(stack) : VCoinsPricing.getReferencePrice(stack);
+            long current = selling ? VCoinsPricing.getSellPrice(stack) : VCoinsPricing.getPrice(stack);
+            percent = reference <= 0 ? 0 : (int) Math.round((current / (double) reference - 1) * 100);
         }
+        // Icon and badge describe the same rounded deviation from the reference price.
+        TrendDirection direction = directionForPercent(percent);
+        double volume = getVolumeModifier(key, VCoinsPricing.getBasePrice(key), now);
+        String reason = Math.abs(volume) < 0.04 ? "vcoins.market.reason.cycle"
+                : volume > 0 ? "vcoins.market.reason.demand" : "vcoins.market.reason.supply";
+        return new MarketTrend(mult, percent, direction, reason);
+    }
 
-        String reasonKey;
-        if (Math.abs(volumeMod) >= 0.04) {
-            reasonKey = volumeMod > 0 ? "vcoins.market.reason.demand" : "vcoins.market.reason.supply";
-        } else {
-            reasonKey = "vcoins.market.reason.cycle";
-        }
-
-        TrendDirection direction;
-        if (percent >= 15) {
-            direction = TrendDirection.SURGING;
-        } else if (percent >= 3) {
-            direction = TrendDirection.RISING;
-        } else if (percent <= -15) {
-            direction = TrendDirection.CRASHING;
-        } else if (percent <= -3) {
-            direction = TrendDirection.FALLING;
-        } else {
-            direction = TrendDirection.STABLE;
-        }
-
-        return new MarketTrend(mult, percent, direction, reasonKey);
+    static TrendDirection directionForPercent(int percent) {
+        return percent > 0 ? TrendDirection.RISING
+                : percent < 0 ? TrendDirection.FALLING : TrendDirection.STABLE;
     }
 
     public static void recordBuy(String itemId, int count) {
@@ -266,8 +212,6 @@ public class VMarketEngine {
             if (decayed == 0) {
                 return true;
             }
-            entry.getValue().netVolume = decayed;
-            entry.getValue().lastTradedEpoch = now;
             return false;
         });
 
@@ -278,7 +222,7 @@ public class VMarketEngine {
         if (server == null) return;
         MarketSyncPayload payload = createSyncPayload();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (player.containerMenu instanceof VTradeScreenHandler) {
+            if (player.containerMenu instanceof VTradeScreenHandler || player.containerMenu instanceof VBlackMarketScreenHandler) {
                 ServerPlayNetworking.send(player, payload);
             }
         }
@@ -291,32 +235,24 @@ public class VMarketEngine {
 
     public static MarketSyncPayload createSyncPayload() {
         long now = Instant.now().getEpochSecond();
-        Map<String, Float> volumeMods = new HashMap<>();
-        for (Map.Entry<String, MarketItemState> entry : serverItemStates.entrySet()) {
-            long base = VCoinsPricing.getBasePrice(entry.getKey());
+        Map<String, Integer> volumes = new HashMap<>();
+        for (var entry : serverItemStates.entrySet()) {
             int volume = getDecayedVolume(entry.getValue(), now);
-            if (volume != 0) {
-                float mod = (float) calculateVolumeModifier(volume, base);
-                if (Math.abs(mod) >= 0.005f) {
-                    volumeMods.put(entry.getKey(), mod);
-                }
-            }
+            if (volume != 0) volumes.put(entry.getKey(), volume);
         }
-        return new MarketSyncPayload(now, volumeMods);
+        return new MarketSyncPayload(now, volumes);
     }
 
-    public static void applyClientSync(long serverEpochSecond, Map<String, Float> volumeModifiers) {
-        long localEpoch = Instant.now().getEpochSecond();
-        clientServerEpochDelta = serverEpochSecond - localEpoch;
-        clientVolumeModifiers.clear();
-        if (volumeModifiers != null) {
-            clientVolumeModifiers.putAll(volumeModifiers);
-        }
+    public static void applyClientSync(long serverEpochSecond, Map<String, Integer> volumes) {
+        clientServerEpochDelta = serverEpochSecond - Instant.now().getEpochSecond();
+        clientItemStates.clear();
+        if (volumes != null) volumes.forEach((key, volume) ->
+                clientItemStates.put(key, new MarketItemState(volume, serverEpochSecond)));
     }
 
     public static void reset(MinecraftServer server) {
         serverItemStates.clear();
-        clientVolumeModifiers.clear();
+        clearClientSync();
         if (server != null) {
             save(server);
             syncToActiveShoppers(server);
@@ -328,6 +264,7 @@ public class VMarketEngine {
     }
 
     public static void load(MinecraftServer server) {
+        serverItemStates.clear();
         File file = new File(server.getWorldPath(LevelResource.ROOT).toFile(), "vcoins_market.json");
         if (file.exists()) {
             try (FileReader reader = new FileReader(file)) {
@@ -361,7 +298,7 @@ public class VMarketEngine {
             for (Map.Entry<String, MarketItemState> entry : serverItemStates.entrySet()) {
                 int decayed = getDecayedVolume(entry.getValue(), now);
                 if (decayed != 0) {
-                    itemsMap.put(entry.getKey(), new ItemSaveRecord(decayed, entry.getValue().lastTradedEpoch));
+                    itemsMap.put(entry.getKey(), new ItemSaveRecord(decayed, now));
                 }
             }
             MarketSaveData data = new MarketSaveData(now, itemsMap);

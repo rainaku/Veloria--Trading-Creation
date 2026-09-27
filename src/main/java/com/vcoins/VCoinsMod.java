@@ -61,7 +61,8 @@ public class VCoinsMod implements ModInitializer {
         });
 
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (server.getTickCount() % 100 == 0) {
+            // Reconcile live quotes every second; trades also push immediate updates.
+            if (server.getTickCount() % 20 == 0) {
                 VMarketEngine.tick(server);
             }
         });

@@ -227,7 +227,16 @@ public class VCoinsPricing {
 
     public static long getBasePrice(String itemId) {
         ensureInitialized();
-        return prices.getOrDefault(itemId, 0L);
+        return prices.getOrDefault(itemId.split("\\|", 2)[0], 0L);
+    }
+
+    public static boolean isRareMarketItem(String itemId) {
+        if (itemId.contains("|")) return true; // Enchanted variants use rare-item limits.
+        Item item = BuiltInRegistries.ITEM.getValue(net.minecraft.resources.Identifier.parse(itemId));
+        Rarity rarity = item.getDefaultInstance().getRarity();
+        return rarity == Rarity.RARE || rarity == Rarity.EPIC || VBlackMarket.isValuableItem(item)
+                || itemId.contains("diamond") || itemId.contains("netherite")
+                || itemId.equals("minecraft:dragon_egg");
     }
 
     public static long getPrice(String itemId) {
@@ -243,24 +252,30 @@ public class VCoinsPricing {
      * Returns the exact price of a stack, including its normal and stored
      * enchantments. The count is intentionally ignored; callers multiply by it.
      */
-    public static long getPrice(ItemStack stack) {
-        if (stack.isEmpty()) {
-            return 0L;
-        }
+    /** Same enchantment types share a cycle across levels, preserving level ordering. */
+    public static String getMarketKey(ItemStack stack) {
+        String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        var enchantments = new java.util.TreeSet<>(getEnchantmentValues(stack).keySet());
+        return enchantments.isEmpty() ? id : id + "|" + String.join(",", enchantments);
+    }
 
-        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        long basePrice = getPrice(itemId);
-        // Vanilla rarity colors are not a measure of acquisition effort (a
-        // craftable golden apple is RARE, for example). Our vanilla catalogue is
-        // priced explicitly; the floor remains useful only for unknown mod items.
-        if (!itemId.startsWith("minecraft:")) {
-            basePrice = Math.max(basePrice,
-                    getRarityFloor(stack.getItem().getDefaultInstance().getRarity()));
-        }
-        if (basePrice <= 0) {
-            return 0L;
-        }
-        return safeAdd(basePrice, getEnchantmentPremium(stack));
+    public static long getReferencePrice(ItemStack stack) {
+        if (stack.isEmpty()) return 0L;
+        String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        long base = getBasePrice(id);
+        if (base <= 0) return 0L;
+        if (!id.startsWith("minecraft:")) base = Math.max(base, getRarityFloor(stack.getItem().getDefaultInstance().getRarity()));
+        return safeAdd(base, getEnchantmentPremium(stack));
+    }
+
+    public static long getPrice(ItemStack stack) {
+        long reference = getReferencePrice(stack);
+        return reference <= 0 ? 0 : Math.max(1L, Math.round(reference * VMarketEngine.getMultiplier(getMarketKey(stack))));
+    }
+
+    public static long getReferenceSellPrice(ItemStack stack) {
+        String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        return calculateSellPrice(id, getDurabilityAdjustedPrice(stack, getReferencePrice(stack)));
     }
 
     public static long getSellPrice(String itemId) {
@@ -274,21 +289,11 @@ public class VCoinsPricing {
     }
 
     public static long getSellPrice(ItemStack stack) {
-        if (stack.isEmpty()) {
-            return 0L;
-        }
-
-        String itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        long basePrice = getBasePrice(itemId);
-        if (basePrice <= 0) {
-            long buyPrice = getPrice(stack);
-            return calculateSellPrice(itemId, getDurabilityAdjustedPrice(stack, buyPrice));
-        }
-
-        double sellMultiplier = VMarketEngine.getSellMultiplier(itemId);
-        long marketAdjustedBase = Math.max(1L, Math.round(basePrice * sellMultiplier));
-        long fullPrice = safeAdd(marketAdjustedBase, getEnchantmentPremium(stack));
-        return calculateSellPrice(itemId, getDurabilityAdjustedPrice(stack, fullPrice));
+        long reference = getReferencePrice(stack);
+        if (reference <= 0) return 0L;
+        String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        long adjusted = Math.max(1L, Math.round(reference * VMarketEngine.getSellMultiplier(getMarketKey(stack))));
+        return calculateSellPrice(id, getDurabilityAdjustedPrice(stack, adjusted));
     }
 
     private static long calculateSellPrice(String itemId, long buyPrice) {
@@ -317,7 +322,7 @@ public class VCoinsPricing {
         }
 
         // 3. Other items (Tools, Combat, Rare exploration loot): 35% sell margin
-        return buyPrice * 35L / 100L;
+        return percentageOf(buyPrice, 35);
     }
 
     private static boolean isFarmableOrCrafted(String path) {
@@ -1065,6 +1070,11 @@ public class VCoinsPricing {
             if (level >= value.enchantment().value().getMaxLevel()) {
                 enchantmentPrice = safeAdd(enchantmentPrice, percentageOf(enchantmentPrice, 25));
             }
+
+            // High-level enchantments receive a 15x price buff to prevent early-game economy inflation.
+            if (isHighLevelEnchantment(entry.getKey(), level, value.enchantment().value().getMaxLevel())) {
+                enchantmentPrice = safeMultiply(enchantmentPrice, 15L);
+            }
             premium = safeAdd(premium, enchantmentPrice);
         }
 
@@ -1088,11 +1098,16 @@ public class VCoinsPricing {
         }
 
         return switch (path) {
-            case "mending" -> 350_000L;
+            case "mending" -> 600_000L;
             case "wind_burst" -> 400_000L;
             case "swift_sneak" -> 250_000L;
             case "soul_speed" -> 150_000L;
-            case "silk_touch", "infinity", "channeling" -> 80_000L;
+            case "silk_touch", "infinity" -> 300_000L;
+            case "efficiency" -> 45_000L;
+            case "fortune", "looting" -> 100_000L;
+            case "unbreaking" -> 60_000L;
+            case "protection", "sharpness", "power" -> 35_000L;
+            case "channeling" -> 80_000L;
             default -> {
                 if (weight >= 10) yield 8_000L;
                 if (weight >= 5) yield 20_000L;
@@ -1100,6 +1115,20 @@ public class VCoinsPricing {
                 yield 100_000L;
             }
         };
+    }
+
+    private static boolean isHighLevelEnchantment(String id, int level, int maxLevel) {
+        String path = id.substring(id.indexOf(':') + 1);
+        if (path.contains("curse")) {
+            return false;
+        }
+        if (maxLevel <= 1) {
+            return true;
+        }
+        if (maxLevel <= 3) {
+            return level >= 2;
+        }
+        return level >= 3;
     }
 
     private static Map<String, EnchantmentValue> getEnchantmentValues(ItemStack stack) {

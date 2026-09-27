@@ -118,8 +118,9 @@ public final class VCoinsCommands {
         long value = safeMultiply(unitPrice, count);
         VCoinsState.addCoins(player.getUUID(), value);
         VCoinsMod.syncCoins(player);
-        VMarketEngine.recordSell(itemId, count);
+        VMarketEngine.recordSell(VCoinsPricing.getMarketKey(stack), count);
         VMarketEngine.syncToPlayer(player);
+        VMarketEngine.syncToActiveShoppers(player.level().getServer());
         VTradeScreenHandler.addBuyback(player, stack.copy());
         stack.setCount(0);
 
@@ -148,7 +149,7 @@ public final class VCoinsCommands {
 
             int count = stack.getCount();
             String itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-            VMarketEngine.recordSell(itemId, count);
+            VMarketEngine.recordSell(VCoinsPricing.getMarketKey(stack), count);
             totalEarned = safeAdd(totalEarned, safeMultiply(unitPrice, count));
             VTradeScreenHandler.addBuyback(player, stack.copy());
             stack.setCount(0);
@@ -162,6 +163,7 @@ public final class VCoinsCommands {
         VCoinsState.addCoins(player.getUUID(), totalEarned);
         VCoinsMod.syncCoins(player);
         VMarketEngine.syncToPlayer(player);
+        VMarketEngine.syncToActiveShoppers(player.level().getServer());
         player.playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 0.9f, 1.2f);
         player.playSound(SoundEvents.BUNDLE_DROP_CONTENTS, 0.7f, 1.25f);
         player.sendSystemMessage(Component.translatable("vcoins.command.sell_all_success",
