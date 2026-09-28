@@ -9,10 +9,10 @@ import net.minecraft.server.level.ServerPlayer;
 
 public class VBlackMarketScreenHandler extends AbstractContainerMenu {
     public static final int MENU_W = 354;
-    public static final int MENU_H = 286;
+    public static final int MENU_H = 354;
     public static final int PLAYER_X = (MENU_W - 9 * 18) / 2; // = 96
-    public static final int PLAYER_INVENTORY_Y = 196;
-    public static final int PLAYER_HOTBAR_Y = 254;
+    public static final int PLAYER_INVENTORY_Y = 264;
+    public static final int PLAYER_HOTBAR_Y = 322;
 
     private final Inventory playerInventory;
     private final Player player;

@@ -141,8 +141,8 @@ final class VeloriaCardVfx {
     }
 
     /** Smooth tapered particle trail orbiting the card in 3D perspective using pure textures (no laggy lines). */
-    private static void comet(GuiGraphicsExtractor g, float cx, float cy, float rx, float ry,
-                              double angle, double tilt, int direction, float alpha, int rgb, float size, boolean mythic) {
+    static void comet(GuiGraphicsExtractor g, float cx, float cy, float rx, float ry,
+                      double angle, double tilt, int direction, float alpha, int rgb, float size, boolean mythic) {
         if (alpha < 0.015f) return;
         double ct = Math.cos(tilt), st = Math.sin(tilt);
         // Bright radiant comet head
@@ -170,22 +170,23 @@ final class VeloriaCardVfx {
         if (elapsed < 700 || envelope < 0.015f) return;
         int tier = mythic ? 1 : 0;
         float beamFade = Math.clamp((elapsed - 700f) / 280f, 0f, 1f) * envelope;
-        float beamW = (mythic ? 68f : 52f) * stage;
+        float beamW = (mythic ? 64f : 50f) * stage;
         float beamH = 220f * stage;
         int color = mythic ? MYTHIC_SEARING : GOLD_LIGHT;
         int coreColor = 0xFFFFFF;
 
-        // 1. Ascending upper and descending lower outer beams
-        layer(g, BEAM_UP[tier], cx, cardTop - beamH / 2f, beamW, beamH, 0f, beamFade * 0.75f, color, 512);
-        layer(g, BEAM_DOWN[tier], cx, cardBottom + beamH / 2f, beamW, beamH, 0f, beamFade * 0.75f, color, 512);
+        // 1. Soft atmospheric background pillar column
+        float pillarH = beamH * 2.4f;
+        float pillarW = beamW * 1.6f;
+        layer(g, BEAM[tier], cx, (cardTop + cardBottom) / 2f, pillarW, pillarH, 0f, beamFade * 0.32f, color, 512);
 
-        // 2. High-intensity incandescent center core pillar
-        layer(g, BEAM_UP[tier], cx, cardTop - beamH / 2f, beamW * 0.32f, beamH, 0f, beamFade * 0.95f, coreColor, 512);
-        layer(g, BEAM_DOWN[tier], cx, cardBottom + beamH / 2f, beamW * 0.32f, beamH, 0f, beamFade * 0.95f, coreColor, 512);
+        // 2. Ascending upper and descending lower celestial beams extending outward from card
+        layer(g, BEAM_UP[tier], cx, cardTop - beamH / 2f, beamW, beamH, 0f, beamFade * 0.70f, color, 512);
+        layer(g, BEAM_DOWN[tier], cx, cardBottom + beamH / 2f, beamW, beamH, 0f, beamFade * 0.70f, color, 512);
 
-        // 3. Fullscreen towering pillar of light (cinematic_beam)
-        float pillarH = beamH * 2.2f;
-        layer(g, BEAM[tier], cx, (cardTop + cardBottom) / 2f, beamW * 0.85f, pillarH, 0f, beamFade * 0.50f, color, 512);
+        // 3. High-intensity incandescent center core pillar
+        layer(g, BEAM_UP[tier], cx, cardTop - beamH / 2f, beamW * 0.38f, beamH, 0f, beamFade * 0.85f, coreColor, 512);
+        layer(g, BEAM_DOWN[tier], cx, cardBottom + beamH / 2f, beamW * 0.38f, beamH, 0f, beamFade * 0.85f, coreColor, 512);
 
         // 4. Stardust motes ascending & descending along the pillar
         int moteCount = mythic ? 8 : 5;
@@ -220,13 +221,14 @@ final class VeloriaCardVfx {
         int light = mythic ? MYTHIC_SEARING : GOLD_LIGHT;
         float time = elapsed / 1000f;
 
-        // 1. Radiant Solar Sunburst Crown behind the card
+        // 1. Radiant Solar Sunburst Crown behind the card with dual harmonic counter-rotation
         float charge = Math.clamp(elapsed / 700f, 0f, 1f);
         float opening = Math.clamp((elapsed - 700f) / 1000f, 0f, 1f);
         float crownAlpha = envelope * (elapsed < 700 ? charge * 0.45f : 0.65f * (1f - opening * 0.35f));
         float crownSize = (elapsed < 700 ? 120f + charge * 80f : 200f + 140f * (1f - (float) Math.pow(1 - opening, 2))) * stage;
-        float rotSun = (float)(time * (mythic ? -0.18 : 0.14));
+        float rotSun = (float)(time * (mythic ? -0.16 : 0.12));
         layer(g, SUNBURST[tier], cx, cy, crownSize, crownSize, rotSun, crownAlpha, light, 512);
+        layer(g, SUNBURST[tier], cx, cy, crownSize * 0.76f, crownSize * 0.76f, -rotSun * 1.35f, crownAlpha * 0.40f, 0xFFFFFF, 512);
 
         if (elapsed < 700) return;
 
@@ -529,35 +531,13 @@ final class VeloriaCardVfx {
         }
     }
 
-    /**
-     * Card Face Luxury FX:
-     * - 45-degree holographic diagonal foil sheen sweep across the card face
-     * - Prismatic border glow using high-resolution custom card hover texture
-     */
+    /** Prismatic border glow using the high-resolution custom card hover texture. */
     static void gloryCardFace(GuiGraphicsExtractor g, float cx, float cy, float scaleX, float scaleY,
                              float stage, long elapsed, float envelope, boolean mythic) {
         if (elapsed < 700 || envelope < 0.015f) return;
         int tier = mythic ? 1 : 0;
-        int lightColor = mythic ? MYTHIC_SEARING : GOLD_LIGHT;
 
-        // 1. Holographic Foil Sheen Sweep across the card surface
-        float sweepProgress;
-        if (elapsed < 1300) {
-            sweepProgress = Math.clamp((elapsed - 720f) / 560f, 0f, 1f);
-        } else {
-            sweepProgress = ((elapsed - 1300) % 2400) / 750f;
-        }
-
-        if (sweepProgress >= 0f && sweepProgress <= 1f) {
-            float sheenAlpha = (float) Math.sin(sweepProgress * Math.PI) * envelope * 0.85f;
-            float travelX = (-32f + sweepProgress * 64f) * scaleX;
-            float travelY = (40f - sweepProgress * 80f) * scaleY;
-            float sheenSize = 78f * scaleY;
-            layer(g, FOIL_SHEEN, cx + travelX, cy + travelY, sheenSize, sheenSize,
-                    (float) Math.PI / 4f, sheenAlpha, lightColor, 128);
-        }
-
-        // 2. Prismatic Edge Luster: High-res custom textured border glow
+        // Prismatic Edge Luster: High-res custom textured border glow
         float edgeBreathe = 0.70f + 0.30f * (float) Math.sin((elapsed - 700) * 0.004);
         float borderW = 54f * scaleX;
         float borderH = 68f * scaleY;

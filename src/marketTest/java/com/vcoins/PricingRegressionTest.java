@@ -35,6 +35,8 @@ public final class PricingRegressionTest {
         registries = VanillaRegistries.createWorldLookup();
         net.minecraft.core.registries.BuiltInRegistries.DATA_COMPONENT_INITIALIZERS.build(registries).forEach(pending -> pending.apply());
         VCoinsPricing.ensureInitialized();
+        testCommonBlockAnchor();
+        testTierMultipliers();
 
         ItemStack mending = book(Enchantments.MENDING, 1);
         ItemStack infinity = book(Enchantments.INFINITY, 1);
@@ -55,6 +57,45 @@ public final class PricingRegressionTest {
         testEndgameAndMarketElasticity();
 
         LOGGER.info("Pricing regression checks passed: {}", checks);
+    }
+
+    private static void testTierMultipliers() {
+        String[] tiers = {"common", "uncommon", "rare", "epic", "exclusive"};
+        int[] percents = {100, 125, 150, 200, 300};
+        for (int i = 0; i < tiers.length; i++) {
+            ItemStack stack = new ItemStack(Items.DIRT);
+            String tier = tiers[i];
+            net.minecraft.world.item.component.CustomData.update(net.minecraft.core.component.DataComponents.CUSTOM_DATA,
+                    stack, tag -> tag.putString("VCardTier", tier));
+            require(VCoinsPricing.getTierPricePercent(stack) == percents[i], "Tier multiplier: " + tier);
+            long reference = 390L * percents[i] / 100;
+            require(VCoinsPricing.getReferencePrice(stack) == reference, "Buy applies tier once: " + tier);
+            require(VCoinsPricing.getReferenceSellPrice(stack) == reference * 30 / 100, "Sell applies tier once: " + tier);
+            require(VCoinsPricing.getSellPrice(stack) < VCoinsPricing.getPrice(stack), "Tier preserves spread: " + tier);
+        }
+        for (var item : new net.minecraft.world.item.Item[]{Items.SAND, Items.ENDER_PEARL, Items.GOLDEN_APPLE, Items.ENCHANTED_GOLDEN_APPLE}) {
+            ItemStack stack = new ItemStack(item);
+            String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString();
+            require(VCoinsPricing.getPrice(id) == VCoinsPricing.getPrice(stack), "String and stack tier buy agree: " + id);
+            require(VCoinsPricing.getSellPrice(id) == VCoinsPricing.getSellPrice(stack), "String and stack tier sell agree: " + id);
+            require(VCoinsPricing.getAllPrices().get(id) == VCoinsPricing.getBasePrice(id), "Catalogue includes tier: " + id);
+        }
+    }
+
+    private static void testCommonBlockAnchor() {
+        long sand = VCoinsPricing.getReferenceSellPrice(new ItemStack(Items.SAND));
+        require(sand == 152L, "Sand integer unit sale anchor");
+        require(Math.abs(sand * 54 * 64 - 525_000L) < 54 * 64 / 2,
+                "Double chest of sand is nearest whole-unit payout to 525k");
+        require(VCoinsPricing.getBasePrice("minecraft:cobblestone") == 507L, "Cobble follows sand anchor");
+        require(VCoinsPricing.getReferenceSellPrice(new ItemStack(Items.DIRT)) < sand, "Dirt cheaper than sand");
+        require(VCoinsPricing.getReferenceSellPrice(new ItemStack(Items.NETHERRACK)) < sand, "Netherrack cheaper than sand");
+        require(VCoinsPricing.getBasePrice("minecraft:oak_log") == 1_014L, "Logs follow common rebalance");
+        require(VCoinsPricing.getBasePrice("minecraft:spruce_planks") == VCoinsPricing.getBasePrice("minecraft:oak_planks"),
+                "Explicit and fallback wood variants share pricing");
+        require(VCoinsPricing.getBasePrice("minecraft:diamond") == 10_000L, "Minerals retain their prices");
+        VCoinsPricing.init();
+        require(VCoinsPricing.getReferenceSellPrice(new ItemStack(Items.SAND)) == sand, "Reinitialization does not compound discount");
     }
 
     private static void testEnchantmentPricing(ItemStack efficiency) {
@@ -85,12 +126,21 @@ public final class PricingRegressionTest {
                 last = price;
             }
         }
-        // Verify high-level enchantment 15x buff to avoid early-game inflation
-        require(VCoinsPricing.getReferencePrice(book(Enchantments.EFFICIENCY, 5)) >= 100_000_000L, "Efficiency 5 15x buff");
-        require(VCoinsPricing.getReferencePrice(book(Enchantments.EFFICIENCY, 1)) <= 2_000_000L, "Efficiency 1 stays affordable early");
-        require(VCoinsPricing.getReferencePrice(book(Enchantments.MENDING, 1)) >= 8_000_000L, "Mending 15x buff");
-        require(VCoinsPricing.getReferencePrice(book(Enchantments.FORTUNE, 3)) >= 80_000_000L, "Fortune 3 15x buff");
-        require(VCoinsPricing.getReferencePrice(book(Enchantments.PROTECTION, 4)) >= 50_000_000L, "Protection 4 15x buff");
+        // Renewable books stay affordable while max levels retain meaningful value.
+        require(VCoinsPricing.getReferencePrice(book(Enchantments.EFFICIENCY, 5)) == 1_925_000L * VCoinsPricing.getTierPricePercent(new ItemStack(Items.ENCHANTED_BOOK)) / 100, "Efficiency V balanced price");
+        require(VCoinsPricing.getReferencePrice(book(Enchantments.EFFICIENCY, 1)) == 110_000L * VCoinsPricing.getTierPricePercent(new ItemStack(Items.ENCHANTED_BOOK)) / 100, "Efficiency I entry price");
+        require(VCoinsPricing.getReferencePrice(book(Enchantments.MENDING, 1)) == 1_300_000L * VCoinsPricing.getTierPricePercent(new ItemStack(Items.ENCHANTED_BOOK)) / 100, "Mending balanced price");
+        require(VCoinsPricing.getReferencePrice(book(Enchantments.FORTUNE, 3)) == 1_850_000L * VCoinsPricing.getTierPricePercent(new ItemStack(Items.ENCHANTED_BOOK)) / 100, "Fortune III balanced price");
+        require(VCoinsPricing.getReferencePrice(book(Enchantments.PROTECTION, 4)) == 1_050_000L * VCoinsPricing.getTierPricePercent(new ItemStack(Items.ENCHANTED_BOOK)) / 100, "Protection IV balanced price");
+        require(VCoinsPricing.getReferencePrice(book(Enchantments.WIND_BURST, 3)) == 6_800_000L * VCoinsPricing.getTierPricePercent(new ItemStack(Items.ENCHANTED_BOOK)) / 100, "Rare books retain higher value");
+        long maxPrice = VCoinsPricing.getReferencePrice(book(Enchantments.EFFICIENCY, 5));
+        long priorPrice = VCoinsPricing.getReferencePrice(book(Enchantments.EFFICIENCY, 4));
+        require(maxPrice > priorPrice * 3 / 2 && maxPrice < priorPrice * 2, "Max level premium without a price cliff");
+        ItemStack maxGear = new ItemStack(Items.DIAMOND_PICKAXE);
+        maxGear.enchant(registries.lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.EFFICIENCY), 5);
+        require(VCoinsPricing.getReferencePrice(maxGear)
+                - VCoinsPricing.getReferencePrice(new ItemStack(Items.DIAMOND_PICKAXE)) == 140_625_000L,
+                "Book rebalance preserves equipment valuation");
     }
 
     private static void testEnchantmentCombinationsAndDurability(ItemStack mending) {
@@ -119,11 +169,11 @@ public final class PricingRegressionTest {
                     VMarketEngine.directionForPercent(percent), "vcoins.market.reason.cycle");
             String expectedArrow;
             if (percent < 0) {
-                expectedArrow = "â†“";
+                expectedArrow = "↓";
             } else if (percent > 0) {
-                expectedArrow = "â†‘";
+                expectedArrow = "↑";
             } else {
-                expectedArrow = "â†’";
+                expectedArrow = "→";
             }
             require(trend.getArrow().equals(expectedArrow),
                     "Arrow matches displayed percent: " + percent);
@@ -180,7 +230,7 @@ public final class PricingRegressionTest {
         require(VCoinsPricing.getBuybackPrice(godMin) == 0, "God relic has no buyback quote");
         require(VDuplicatePricing.getCoinCost(godMin) == 0, "God relic cannot become a cheap duplicate");
         require(VBlackMarket.getRomanGodItemPrice(godMin) == 300_000_000L, "God item minimum price 300M");
-        require(VBlackMarket.getDiscountedPrice(godMin, 100) == 300_000_000L, "God item price is fixed independently");
+        require(VBlackMarket.getDiscountedPrice(godMin, 100) == 0L, "Legend claim is free");
         require(VBlackMarket.getDiscountPercent(godMin, 100) == 0, "God item has 0 discount (fixed prestige price)");
         if (godMin.getMaxDamage() > 0) {
             require(godMin.getMaxDamage() - godMin.getDamageValue() >= 200, "Durability >= 200 at minimum price: " + (godMin.getMaxDamage() - godMin.getDamageValue()));

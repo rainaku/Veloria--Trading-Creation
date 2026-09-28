@@ -61,8 +61,10 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
     private static final int BM_CARD_W       = 48;
     private static final int BM_CARD_H       = 60;
     private static final int BM_CARD_SPACING = 64;
+    private static final int BM_CARDS_PER_ROW = 5;
+    private static final int BM_ROW_GAP      = 26;
     private static final int BM_CARD_START_X = (VBlackMarketScreenHandler.MENU_W - (4 * BM_CARD_SPACING + BM_CARD_W)) / 2;
-    private static final int BM_CARD_Y       = 68;
+    private static final int BM_CARD_Y       = 58;
     private static final long BM_FLIP_MS     = 480L;
     private static final float TWO_PI = (float) (Math.PI * 2.0);
     private static final long VFX_EPOCH_NANOS = System.nanoTime();
@@ -102,10 +104,18 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
 
     public static void handleSyncPayload(BlackMarketSyncPayload payload) {
         var client = net.minecraft.client.Minecraft.getInstance();
+        // Deck transition triggers when epoch day or reset sequence changes.
+        // Also trigger when the server clears revealedMask to 0 (e.g. admin reset
+        // that keeps the same sequence) while the client previously had reveals,
+        // so localRevealedCards gets flushed and the new card batch (with any
+        // injected legend) becomes flippable.
+        boolean serverClearedReveals = payload.revealedMask() == 0 && syncedRevealedMask != 0;
         if (client != null && client.gui != null
                 && client.gui.screen() instanceof VBlackMarketScreen screen
                 && !syncedCards.isEmpty()
-                && (payload.epochDay() != syncedEpochDay || payload.resetSequence() != syncedResetSequence)) {
+                && (payload.epochDay() != syncedEpochDay
+                        || payload.resetSequence() != syncedResetSequence
+                        || serverClearedReveals)) {
             screen.beginDeckTransition();
         }
         if (payload.epochDay() != syncedEpochDay) {
@@ -131,6 +141,17 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
     }
 
     public void onSyncReceived(int newResetSequence, long newDay) {
+        // Safety-net: if the server has reset revealed cards to 0 but we still hold
+        // local flip state (e.g. from an admin reset that didn't change the sequence),
+        // clear the stale local state so the freshly-dealt cards (including any
+        // injected legend guarantee) can actually be flipped.
+        if (syncedRevealedMask == 0 && !localRevealedCards.isEmpty()) {
+            localRevealedCards.clear();
+            Arrays.fill(flipStartTime, 0L);
+            Arrays.fill(hasSpawnedStartParticles, false);
+            Arrays.fill(hasSpawnedMidParticles, false);
+            Arrays.fill(hasSpawnedFinishParticles, false);
+        }
         updateWidgets();
     }
 
@@ -173,21 +194,24 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
 
     private void drawDeckTransition(GuiGraphicsExtractor g, long now) {
         long elapsed = now - deckTransitionStart;
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < VBlackMarket.DAILY_ITEM_COUNT; i++) {
             boolean outgoing = elapsed < 350;
-            float t = outgoing ? Math.clamp((elapsed - i * 22f) / 240f, 0f, 1f)
-                    : Math.clamp((elapsed - 350 - i * 55f) / 300f, 0f, 1f);
+            float t = outgoing ? Math.clamp((elapsed - i * 15f) / 240f, 0f, 1f)
+                    : Math.clamp((elapsed - 350 - i * 40f) / 300f, 0f, 1f);
             if ((outgoing && t >= 1) || (!outgoing && t <= 0)) continue;
             float eased = t * t * (3 - 2 * t);
             float size = outgoing ? 1 - eased : eased;
-            float homeX = this.leftPos + BM_CARD_START_X + i * BM_CARD_SPACING + BM_CARD_W / 2f;
+            int col = i % BM_CARDS_PER_ROW;
+            int row = i / BM_CARDS_PER_ROW;
+            float homeX = this.leftPos + BM_CARD_START_X + col * BM_CARD_SPACING + BM_CARD_W / 2f;
+            float homeY = this.topPos + BM_CARD_Y + row * (BM_CARD_H + BM_ROW_GAP) + BM_CARD_H / 2f;
             float centerX = this.leftPos + this.imageWidth / 2f;
+            float centerY = this.topPos + BM_CARD_Y + BM_CARD_H + BM_ROW_GAP / 2f + BM_CARD_H / 2f;
             float cx = outgoing ? homeX + (centerX - homeX) * eased : centerX + (homeX - centerX) * eased;
-            // Integer half-height matches the resting renderer exactly at the final frame.
-            float cy = this.topPos + BM_CARD_Y + BM_CARD_H / 2 + (1 - size) * 12;
+            float cy = outgoing ? homeY + (centerY - homeY) * eased : centerY + (homeY - centerY) * eased;
             g.pose().pushMatrix();
             g.pose().translate(cx, cy);
-            g.pose().rotate((1 - size) * (i - 2) * 0.10f);
+            g.pose().rotate((1 - size) * (col - 2) * 0.08f);
             g.pose().scale(Math.max(0.01f, size), Math.max(0.01f, size));
             boolean face = outgoing && (outgoingRevealedMask & (1 << i)) != 0;
             List<ItemStack> deck = outgoing ? outgoingCards : syncedCards;
@@ -218,11 +242,11 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
 
     // Flip Animations & Particle State
     private final Set<Integer> localRevealedCards = new HashSet<>();
-    private final long[] flipStartTime = new long[5];
-    private final boolean[] hasSpawnedStartParticles = new boolean[5];
-    private final boolean[] hasSpawnedMidParticles = new boolean[5];
-    private final boolean[] hasSpawnedFinishParticles = new boolean[5];
-    private final float[] cardHoverProgress = new float[5];
+    private final long[] flipStartTime = new long[10];
+    private final boolean[] hasSpawnedStartParticles = new boolean[10];
+    private final boolean[] hasSpawnedMidParticles = new boolean[10];
+    private final boolean[] hasSpawnedFinishParticles = new boolean[10];
+    private final float[] cardHoverProgress = new float[10];
     private int lastHoveredCardIndex = -1;
 
     // Particle pool (expanded for legendary god pull fireworks)
@@ -297,7 +321,7 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
                         }
                     }
                 })
-                .bounds(this.leftPos + 318, this.topPos + 180, 16, 12)
+                .bounds(this.leftPos + 318, this.topPos + 248, 16, 12)
                 .tooltip(VCoinsPurchaseConfirm.getToggleTooltip())
                 .build());
 
@@ -310,13 +334,13 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
                     }
                     ClientPlayNetworking.send(new OpenShopPayload());
                 })
-                .bounds(this.leftPos + 40, this.topPos + 160, 80, 16)
+                .bounds(this.leftPos + 40, this.topPos + 228, 80, 16)
                 .build());
 
         this.blackMarketTabButton = this.addRenderableWidget(VeloriaButton.create(
                 Component.translatable("vcoins.tab.black_market"),
                 button -> {})
-                .bounds(this.leftPos + 131, this.topPos + 160, 92, 16)
+                .bounds(this.leftPos + 131, this.topPos + 228, 92, 16)
                 .build());
 
         this.duplicateTabButton = this.addRenderableWidget(VeloriaButton.create(
@@ -327,7 +351,7 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
                     }
                     ClientPlayNetworking.send(new OpenDuplicatePayload());
                 })
-                .bounds(this.leftPos + 234, this.topPos + 160, 80, 16)
+                .bounds(this.leftPos + 234, this.topPos + 228, 80, 16)
                 .build());
 
         updateWidgets();
@@ -343,12 +367,12 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
     private void updateWidgets() {
         if (this.bmRevealAllButton != null) {
             int count = 0;
-            for (int i = 0; i < 5; i++) {
+            for (int i = 0; i < VBlackMarket.DAILY_ITEM_COUNT; i++) {
                 if (((syncedRevealedMask & (1 << i)) != 0) || localRevealedCards.contains(i)) {
                     count++;
                 }
             }
-            this.bmRevealAllButton.active = (count < 5) && !deckTransitionActive();
+            this.bmRevealAllButton.active = (count < VBlackMarket.DAILY_ITEM_COUNT) && !deckTransitionActive();
         }
         if (this.bmResetButton != null) {
             this.bmResetButton.active = !deckTransitionActive();
@@ -364,11 +388,11 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
     private void revealAllCards() {
         if (deckTransitionActive()) return;
         long now = System.currentTimeMillis();
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < VBlackMarket.DAILY_ITEM_COUNT; i++) {
             boolean isRevealed = ((syncedRevealedMask & (1 << i)) != 0) || localRevealedCards.contains(i);
             if (!isRevealed) {
                 localRevealedCards.add(i);
-                flipStartTime[i] = now + i * 75L;
+                flipStartTime[i] = now + i * 50L;
                 hasSpawnedStartParticles[i] = false;
                 hasSpawnedMidParticles[i] = false;
                 hasSpawnedFinishParticles[i] = false;
@@ -425,8 +449,12 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
             if (isGodItem && !VCoinsPurchaseConfirm.isReducedMotion()) {
                 godPullStartTime = now;
                 godPullCardIndex = card;
-                triggerGodPullCelebration(this.leftPos + BM_CARD_START_X + card * BM_CARD_SPACING + BM_CARD_W / 2,
-                                          this.topPos + BM_CARD_Y + BM_CARD_H / 2, clickedStack);
+                int cardCol = card % BM_CARDS_PER_ROW;
+                int cardRow = card / BM_CARDS_PER_ROW;
+                triggerGodPullCelebration(
+                        this.leftPos + BM_CARD_START_X + cardCol * BM_CARD_SPACING + BM_CARD_W / 2,
+                        this.topPos + BM_CARD_Y + cardRow * (BM_CARD_H + BM_ROW_GAP) + BM_CARD_H / 2,
+                        clickedStack);
             }
 
             ClientPlayNetworking.send(new BlackMarketRevealPayload(card));
@@ -446,19 +474,21 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
         ItemStack item = syncedCards.get(card);
         long price = VBlackMarket.getDiscountedPrice(item, syncedEpochDay, syncedResetSequence);
         // One purchase delivers the complete displayed card quantity.
-        if (!purchaseConfirm.checkOrArm(card, false, item, price, this.minecraft)) return;
+        if (!VBlackMarket.isRomanGodItem(item) && !VBlackMarket.isMythicItem(item)
+                && !purchaseConfirm.checkOrArm(card, false, item, price, this.minecraft)) return;
         ClientPlayNetworking.send(new BlackMarketBuyPayload(card, buyStack));
     }
 
     private int getBlackMarketCardAt(double mouseX, double mouseY) {
-        int cardY = this.topPos + BM_CARD_Y;
-        if (mouseY < cardY || mouseY >= cardY + BM_CARD_H) {
-            return -1;
-        }
-        for (int i = 0; i < 5; i++) {
-            int cardX = this.leftPos + BM_CARD_START_X + i * BM_CARD_SPACING;
-            if (mouseX >= cardX && mouseX < cardX + BM_CARD_W) {
-                return i;
+        for (int row = 0; row < 2; row++) {
+            int cardRowY = this.topPos + BM_CARD_Y + row * (BM_CARD_H + BM_ROW_GAP);
+            if (mouseY >= cardRowY && mouseY < cardRowY + BM_CARD_H) {
+                for (int col = 0; col < BM_CARDS_PER_ROW; col++) {
+                    int cardX = this.leftPos + BM_CARD_START_X + col * BM_CARD_SPACING;
+                    if (mouseX >= cardX && mouseX < cardX + BM_CARD_W) {
+                        return row * BM_CARDS_PER_ROW + col;
+                    }
+                }
             }
         }
         return -1;
@@ -487,16 +517,16 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
         InventoryTextures.slots(extractor, this.leftPos + VBlackMarketScreenHandler.PLAYER_X, this.topPos + VBlackMarketScreenHandler.PLAYER_HOTBAR_Y, 9, 1);
 
         // Toolbar decorative tray
-        extractor.fill(this.leftPos + 20, this.topPos + 158, this.leftPos + 334, this.topPos + 178, 0x55080310);
-        extractor.fill(this.leftPos + 20, this.topPos + 158, this.leftPos + 334, this.topPos + 159, 0x22D4AF37);
-        extractor.fill(this.leftPos + 20, this.topPos + 177, this.leftPos + 334, this.topPos + 178, 0x22D4AF37);
+        extractor.fill(this.leftPos + 20, this.topPos + 226, this.leftPos + 334, this.topPos + 246, 0x55080310);
+        extractor.fill(this.leftPos + 20, this.topPos + 226, this.leftPos + 334, this.topPos + 227, 0x22D4AF37);
+        extractor.fill(this.leftPos + 20, this.topPos + 245, this.leftPos + 334, this.topPos + 246, 0x22D4AF37);
 
         // Highlight line under active mode button (Black Market - orange)
-        extractor.fill(this.leftPos + 131, this.topPos + 175, this.leftPos + 223, this.topPos + 176, 0xFFFFAA00);
+        extractor.fill(this.leftPos + 131, this.topPos + 243, this.leftPos + 223, this.topPos + 244, 0xFFFFAA00);
 
         // Player Inventory label
         extractor.text(this.font, Component.translatable("vcoins.inventory"),
-                this.leftPos + VBlackMarketScreenHandler.PLAYER_X, this.topPos + 184, 0xFFC8A96E, false);
+                this.leftPos + VBlackMarketScreenHandler.PLAYER_X, this.topPos + 252, 0xFFC8A96E, false);
 
         VeloriaMenuEffects.draw(extractor, this.leftPos, this.topPos, this.imageWidth, this.imageHeight);
     }
@@ -525,17 +555,19 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
             purchaseConfirm.renderBanner(extractor, this.font, this.leftPos + 20, this.topPos + 39, 314, 14);
         }
 
-        // 5 Cards Rendering
+        // 10 Cards Rendering (2 rows x 5 columns)
         long now = System.currentTimeMillis();
         if (deckTransitionActive()) {
             drawDeckTransition(extractor, now);
             return;
         }
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < VBlackMarket.DAILY_ITEM_COUNT; i++) {
             // The cinematic owns this card until it has returned to its slot.
             if (i == godPullCardIndex && legendPresentationActive()) continue;
-            int cardBaseX = this.leftPos + BM_CARD_START_X + i * BM_CARD_SPACING;
-            int cardBaseY = this.topPos + BM_CARD_Y;
+            int cardCol = i % BM_CARDS_PER_ROW;
+            int cardRow = i / BM_CARDS_PER_ROW;
+            int cardBaseX = this.leftPos + BM_CARD_START_X + cardCol * BM_CARD_SPACING;
+            int cardBaseY = this.topPos + BM_CARD_Y + cardRow * (BM_CARD_H + BM_ROW_GAP);
             boolean isRevealed = ((syncedRevealedMask & (1 << i)) != 0) || localRevealedCards.contains(i);
             boolean isPurchased = (syncedPurchasedMask & (1 << i)) != 0;
 
@@ -695,23 +727,6 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
                         extractor.pose().popMatrix();
                     }
 
-                    // Dynamic 45-degree Holographic Specular Slash across the card face
-                    if (revealT <= 0.75f) {
-                        float sweepProgress = revealT / 0.75f;
-                        int sweepX = Math.round(sweepProgress * (BM_CARD_W + BM_CARD_H + 20) - halfW - BM_CARD_H);
-                        int slashAlpha = (int) (Math.sin(sweepProgress * Math.PI) * (isSpecial ? 230 : 130));
-                        if (slashAlpha > 4) {
-                            for (int row = -halfH + 2; row < halfH - 2; row++) {
-                                int rx = sweepX + row;
-                                int left = Math.max(-halfW + 2, rx - 3);
-                                int right = Math.min(halfW - 2, rx + 4);
-                                if (right > left) {
-                                    int slashColor = isEpic ? 0xFFEAD0FF : (isRare ? 0xFFD0FFFF : 0xFFFFFDF0);
-                                    extractor.fill(left, row, right, row + 1, (slashAlpha << 24) | (slashColor & 0xFFFFFF));
-                                }
-                            }
-                        }
-                    }
                 }
 
                 extractor.pose().popMatrix();
@@ -784,12 +799,12 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
                             extractor.fill(badgeX, badgeY, badgeX + badgeW, badgeY + badgeH, 0xEE1E0406);
                             int textColor = 0xFFFF7A66;
                             extractor.centeredText(this.font, Component.translatable("vcoins.mythic.badge"), cardBaseX + BM_CARD_W / 2, badgeY + 1, textColor);
-                            extractor.centeredText(this.font, Component.literal("§c"  + formatCompactNumber(price)),  cardBaseX + BM_CARD_W / 2, cardBaseY + BM_CARD_H + 15, 0xFFFF5555);
+                            extractor.centeredText(this.font, Component.translatable("vcoins.black_market.free_claim"), cardBaseX + BM_CARD_W / 2, cardBaseY + BM_CARD_H + 15, 0xFF55FF55);
                         } else {
                             extractor.fill(badgeX, badgeY, badgeX + badgeW, badgeY + badgeH, 0xEE140206);
                             int textColor = 0xFFFFE6A3;
                             extractor.centeredText(this.font, Component.translatable("vcoins.black_market.god_badge"), cardBaseX + BM_CARD_W / 2, badgeY + 1, textColor);
-                            extractor.centeredText(this.font, Component.literal("§6"  + formatCompactNumber(price)),  cardBaseX + BM_CARD_W / 2, cardBaseY + BM_CARD_H + 15, 0xFFFFAA00);
+                            extractor.centeredText(this.font, Component.translatable("vcoins.black_market.free_claim"), cardBaseX + BM_CARD_W / 2, cardBaseY + BM_CARD_H + 15, 0xFF55FF55);
                         }
                     } else {
                         extractor.centeredText(this.font, Component.literal("§a-" + disc + "%"),                  cardBaseX + BM_CARD_W / 2, cardBaseY + BM_CARD_H + 3,  0xFF55FF55);
@@ -965,12 +980,16 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
                 if (discount > 0) {
                     tooltip.add(Component.translatable("vcoins.black_market.discount", discount).withStyle(ChatFormatting.GREEN));
                 }
-                tooltip.add(Component.translatable("vcoins.black_market.buy_price", formatNumber(price)).withStyle(ChatFormatting.YELLOW));
+                if (VBlackMarket.isRomanGodItem(stack) || VBlackMarket.isMythicItem(stack)) {
+                    tooltip.add(Component.translatable("vcoins.black_market.free_claim").withStyle(ChatFormatting.GREEN));
+                } else {
+                    tooltip.add(Component.translatable("vcoins.black_market.buy_price", formatNumber(price)).withStyle(ChatFormatting.YELLOW));
+                }
                 boolean isPurchased = (syncedPurchasedMask & (1 << cardIndex)) != 0;
                 if (isPurchased) {
                     tooltip.add(Component.translatable("vcoins.black_market.already_bought").withStyle(ChatFormatting.RED));
                 } else {
-                    tooltip.add(Component.translatable("vcoins.tooltip.buy_left").withStyle(ChatFormatting.GRAY));
+                    tooltip.add(Component.translatable(VBlackMarket.isRomanGodItem(stack) || VBlackMarket.isMythicItem(stack) ? "vcoins.black_market.claim_left" : "vcoins.tooltip.buy_left").withStyle(ChatFormatting.GRAY));
                 }
                 extractor.setTooltipForNextFrame(this.font, tooltip, stack.getTooltipImage(), mouseX, mouseY,
                         stack.get(net.minecraft.core.component.DataComponents.TOOLTIP_STYLE), true);
@@ -1079,8 +1098,10 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
         int lightColor = mythic ? VeloriaCardVfx.MYTHIC_SEARING : VeloriaCardVfx.GOLD_LIGHT;
         VeloriaCardVfx.gloryBackground(g, this.width, this.height, stage, elapsed, envelope, mythic);
 
-        float sourceX = leftPos + BM_CARD_START_X + godPullCardIndex * BM_CARD_SPACING + BM_CARD_W / 2f;
-        float sourceY = topPos + BM_CARD_Y + BM_CARD_H / 2f;
+        int godCol = godPullCardIndex % BM_CARDS_PER_ROW;
+        int godRow = godPullCardIndex / BM_CARDS_PER_ROW;
+        float sourceX = leftPos + BM_CARD_START_X + godCol * BM_CARD_SPACING + BM_CARD_W / 2f;
+        float sourceY = topPos + BM_CARD_Y + godRow * (BM_CARD_H + BM_ROW_GAP) + BM_CARD_H / 2f;
         float cx = sourceX + (width / 2f - sourceX) * presence;
         float cy = sourceY + (height / 2f - 10 * stage - sourceY) * presence;
 

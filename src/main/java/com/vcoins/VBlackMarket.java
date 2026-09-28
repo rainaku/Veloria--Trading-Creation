@@ -678,7 +678,6 @@ public class VBlackMarket {
         if (maxDur > 0) {
             lore.add(Component.translatable("vcoins.roman.durability", remainingDur, maxDur).withStyle(ChatFormatting.GRAY));
         }
-        lore.add(Component.translatable("vcoins.roman.price", String.format(Locale.ROOT, "%,d", price)).withStyle(ChatFormatting.GOLD));
         stack.set(DataComponents.LORE, new ItemLore(lore));
 
         // Max survival levels, with archetype preferences and compatible additions.
@@ -950,6 +949,7 @@ public class VBlackMarket {
         Collections.shuffle(shuffled, random);
         for (Item item : shuffled) {
             ItemStack sample = new ItemStack(item);
+            CustomData.update(DataComponents.CUSTOM_DATA, sample, tag -> tag.putString("VCardTier", tier));
             long unitPrice = VCoinsPricing.getReferencePrice(sample);
             if (unitPrice <= 0 || unitPrice > maxValue) continue;
             int maxCount = (int) Math.min(30, maxValue / unitPrice);
@@ -983,8 +983,7 @@ public class VBlackMarket {
                 .withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.BOLD));
         stack.set(DataComponents.LORE, new ItemLore(List.of(
                 Component.translatable("vcoins.mythic.header").withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.BOLD),
-                Component.translatable("vcoins.roman.price", String.format(Locale.ROOT, "%,d", getRomanGodItemPrice(stack)))
-                        .withStyle(ChatFormatting.GOLD))));
+                Component.translatable("vcoins.black_market.free_claim").withStyle(ChatFormatting.GREEN))));
     }
 
     public static Component getRomanGodItemComponent(ItemStack stack) {
@@ -1152,16 +1151,9 @@ public class VBlackMarket {
                 .withStyle(ChatFormatting.BOLD)
                 .withStyle(style -> style.withColor(mythic ? 0xF2B5FF : 0xFFF0C2)
                         .withHoverEvent(stack.getDisplayName().getStyle().getHoverEvent()));
-        String amount = price >= 1_000_000_000L
-                ? String.format(Locale.ROOT, "%.2fB", price / 1_000_000_000.0)
-                : String.format(Locale.ROOT, "%.1fM", price / 1_000_000.0);
         Component detail = Component.literal(mythic ? "  ✧ " : "  ◆ ")
                 .withStyle(mythic ? ChatFormatting.LIGHT_PURPLE : ChatFormatting.GOLD).append(itemLink);
-        Component value = Component.literal("  ").append(Component.translatable(
-                purchased ? "vcoins.roman.chat.paid" : "vcoins.roman.chat.value", amount)
-                .withStyle(style -> style.withColor(mythic ? 0xD7B5FF : 0xD7B56D)))
-                .append(Component.literal("  ·  ").withStyle(ChatFormatting.DARK_GRAY))
-                .append(Component.translatable("vcoins.roman.chat.hover").withStyle(ChatFormatting.GRAY));
+        Component value = Component.translatable("vcoins.black_market.free_claim").withStyle(ChatFormatting.GREEN);
         for (ServerPlayer recipient : activeServer.getPlayerList().getPlayers()) {
             recipient.sendSystemMessage(Component.empty().append(heading).append("\n")
                     .append(actor).append("\n").append(detail).append("\n").append(value));
@@ -1193,10 +1185,7 @@ public class VBlackMarket {
      */
     public static long getDiscountedPrice(ItemStack stack, long epochDay, int resetSequence) {
         if (stack == null || stack.isEmpty()) return 0;
-        long godPrice = getRomanGodItemPrice(stack);
-        if (godPrice > 0) {
-            return godPrice;
-        }
+        if (isRomanGodItem(stack) || isMythicItem(stack)) return 0L;
 
         // Regular black market items use STATIC base reference price without dynamic market multiplier
         long referencePrice = VCoinsPricing.getBlackMarketReferencePrice(stack);
@@ -1281,6 +1270,8 @@ public class VBlackMarket {
         rec.legendNextReset = false;
         if (activeServer != null) save(activeServer);
     }
+
+
 
     public static synchronized boolean useBankedReset(ServerPlayer player) {
         PlayerDailyRecord playerRecord = getPlayerRecord(player.getUUID());
@@ -1623,8 +1614,9 @@ public class VBlackMarket {
         var items = getItemsForPlayer(id);
         if (slotIndex >= items.size() || items.get(slotIndex).isEmpty()) return false;
         long price = getDiscountedPrice(items.get(slotIndex), rec.day, rec.resetSequence);
-        if (price <= 0 || VCoinsState.getCoins(id) < price) return false;
-        VCoinsState.removeCoins(id, price);
+        boolean freeRelic = isRomanGodItem(items.get(slotIndex)) || isMythicItem(items.get(slotIndex));
+        if (!freeRelic && (price <= 0 || VCoinsState.getCoins(id) < price)) return false;
+        if (!freeRelic) VCoinsState.removeCoins(id, price);
         rec.purchasedMask |= bit;
         return true;
     }
@@ -1695,10 +1687,15 @@ public class VBlackMarket {
             dailyItems.add(rollCardItem(random, candidates.get(i)));
         }
 
-        // Reset daily progress before applying guarantees so a later read cannot erase them.
+        // Apply guarantees for players who will use the shared daily batch (no banked resets).
+        // Players with banked resets retain their flag — it will fire when they use a reset,
+        // giving them a fresh personal card batch with the god item injected.
         if (server != null) {
             for (UUID uuid : playerRecords.keySet()) {
-                consumeLegendGuarantee(getPlayerRecord(uuid));
+                PlayerDailyRecord pr = getPlayerRecord(uuid);
+                if (pr.bankedResets <= 0) {
+                    consumeLegendGuarantee(pr);
+                }
             }
         }
 
@@ -1972,7 +1969,6 @@ public class VBlackMarket {
                 if (maxDur > 0) {
                     lore.add(Component.translatable("vcoins.roman.durability", remainingDur, maxDur).withStyle(ChatFormatting.GRAY));
                 }
-                lore.add(Component.translatable("vcoins.roman.price", String.format(Locale.ROOT, "%,d", godPrice)).withStyle(ChatFormatting.GOLD));
                 stack.set(DataComponents.LORE, new ItemLore(lore));
 
                 long finalPrice = godPrice;

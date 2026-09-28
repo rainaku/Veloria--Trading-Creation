@@ -5,7 +5,8 @@
   "mixins": [],
   "client": [
     "VeloriaMerchantRendererMixin",
-    "VeloriaDispatcherMixin"
+    "VeloriaDispatcherMixin",
+    "VeloriaAnvilInputMixin"
   ],
   "injectors": {
     "defaultRequire": 1

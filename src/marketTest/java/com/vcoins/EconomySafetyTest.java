@@ -43,11 +43,132 @@ public final class EconomySafetyTest {
         persistence();
         marketWorldIsolation();
         marketPayment();
+        freeRelicClaims();
         marketRarity();
         boundMarketPricing();
         marketProvenance();
         giftBoxes();
+        giftPrivacy();
+        vanillaItemCompatibility();
+        anvilNames();
         System.out.println("Economy safety checks passed: " + checks);
+    }
+
+    private static void anvilNames() {
+        require(VeloriaAnvilNames.filter("§6Kiếm\n\t\u007f").equals("§6Kiếm"), "Anvil permits formatting but filters control characters");
+        var name = VeloriaAnvilNames.parse("§6§lKiếm §r✦");
+        require(name.getString().equals("Kiếm ✦"), "Formatting codes do not appear in saved name text");
+        var gold = name.getSiblings().getFirst().getStyle();
+        require(gold.isBold() && gold.getColor().getValue() == 0xFFAA00, "Gold bold style applied");
+        require(!name.getSiblings().getLast().getStyle().isBold(), "Reset removes bold");
+        var resetColor = VeloriaAnvilNames.parse("§lA§cB");
+        require(!resetColor.getSiblings().getLast().getStyle().isBold(), "Legacy color clears previous formatting");
+        require(VeloriaAnvilNames.parse("§Zx§").getString().equals("§Zx§"), "Unknown and incomplete codes preserved");
+        require(VeloriaAnvilNames.parse("✦ Kiếm thường").equals(net.minecraft.network.chat.Component.literal("✦ Kiếm thường")), "Plain Unicode names unchanged");
+        ItemStack stack = new ItemStack(Items.DIAMOND_SWORD);
+        stack.set(DataComponents.CUSTOM_NAME, name);
+        var ops = registries.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE);
+        var encoded = ItemStack.CODEC.encodeStart(ops, stack).getOrThrow();
+        var decoded = ItemStack.CODEC.parse(ops, encoded).getOrThrow();
+        require(ItemStack.matches(stack, decoded), "Formatted anvil name survives vanilla item serialization");
+    }
+
+    private static void freeRelicClaims() {
+        VBlackMarket.clearWorldState();
+        UUID id = UUID.randomUUID();
+        var random = new Random(123);
+        for (ItemStack relic : List.of(VBlackMarket.generateRomanGodItem(random), VBlackMarket.generateMythicItem(random))) {
+            var rec = VBlackMarket.getPlayerRecord(id);
+            rec.customItems = new ArrayList<>(List.of(relic));
+            rec.purchasedMask = 0;
+            rec.revealedMask = 0;
+            VCoinsState.setCoins(id, 0L);
+            require(VBlackMarket.getDiscountedPrice(relic, rec.day, rec.resetSequence) == 0L, "Relic quote is free");
+            require(!VBlackMarket.payForCard(id, 0), "Hidden relic cannot be claimed");
+            rec.revealedMask = 1;
+            require(VBlackMarket.payForCard(id, 0), "Zero-balance player can claim revealed relic");
+            require(VCoinsState.getCoins(id) == 0L && rec.purchasedMask == 1, "Free claim recorded without charge");
+            require(!VBlackMarket.payForCard(id, 0), "Free relic cannot be claimed twice");
+            require(VCoinsPricing.getSellPrice(relic) == 0L && !VDuplicatePricing.canDuplicate(relic), "Free relic remains bound");
+        }
+        VBlackMarket.clearWorldState();
+    }
+
+    private static void giftPrivacy() {
+        ItemStack box = VGiftBox.createBox(4, new Random(932), registries);
+        ItemStack original = box.copy();
+        ItemStack visible = VGiftBox.networkView(box);
+        require(visible.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY).itemCopies().findAny().isEmpty(), "Client gift has no reward contents");
+        require(!visible.get(DataComponents.CUSTOM_DATA).copyTag().contains("VGiftBoxQuality"), "Client cannot infer reward quality from tags");
+        require(VGiftBox.boxTier(visible) == 4, "Client retains box identity and tier");
+        require(ItemStack.matches(box, original), "Sanitizing does not mutate integrated-server inventory");
+        require(VGiftBox.consumeBox(visible).isEmpty(), "Client view cannot generate rewards");
+        ItemStack outer = new ItemStack(Items.CHEST);
+        outer.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(box)));
+        ItemStack outerVisible = VGiftBox.networkView(outer);
+        ItemStack nested = outerVisible.get(DataComponents.CONTAINER).itemCopies().findFirst().orElseThrow();
+        require(nested.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY).itemCopies().findAny().isEmpty(), "Nested gift contents hidden");
+        require(ItemStack.matches(outer.get(DataComponents.CONTAINER).itemCopies().findFirst().orElseThrow(), original), "Nested server contents preserved");
+        var slot = new net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket(0, 1, 4, box);
+        var local = (net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket) GiftBoxPackets.hideContents(slot);
+        require(ItemStack.matches(local.getItem(), visible), "Singleplayer direct slot packet sanitized");
+        var inventory = new net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket(0, 2, List.of(box, outer), box);
+        var safe = (net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket) GiftBoxPackets.hideContents(inventory);
+        require(ItemStack.matches(safe.items().get(0), visible) && ItemStack.matches(safe.carriedItem(), visible), "Inventory and cursor sanitized together");
+        var value = new net.minecraft.network.syncher.SynchedEntityData.DataValue<>(8, net.minecraft.network.syncher.EntityDataSerializers.ITEM_STACK, box);
+        var entity = new net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket(12, List.of(value));
+        var safeEntity = (net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket) GiftBoxPackets.hideContents(entity);
+        require(ItemStack.matches((ItemStack) safeEntity.packedItems().getFirst().value(), visible), "Dropped gift metadata sanitized");
+        ItemStack ordinary = new ItemStack(Items.SHULKER_BOX);
+        ordinary.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.DIAMOND, 5))));
+        require(VGiftBox.networkView(ordinary) == ordinary, "Ordinary Shulker previews unchanged");
+        var saved = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, registries);
+        saved.store("gift", ItemStack.CODEC, box);
+        ItemStack loaded = TagValueInput.create(ProblemReporter.DISCARDING, registries, saved.buildResult()).read("gift", ItemStack.CODEC).orElseThrow();
+        require(ItemStack.matches(loaded, original), "Singleplayer disk save retains hidden rewards");
+        require(VGiftBox.consumeBox(loaded).size() == 5, "Reloaded hidden gift still opens all rewards");
+    }
+
+    private static void vanillaItemCompatibility() {
+        var random = new Random(218);
+        var items = new ArrayList<ItemStack>();
+        for (int tier = 0; tier < 5; tier++) items.add(VGiftBox.createBox(tier, random, registries));
+        items.add(VBlackMarket.generateRomanGodItem(random));
+        items.add(VBlackMarket.generateMythicItem(random));
+        items.add(VBlackMarket.generateTierEquipment(random, false));
+        items.add(VBlackMarket.generateTierEquipment(random, true));
+        for (var stack : items) {
+            require(BuiltInRegistries.ITEM.getKey(stack.getItem()).getNamespace().equals("minecraft"), "Reward uses vanilla item ID");
+            for (var component : stack.getComponents()) {
+                require(BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(component.type()).getNamespace().equals("minecraft"), "Reward uses vanilla components");
+            }
+            for (var enchant : VCoinsPricing.getEnchantmentValues(stack).values()) {
+                require(enchant.enchantment().getRegisteredName().startsWith("minecraft:"), "Reward enchantment survives removal");
+            }
+            // Standalone generators create separate vanilla lookups without an active server.
+            // Rebind holders to this test world; live generation uses the server's registry.
+            for (var type : List.of(DataComponents.ENCHANTMENTS, DataComponents.STORED_ENCHANTMENTS)) {
+                var old = stack.get(type);
+                if (old == null) continue;
+                var rebound = new net.minecraft.world.item.enchantment.ItemEnchantments.Mutable(
+                        net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY);
+                for (var entry : old.entrySet()) {
+                    rebound.set(registries.lookupOrThrow(Registries.ENCHANTMENT)
+                            .getOrThrow(entry.getKey().unwrapKey().orElseThrow()), entry.getIntValue());
+                }
+                stack.set(type, rebound.toImmutable());
+            }
+            var ops = registries.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE);
+            var encoded = ItemStack.CODEC.encodeStart(ops, stack).getOrThrow();
+            var loaded = ItemStack.CODEC.parse(ops, encoded).getOrThrow();
+            require(ItemStack.matches(stack, loaded), "Reward decodes with vanilla registries only");
+        }
+        String fallback = VeloriaTextFallbacks.fallback("vcoins.gift.box_name", null);
+        require(fallback != null && fallback.contains("%s"), "Box name has a persistent fallback");
+        var text = net.minecraft.network.chat.Component.translatableWithFallback("vcoins.gift.box_name", fallback, 5);
+        require(text.getString().contains("5") && !text.getString().contains("vcoins."), "Name readable without Veloria language loaded");
+        require("Existing".equals(VeloriaTextFallbacks.fallback("vcoins.gift.box_name", "Existing")), "Existing fallback preserved");
+        require(VeloriaTextFallbacks.fallback("item.minecraft.diamond", null) == null, "Vanilla text unchanged");
     }
 
     private static void containers() {
@@ -131,17 +252,40 @@ public final class EconomySafetyTest {
     }
 
     private static void giftBoxes() {
-        int[] outcomes = new int[4];
-        for (int roll = 0; roll < 1000; roll++) outcomes[VGiftBox.quality(roll)]++;
-        require(Arrays.equals(outcomes, new int[]{750, 200, 45, 5}), "Gift odds exact across all roll buckets");
+        Random giftRandom = new Random(8201);
+        for (int tier = 0; tier < 5; tier++) {
+            int[] outcomes = new int[4];
+            for (int roll = 0; roll < 1000; roll++) outcomes[VGiftBox.quality(tier, roll)]++;
+            require(outcomes[3] == 50, "Jackpot is exactly 5 percent for every tier");
+            require(VGiftBox.pool(tier).size() == 20 && VGiftBox.pool(tier).stream().distinct().count() == 20, "Twenty unique item types per tier");
+            double maximumExpectedResale = 0;
+            for (int quality = 0; quality < 4; quality++) {
+                require(outcomes[quality] == VGiftBox.weight(tier, quality), "Gift probabilities exactly match published weights");
+                long maximumResale = 0;
+                for (int sample = 0; sample < 80; sample++) {
+                    var rewards = VGiftBox.boxRewards(tier, quality, giftRandom);
+                    long value = rewards.stream().mapToLong(reward -> VCoinsPricing.getReferencePrice(reward) * reward.getCount()).sum();
+                    require(value >= VGiftBox.minimumValue(tier, quality) && value <= VGiftBox.maximumValue(tier, quality), "Gift value within promised band");
+                    require(rewards.size() == 5 && rewards.stream().map(ItemStack::getItem).distinct().count() == 5, "Five distinct types in every quality band");
+                    for (var reward : rewards) {
+                        require(reward.getCount() > 0 && reward.getCount() <= reward.getMaxStackSize(), "Reward fits one slot");
+                        require(!reward.is(Items.SPAWNER) && !reward.is(Items.TRIAL_SPAWNER) && VCoinsPricing.isTradeable(reward), "Tradeable reward without spawners");
+                    }
+                    maximumResale = Math.max(maximumResale, rewards.stream().mapToLong(reward -> VCoinsPricing.getReferenceSellPrice(reward) * reward.getCount()).sum());
+                }
+                maximumExpectedResale += maximumResale * outcomes[quality] / 1000.0;
+            }
+            require(maximumExpectedResale < VGiftBox.PRICES[tier], "Gift nominal resale expectation stays below box cost");
+        }
         UUID id = UUID.randomUUID();
         for (int tier = 0; tier < 5; tier++) {
             long price = VGiftBox.PRICES[tier];
             VCoinsState.setCoins(id, price - 1);
-            require(!VGiftBox.purchase(id, tier) && VGiftBox.boxes(id)[tier] == 0, "Gift purchase rejects insufficient balance");
+            require(VGiftBox.purchaseBox(id, tier, true, registries).isEmpty() && VGiftBox.boxes(id)[tier] == 0, "Gift purchase rejects insufficient balance");
             VCoinsState.setCoins(id, price);
-            require(VGiftBox.purchase(id, tier) && VCoinsState.getCoins(id) == 0 && VGiftBox.boxes(id)[tier] == 1,
-                    "Gift purchase charges exact tier price");
+            require(!VGiftBox.purchaseBox(id, tier, true, registries).isEmpty() && VCoinsState.getCoins(id) == 0 && VGiftBox.boxes(id)[tier] == 0,
+                    "Physical gift purchase charges exact tier price without virtual credit");
+            VGiftBox.boxes(id)[tier] = 1; // Simulate old saved purchases for migration coverage.
         }
         var output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, registries);
         VGiftBox.write(id, output);
@@ -149,7 +293,48 @@ public final class EconomySafetyTest {
         require(Arrays.equals(VGiftBox.boxes(id), new int[5]), "Missing gift save starts empty");
         VGiftBox.read(id, TagValueInput.create(ProblemReporter.DISCARDING, registries, output.buildResult()));
         require(Arrays.equals(VGiftBox.boxes(id), new int[]{1,1,1,1,1}), "Gift stock round trips all five tiers");
-        require(!VGiftBox.purchase(id, -1) && !VGiftBox.purchase(id, 5), "Invalid gift tier rejected");
+        require(VGiftBox.purchaseBox(id, -1, true, registries).isEmpty() && VGiftBox.purchaseBox(id, 5, true, registries).isEmpty(), "Invalid gift tier rejected");
+
+        for (int tier = 0; tier < 5; tier++) {
+            for (int sample = 0; sample < 100; sample++) {
+                ItemStack box = VGiftBox.createBox(tier, giftRandom, registries);
+                require(VGiftBox.boxTier(box) == tier && box.is(VGiftBox.BOX_ITEMS[tier]) && !box.is(Items.AIR), "Correct physical Shulker tier");
+                var tag = box.get(DataComponents.CUSTOM_DATA).copyTag();
+                int quality = tag.getIntOr("VGiftBoxQuality", -1);
+                var contents = box.get(DataComponents.CONTAINER).itemCopies().filter(stack -> !stack.isEmpty()).toList();
+                require(contents.size() == 5, "Five reward types stored inside box");
+                require(contents.stream().map(ItemStack::getItem).distinct().count() == 5, "Five distinct item types");
+                require(contents.stream().anyMatch(stack -> stack.is(VGiftBox.jackpot(VGiftBox.boxTier(box)))) == (quality == 3), "Reserved jackpot only appears on jackpot roll");
+                long total = contents.stream().mapToLong(stack -> VCoinsPricing.getReferencePrice(stack) * stack.getCount()).sum();
+                require(total >= VGiftBox.minimumValue(tier, quality) && total <= VGiftBox.maximumValue(tier, quality), "Combined physical reward value respects quality budget");
+                require(!VCoinsPricing.isTradeable(box) && !VDuplicatePricing.canDuplicate(box), "Sealed gift cannot be sold as empty Shulker or duplicated");
+                var outputBox = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, registries);
+                outputBox.store("box", ItemStack.CODEC, box);
+                ItemStack restored = TagValueInput.create(ProblemReporter.DISCARDING, registries, outputBox.buildResult()).read("box", ItemStack.CODEC).orElseThrow();
+                require(ItemStack.isSameItemSameComponents(box, restored), "Physical gift and contents survive save/load");
+                var drops = VGiftBox.consumeBox(restored);
+                require(restored.isEmpty() && drops.size() == contents.size(), "Opening consumes Shulker and returns every reward");
+                for (int i = 0; i < drops.size(); i++) require(ItemStack.matches(drops.get(i), contents.get(i)), "Opening preserves exact stored stack");
+                require(VGiftBox.consumeBox(restored).isEmpty(), "Consumed box cannot produce rewards again");
+            }
+        }
+        VCoinsState.setCoins(id, VGiftBox.PRICES[4]);
+        require(VGiftBox.purchaseBox(id, 4, false, registries).isEmpty() && VCoinsState.getCoins(id) == VGiftBox.PRICES[4], "Full inventory does not charge coins");
+        require(VGiftBox.consumeBox(new ItemStack(Items.SHULKER_BOX)).isEmpty(), "Ordinary Shulker is untouched");
+        ItemStack giftSample = new ItemStack(Items.DIAMOND_SWORD);
+        CustomData.update(DataComponents.CUSTOM_DATA, giftSample, tag -> {
+            tag.putString("VGiftRewardId", UUID.randomUUID().toString());
+        });
+        require(VCoinsPricing.isTradeable(giftSample), "Gift box reward must be tradeable");
+        require(VCoinsPricing.getSellPrice(giftSample) > 0, "Gift box reward must have sell price");
+
+        ItemStack legacyGift = new ItemStack(Items.NETHERITE_CHESTPLATE);
+        CustomData.update(DataComponents.CUSTOM_DATA, legacyGift, tag -> {
+            tag.putBoolean("VNoTrade", true);
+            tag.putString("VGiftRewardId", UUID.randomUUID().toString());
+        });
+        require(VCoinsPricing.isTradeable(legacyGift), "Legacy gift box reward with VNoTrade must now be tradeable");
+        require(VCoinsPricing.getSellPrice(legacyGift) > 0, "Legacy gift box reward with VNoTrade must have sell price");
     }
 
     private static void marketProvenance() {
@@ -198,10 +383,12 @@ public final class EconomySafetyTest {
             rec.revealedMask = 1;
             rec.purchasedMask = 0;
             long price = VBlackMarket.getDiscountedPrice(bound, rec.day, rec.resetSequence);
-            require(price > 0 && price == VBlackMarket.getDiscountedPrice(original, rec.day, rec.resetSequence),
-                    "Bound market gear retains material and enchant acquisition price");
-            require(VCoinsPricing.getBlackMarketReferencePrice(bound) == reference,
-                    "Acquisition valuation includes enchant premium");
+            var tieredOriginal = original.copy();
+            CustomData.update(DataComponents.CUSTOM_DATA, tieredOriginal, tag -> tag.putString("VCardTier", "exclusive"));
+            require(price > 0 && price == VBlackMarket.getDiscountedPrice(tieredOriginal, rec.day, rec.resetSequence),
+                    "Binding does not alter tiered acquisition price");
+            require(VCoinsPricing.getBlackMarketReferencePrice(bound) == reference * 3,
+                    "Exclusive acquisition applies 3x to material and enchant premium");
             require(VCoinsPricing.getPrice(bound) == 0 && VCoinsPricing.getSellPrice(bound) == 0
                     && !VDuplicatePricing.canDuplicate(bound), "Bound gear remains blocked outside market purchase");
             require(bound.get(DataComponents.CUSTOM_DATA).copyTag().getBooleanOr("VNoTrade", false),
@@ -379,3 +566,5 @@ public final class EconomySafetyTest {
         Files.delete(worldB.resolve("vcoins.json")); Files.delete(worldB);
     }
 }
+
+
