@@ -129,6 +129,10 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
                 .bounds(this.leftPos + 166, this.topPos + 132, 56, 16).build());
 
         this.setInitialFocus(this.searchBox);
+        // Separate row keeps the existing navigation labels at their full width.
+        this.addRenderableWidget(VeloriaButton.create(Component.literal("Gift Box"),
+                button -> ClientPlayNetworking.send(new ShopActionPayload("GIFTBOX", "")))
+                .bounds(this.leftPos + 137, this.topPos + 151, 64, 12).build());
     }
 
     private void updateVerifyToggleButton() {
