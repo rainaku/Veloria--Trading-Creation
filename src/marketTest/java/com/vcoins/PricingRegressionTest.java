@@ -65,7 +65,8 @@ public final class PricingRegressionTest {
             require(VCoinsPricing.getMarketKey(stack).equals(VCoinsPricing.getMarketKey(efficiency)), "Levels share cycle");
             long buy = VCoinsPricing.getPrice(stack);
             long sell = VCoinsPricing.getSellPrice(stack);
-            require(buy > previousBuy && sell > previousSell, "Higher levels must cost more");
+            require(buy > previousBuy && sell >= previousSell, "Higher levels cost more, resale is material-only");
+            require(sell == VCoinsPricing.getSellPrice(new ItemStack(Items.BOOK)), "Book upgrades cannot raise resale");
             require(sell < buy, "Buy/sell spread");
             previousBuy = buy;
             previousSell = sell;
@@ -118,11 +119,11 @@ public final class PricingRegressionTest {
                     VMarketEngine.directionForPercent(percent), "vcoins.market.reason.cycle");
             String expectedArrow;
             if (percent < 0) {
-                expectedArrow = "↓";
+                expectedArrow = "â†“";
             } else if (percent > 0) {
-                expectedArrow = "↑";
+                expectedArrow = "â†‘";
             } else {
-                expectedArrow = "→";
+                expectedArrow = "â†’";
             }
             require(trend.getArrow().equals(expectedArrow),
                     "Arrow matches displayed percent: " + percent);
@@ -227,17 +228,20 @@ public final class PricingRegressionTest {
             require(VBlackMarket.getCardTier(loadedEquipment).equals(exclusive ? "exclusive" : "epic"), "Equipment tier persisted");
             require(new VBlackMarket.BlackMarketItemEntry(loadedEquipment).enchantments.equals(new VBlackMarket.BlackMarketItemEntry(equipment).enchantments), "Equipment enchants persisted");
         }
-        // Exercise every outcome of the ten-way pity draw without a flaky statistical test.
-        for (int bucket = 0; bucket < 10; bucket++) {
+        // Cover all pity buckets, including clamping old oversized Lucky saves.
+        for (int lucky : new int[]{-5, 0, 1, 99}) {
+        for (int bucket = 0; bucket < 100; bucket++) {
             final int outcome = bucket;
             java.util.Random pityRandom = new java.util.Random(22) {
                 private boolean first = true;
                 @Override public int nextInt(int bound) {
-                    if (first) { first = false; require(bound == 10, "Pity uses ten equal buckets"); return outcome; }
+                    if (first) { first = false; require(bound == 100, "Pity uses percent buckets"); return outcome; }
                     return super.nextInt(bound);
                 }
             };
-            require(VBlackMarket.isMythicItem(VBlackMarket.generatePityReward(pityRandom)) == (bucket == 0), "Pity 10 percent Mythic, 90 percent Legend");
+            require(VBlackMarket.isMythicItem(VBlackMarket.generatePityReward(pityRandom, lucky))
+                    == (bucket < (lucky > 0 ? 2 : 1)), "Pity Mythic stays within 1 to 2 percent");
+        }
         }
 
         java.util.UUID testPlayer = java.util.UUID.randomUUID();

@@ -25,6 +25,7 @@
     "fabric-api": "*"
   },
   "mixins": [
+    "vcoins.mixins.json",
     {
       "config": "vcoins.client.mixins.json",
       "environment": "client"

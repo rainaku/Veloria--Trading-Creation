@@ -45,12 +45,13 @@ public class VDuplicateScreenHandler extends AbstractContainerMenu {
     }
 
     public boolean handleDuplicate(ServerPlayer player, int slotIndex) {
-        if (slotIndex < 0 || slotIndex >= player.getInventory().getContainerSize()) {
+        if (player != this.player || !player.isAlive() || player.isRemoved()
+                || slotIndex < 0 || slotIndex >= player.getInventory().getContainerSize()) {
             return false;
         }
 
         ItemStack sample = player.getInventory().getItem(slotIndex);
-        if (sample.isEmpty() || !VCoinsPricing.isTradeable(sample)) {
+        if (!VDuplicatePricing.canDuplicate(sample)) {
             player.sendOverlayMessage(Component.translatable("vcoins.duplicate.invalid_item").withStyle(ChatFormatting.RED));
             VTradeScreenHandler.sendSoundToPlayer(player, SoundEvents.VILLAGER_NO, 1.0f, 1.0f);
             return false;
@@ -79,6 +80,7 @@ public class VDuplicateScreenHandler extends AbstractContainerMenu {
 
         ItemStack duplicate = sample.copyWithCount(1);
         player.getInventory().placeItemBackInInventory(duplicate, Prediction.SERVER_ONLY);
+        VCoinsState.checkpoint(player);
         VCoinsMod.syncCoins(player);
 
         VTradeScreenHandler.sendSoundToPlayer(player, SoundEvents.ANVIL_USE, 1.0f, 1.15f);

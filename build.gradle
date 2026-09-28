@@ -152,3 +152,17 @@ tasks.register('merchantModelTest', JavaExec) {
     mainClass = 'com.vcoins.MerchantModelTest'
 }
 tasks.named('check') { dependsOn 'merchantModelTest' }
+
+tasks.register('fortunaTest', JavaExec) {
+    dependsOn marketTestClasses
+    classpath = sourceSets.marketTest.runtimeClasspath
+    mainClass = 'com.vcoins.FortunaTest'
+}
+tasks.named('check') { dependsOn 'fortunaTest' }
+
+tasks.register('economySafetyTest', JavaExec) {
+    dependsOn marketTestClasses
+    classpath = sourceSets.marketTest.runtimeClasspath
+    mainClass = 'com.vcoins.EconomySafetyTest'
+}
+tasks.named('check') { dependsOn 'economySafetyTest' }

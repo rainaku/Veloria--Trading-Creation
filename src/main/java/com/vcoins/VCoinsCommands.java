@@ -22,6 +22,10 @@ public final class VCoinsCommands {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        VGiftBox.register(dispatcher);
+        dispatcher.register(Commands.literal("fortuna").executes(context -> {
+            VFortuna.open(context.getSource().getPlayerOrException()); return 1;
+        }));
         dispatcher.register(Commands.literal("vcoins")
                 .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                 .then(Commands.literal("get")
@@ -43,6 +47,7 @@ public final class VCoinsCommands {
 
                                             for (ServerPlayer target : targets) {
                                                 VCoinsState.setCoins(target.getUUID(), amount);
+                                                VCoinsState.checkpoint(target);
                                                 VCoinsMod.syncCoins(target);
                                             }
                                             context.getSource().sendSystemMessage(Component.translatable(
@@ -59,6 +64,7 @@ public final class VCoinsCommands {
 
                                             for (ServerPlayer target : targets) {
                                                 VCoinsState.addCoins(target.getUUID(), amount);
+                                                VCoinsState.checkpoint(target);
                                                 VCoinsMod.syncCoins(target);
                                             }
                                             context.getSource().sendSystemMessage(Component.translatable(
@@ -228,11 +234,12 @@ public final class VCoinsCommands {
         long value = safeMultiply(unitPrice, count);
         VCoinsState.addCoins(player.getUUID(), value);
         VCoinsMod.syncCoins(player);
-        VMarketEngine.recordSell(VCoinsPricing.getMarketKey(stack), count);
+        VMarketEngine.recordSell(VCoinsPricing.getSellMarketKey(stack), count);
         VMarketEngine.syncToPlayer(player);
         VMarketEngine.syncToActiveShoppers(player.level().getServer());
-        VTradeScreenHandler.addBuyback(player, stack.copy());
+        VTradeScreenHandler.addBuyback(player, stack.copy(), unitPrice);
         stack.setCount(0);
+        VCoinsState.checkpoint(player);
 
         player.playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 0.9f, 1.2f);
         player.playSound(SoundEvents.BUNDLE_DROP_CONTENTS, 0.7f, 1.25f);
@@ -248,7 +255,7 @@ public final class VCoinsCommands {
         // the offhand are intentionally left alone.
         for (int slot = 0; slot < 36; slot++) {
             ItemStack stack = player.getInventory().getItem(slot);
-            if (stack.isEmpty() || stack.getCount() <= 0) {
+            if (stack.isEmpty() || stack.getCount() <= 0 || VTradeScreenHandler.isProtectedFromBulkSell(stack)) {
                 continue;
             }
 
@@ -259,9 +266,9 @@ public final class VCoinsCommands {
 
             int count = stack.getCount();
             String itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-            VMarketEngine.recordSell(VCoinsPricing.getMarketKey(stack), count);
+            VMarketEngine.recordSell(VCoinsPricing.getSellMarketKey(stack), count);
             totalEarned = safeAdd(totalEarned, safeMultiply(unitPrice, count));
-            VTradeScreenHandler.addBuyback(player, stack.copy());
+            VTradeScreenHandler.addBuyback(player, stack.copy(), unitPrice);
             stack.setCount(0);
         }
 
@@ -271,6 +278,7 @@ public final class VCoinsCommands {
         }
 
         VCoinsState.addCoins(player.getUUID(), totalEarned);
+        VCoinsState.checkpoint(player);
         VCoinsMod.syncCoins(player);
         VMarketEngine.syncToPlayer(player);
         VMarketEngine.syncToActiveShoppers(player.level().getServer());

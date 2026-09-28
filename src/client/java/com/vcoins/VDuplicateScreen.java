@@ -133,14 +133,14 @@ public class VDuplicateScreen extends VeloriaContainerScreen<VDuplicateScreenHan
         }
 
         ItemStack current = this.minecraft.player.getInventory().getItem(this.selectedDuplicateSlot);
-        if (current.isEmpty() || !VCoinsPricing.isTradeable(current)) {
+        if (current.isEmpty() || !VDuplicatePricing.canDuplicate(current)) {
             this.duplicateActionButton.active = false;
             return;
         }
 
         long coinCost = VDuplicatePricing.getCoinCost(current);
         int levelCost = VDuplicatePricing.getExperienceLevelCost(current);
-        long balance = VCoinsState.getCoins(this.minecraft.player.getUUID());
+        long balance = VCoinsState.getClientCoins(this.minecraft.player.getUUID());
         this.duplicateActionButton.active = (balance >= coinCost && this.minecraft.player.experienceLevel >= levelCost);
     }
 
@@ -148,7 +148,7 @@ public class VDuplicateScreen extends VeloriaContainerScreen<VDuplicateScreenHan
         if (this.selectedDuplicateSlot >= 0 && !this.selectedDuplicateStack.isEmpty()) {
             if (this.minecraft == null || this.minecraft.player == null) return;
             ItemStack current = this.minecraft.player.getInventory().getItem(this.selectedDuplicateSlot);
-            if (!VCoinsPricing.isTradeable(current)) return;
+            if (!VDuplicatePricing.canDuplicate(current)) return;
             if (!ItemStack.isSameItemSameComponents(current, this.selectedDuplicateStack)) {
                 this.selectedDuplicateStack = current.copy();
                 purchaseConfirm = new VCoinsPurchaseConfirm();
@@ -166,7 +166,7 @@ public class VDuplicateScreen extends VeloriaContainerScreen<VDuplicateScreenHan
     public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent click, boolean doubled) {
         if (this.hoveredSlot != null && this.hoveredSlot.hasItem()) {
             ItemStack item = this.hoveredSlot.getItem();
-            if (!item.isEmpty() && VCoinsPricing.isTradeable(item)) {
+            if (!item.isEmpty() && VDuplicatePricing.canDuplicate(item)) {
                 purchaseConfirm = new VCoinsPurchaseConfirm();
                 this.selectedDuplicateSlot = this.hoveredSlot.getContainerSlot();
                 this.selectedDuplicateStack = item.copy();
@@ -226,7 +226,7 @@ public class VDuplicateScreen extends VeloriaContainerScreen<VDuplicateScreenHan
             long coinCost = VDuplicatePricing.getCoinCost(selectedDuplicateStack);
             int levelCost = VDuplicatePricing.getExperienceLevelCost(selectedDuplicateStack);
             long balance = (this.minecraft != null && this.minecraft.player != null)
-                    ? VCoinsState.getCoins(this.minecraft.player.getUUID()) : 0L;
+                    ? VCoinsState.getClientCoins(this.minecraft.player.getUUID()) : 0L;
             int playerLevels = (this.minecraft != null && this.minecraft.player != null)
                     ? this.minecraft.player.experienceLevel : 0;
 

@@ -3,16 +3,31 @@ package com.vcoins;
 import net.minecraft.world.item.ItemStack;
 
 public final class VDuplicatePricing {
-    private static final long MINIMUM_COIN_COST = 500_000L;
-    private static final long ITEM_PRICE_MULTIPLIER = 4L;
+    private static final long MINIMUM_COIN_COST = 150_000L;
+    private static final long ITEM_PRICE_MULTIPLIER = 3L;
     private static final long COMPONENT_SURCHARGE = 25_000L;
     private static final long CUSTOM_NAME_SURCHARGE = 100_000L;
 
     private VDuplicatePricing() {
     }
 
+    /** Contents are not priced by the shop. Never copy opaque inventories/entities. */
+    public static boolean canDuplicate(ItemStack sample) {
+        if (sample.isEmpty() || !VCoinsPricing.isTradeable(sample)) return false;
+        for (var component : sample.getComponents()) {
+            if (component.value() instanceof net.minecraft.world.item.component.ContainerComponent<?> contents
+                    && contents.itemCopies().anyMatch(item -> !item.isEmpty())) return false;
+        }
+        return !sample.has(net.minecraft.core.component.DataComponents.CONTAINER_LOOT)
+                && !sample.has(net.minecraft.core.component.DataComponents.BLOCK_ENTITY_DATA)
+                && !sample.has(net.minecraft.core.component.DataComponents.ENTITY_DATA)
+                && !sample.has(net.minecraft.core.component.DataComponents.BUCKET_ENTITY_DATA)
+                && sample.getOrDefault(net.minecraft.core.component.DataComponents.BEES,
+                        net.minecraft.world.item.component.Bees.EMPTY).bees().isEmpty();
+    }
+
     public static long getCoinCost(ItemStack sample) {
-        if (sample.isEmpty() || !VCoinsPricing.isTradeable(sample)) {
+        if (!canDuplicate(sample)) {
             return 0L;
         }
 
@@ -28,7 +43,7 @@ public final class VDuplicatePricing {
     }
 
     public static int getExperienceLevelCost(ItemStack sample) {
-        if (sample.isEmpty() || !VCoinsPricing.isTradeable(sample)) {
+        if (!canDuplicate(sample)) {
             return 0;
         }
 

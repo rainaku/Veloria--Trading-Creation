@@ -28,11 +28,6 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
     private static final Identifier CARD_MYTHIC_BACK  = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/card_mythic_back.png");
     private static final Identifier CARD_MYTHIC_FRONT = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/card_mythic_front.png");
 
-    // Continuous, high-poly AAA aura beam and bloom halo textures (matching Image 2)
-    private static final Identifier AURA_BEAM_MYTHIC_UP   = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/aura_beam_mythic_up.png");
-    private static final Identifier AURA_BEAM_MYTHIC_DOWN = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/aura_beam_mythic_down.png");
-    private static final Identifier AURA_BEAM_LEGEND_UP   = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/aura_beam_legend_up.png");
-    private static final Identifier AURA_BEAM_LEGEND_DOWN = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/aura_beam_legend_down.png");
     private static final Identifier AURA_HALO_MYTHIC      = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/aura_halo_mythic.png");
     private static final Identifier AURA_HALO_LEGEND      = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/aura_halo_legend.png");
 
@@ -41,13 +36,8 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
     private static final Identifier CARD_HOVER_LEGEND  = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/card_hover_legend.png");
     private static final Identifier CARD_HOVER_REGULAR = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/card_hover_regular.png");
 
-    // Cinematic reveal VFX textures (GPU-accelerated, high-fidelity)
-    private static final Identifier CINEMATIC_SUNBURST         = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/cinematic_sunburst.png");
-    private static final Identifier CINEMATIC_SHOCKWAVE_MYTHIC = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/cinematic_shockwave_mythic.png");
-    private static final Identifier CINEMATIC_SHOCKWAVE_LEGEND = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/cinematic_shockwave_legend.png");
-    private static final Identifier CINEMATIC_BEAM_MYTHIC      = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/cinematic_beam_mythic.png");
-    private static final Identifier CINEMATIC_BEAM_LEGEND      = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/cinematic_beam_legend.png");
-    private static final Identifier CINEMATIC_VIGNETTE         = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/cinematic_vignette.png");
+
+    private static final Identifier PARTICLE_GLOW_ORB    = Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "textures/gui/particle_glow_orb.png");
 
     private static Identifier getCardBackTexture(ItemStack stack) {
         if (VBlackMarket.isMythicItem(stack)) {
@@ -75,6 +65,7 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
     private static final int BM_CARD_Y       = 68;
     private static final long BM_FLIP_MS     = 480L;
     private static final float TWO_PI = (float) (Math.PI * 2.0);
+    private static final long VFX_EPOCH_NANOS = System.nanoTime();
 
     // Static sync state shared across open instances
     private static long baseSecondsRemaining = 86400L;
@@ -96,6 +87,18 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
     public static long getBaseSecondsRemaining() { return baseSecondsRemaining; }
     public static long getLastSyncTimeMs() { return lastSyncTimeMs; }
     public static int getSyncedLifetimeFlipCount() { return syncedLifetimeFlipCount; }
+
+    public static void clearClientSync() {
+        baseSecondsRemaining = 86400L;
+        lastSyncTimeMs = System.currentTimeMillis();
+        syncedRevealedMask = 0;
+        syncedPurchasedMask = 0;
+        syncedEpochDay = 0L;
+        syncedBankedResets = 0;
+        syncedResetSequence = 0;
+        syncedLifetimeFlipCount = 0;
+        syncedCards = new ArrayList<>();
+    }
 
     public static void handleSyncPayload(BlackMarketSyncPayload payload) {
         var client = net.minecraft.client.Minecraft.getInstance();
@@ -229,7 +232,7 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
     private int godPullCardIndex = -1;
     private int legendSoundStage;
     private int mythicSoundStage;
-    private static final long GOD_CINEMATIC_DURATION_MS = 4200L;
+    private static final long GOD_CINEMATIC_DURATION_MS = 5200L;
     private final float[] partX = new float[MAX_PARTICLES];
     private final float[] partY = new float[MAX_PARTICLES];
     private final float[] partVx = new float[MAX_PARTICLES];
@@ -442,7 +445,7 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
         if (card >= syncedCards.size()) return;
         ItemStack item = syncedCards.get(card);
         long price = VBlackMarket.getDiscountedPrice(item, syncedEpochDay, syncedResetSequence);
-        // Black Market sells one item per card, even for a right click.
+        // One purchase delivers the complete displayed card quantity.
         if (!purchaseConfirm.checkOrArm(card, false, item, price, this.minecraft)) return;
         ClientPlayNetworking.send(new BlackMarketBuyPayload(card, buyStack));
     }
@@ -507,11 +510,11 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
         String timerStr = String.format(Locale.ROOT, "%02d:%02d:%02d", hours, mins, secs);
 
         long balance = this.minecraft != null && this.minecraft.player != null
-                ? VCoinsState.getCoins(this.minecraft.player.getUUID()) : 0L;
+                ? VCoinsState.getClientCoins(this.minecraft.player.getUUID()) : 0L;
 
         extractor.fill(this.leftPos + 20, this.topPos + 39, this.leftPos + 334, this.topPos + 53, 0x88080310);
         extractor.text(this.font, Component.literal("§b" + timerStr), this.leftPos + 26, this.topPos + 42, 0xFF55FFFF, true);
-        int pityRemaining = 300 - (syncedLifetimeFlipCount % 300);
+        int pityRemaining = Math.max(0, VBlackMarket.PITY_THRESHOLD - syncedLifetimeFlipCount);
         extractor.centeredText(this.font, Component.translatable("vcoins.black_market.pity_remaining", pityRemaining),
                 this.leftPos + this.imageWidth / 2, this.topPos + 42, 0xFFAAAAAA);
         String balStr = formatCompactNumber(balance);
@@ -704,7 +707,7 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
                                 int right = Math.min(halfW - 2, rx + 4);
                                 if (right > left) {
                                     int slashColor = isEpic ? 0xFFEAD0FF : (isRare ? 0xFFD0FFFF : 0xFFFFFDF0);
-                                    extractor.fill(left, row, right, row + 1, (slashAlpha << 24) | slashColor);
+                                    extractor.fill(left, row, right, row + 1, (slashAlpha << 24) | (slashColor & 0xFFFFFF));
                                 }
                             }
                         }
@@ -779,15 +782,11 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
                         int badgeY = cardBaseY + BM_CARD_H + 3;
                         if (isMythic) {
                             extractor.fill(badgeX, badgeY, badgeX + badgeW, badgeY + badgeH, 0xEE1E0406);
-                            extractor.fill(badgeX, badgeY, badgeX + badgeW, badgeY + 1, 0xFFFF2E14);
-                            extractor.fill(badgeX, badgeY + badgeH - 1, badgeX + badgeW, badgeY + badgeH, 0xFFFF2E14);
                             int textColor = 0xFFFF7A66;
                             extractor.centeredText(this.font, Component.translatable("vcoins.mythic.badge"), cardBaseX + BM_CARD_W / 2, badgeY + 1, textColor);
                             extractor.centeredText(this.font, Component.literal("§c"  + formatCompactNumber(price)),  cardBaseX + BM_CARD_W / 2, cardBaseY + BM_CARD_H + 15, 0xFFFF5555);
                         } else {
                             extractor.fill(badgeX, badgeY, badgeX + badgeW, badgeY + badgeH, 0xEE140206);
-                            extractor.fill(badgeX, badgeY, badgeX + badgeW, badgeY + 1, 0xFFFFD700);
-                            extractor.fill(badgeX, badgeY + badgeH - 1, badgeX + badgeW, badgeY + badgeH, 0xFFFFD700);
                             int textColor = 0xFFFFE6A3;
                             extractor.centeredText(this.font, Component.translatable("vcoins.black_market.god_badge"), cardBaseX + BM_CARD_W / 2, badgeY + 1, textColor);
                             extractor.centeredText(this.font, Component.literal("§6"  + formatCompactNumber(price)),  cardBaseX + BM_CARD_W / 2, cardBaseY + BM_CARD_H + 15, 0xFFFFAA00);
@@ -846,17 +845,17 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
             return;
         }
         boolean still = VCoinsPurchaseConfirm.isReducedMotion();
-        double time = still ? index * 0.7 : (now % 120000L) / 1000.0 + index * 0.7;
+        double time = still ? index * 0.7 : (System.nanoTime() - VFX_EPOCH_NANOS) / 1_000_000_000.0 + index * 0.7;
         float breath = still ? 0.65f : (float) (0.65 + 0.35 * Math.sin(time * 2.2));
-        float power = (0.75f + 0.45f * hover) * (hidden ? 1f : 0.78f);
+        float power = Math.clamp((0.75f + 0.45f * hover) * (hidden ? 1f : 0.78f), 0f, 1f);
 
         if (isMythic) {
-            drawMythicAura(g, x, y, time, power, breath, hover, hidden);
+            VeloriaCardVfx.ambient(g, x, y, time, power, hover, hidden, true);
             return;
         }
 
         if (legend) {
-            drawLegendAura(g, x, y, time, power, breath, hover, hidden);
+            VeloriaCardVfx.ambient(g, x, y, time, power, hover, hidden, false);
             return;
         }
 
@@ -883,10 +882,10 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
         }
         for (int i = 0; i < 6; i++) {
             float t = (float) ((time * 0.32 + i * 0.173) % 1);
-            int px = x + (i % 2 == 0 ? 2 : BM_CARD_W - 3);
-            int py = y + BM_CARD_H - 3 - (int) (t * (BM_CARD_H - 6));
+            float px = x + (i % 2 == 0 ? 2f : BM_CARD_W - 3f);
+            float py = y + BM_CARD_H - 3f - (t * (BM_CARD_H - 6f));
             int alpha = (int) (Math.sin(t * Math.PI) * 190 * power);
-            g.fill(px, py, px + 1, py + 2, (alpha << 24) | highlight);
+            drawParticleSprite(g, PARTICLE_GLOW_ORB, px, py, 3.2f, 64, alpha, highlight);
         }
         if (hidden) {
             float sweep = (float) ((time * 0.22) % 1) * (BM_CARD_H + BM_CARD_W + 16) - 8;
@@ -900,370 +899,24 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
     }
 
     /**
-     * Continuous, high-poly AAA vertical light pillar matching reference Image 2.
-     * Projects BOTH upwards into the sky and downwards beneath the card with
-     * razor-sharp boundary rays, incandescent white-hot core, and fanning god-rays.
+     * Blits a glowing particle spark/orb with subpixel coordinates and alpha.
      */
-    private static void drawVerticalAuraBeam(GuiGraphicsExtractor g, int x, int y, int w, int h,
-                                             double time, float power, float breath, float hover, boolean isMythic) {
-        int cx = x + w / 2;
-        Identifier beamUpTex   = isMythic ? AURA_BEAM_MYTHIC_UP   : AURA_BEAM_LEGEND_UP;
-        Identifier beamDownTex = isMythic ? AURA_BEAM_MYTHIC_DOWN : AURA_BEAM_LEGEND_DOWN;
-        Identifier haloTex     = isMythic ? AURA_HALO_MYTHIC      : AURA_HALO_LEGEND;
-
-        float pulse = 0.90f + 0.10f * (float) Math.sin(time * 3.2);
-        int alpha = (int) (Math.clamp(power * pulse, 0.15f, 1.0f) * 255);
-        int tint = (alpha << 24) | 0x00FFFFFF;
-
-        // 1. Soft Ambient Radial Halo behind card (expands dynamically on hover)
-        int haloW = (int) (w + 36 + hover * 12);
-        int haloH = (int) (h + 36 + hover * 12);
-        int haloX = cx - haloW / 2;
-        int haloY = y + h / 2 - haloH / 2;
-        int haloAlpha = (int) (alpha * (0.72f + 0.20f * hover));
-        int haloTint = (Math.min(255, haloAlpha) << 24) | 0x00FFFFFF;
-        g.blit(RenderPipelines.GUI_TEXTURED, haloTex, haloX, haloY, 0.0f, 0.0f, haloW, haloH, 256, 256, 256, 256, haloTint);
-
-        // Beam geometry:
-        // On hover, beam widens dynamically and shoots higher into the heavens
-        int beamW = (int) (107 + hover * 10);
-        int beamX = cx - beamW / 2;
-
-        // 2. Upward Light Pillar (shooting into the heavens above the card)
-        int beamHUp = (int) (64 + hover * 12);
-        int beamYUp = y - beamHUp;
-        g.blit(RenderPipelines.GUI_TEXTURED, beamUpTex, beamX, beamYUp, 0.0f, 0.0f, beamW, beamHUp, 512, 512, 512, 512, tint);
-
-        // 3. Downward Light Pillar (shooting down beneath the card)
-        int beamHDown = (int) (52 + hover * 8);
-        int beamYDown = y + h;
-        int downAlpha = (int) (alpha * 0.88f);
-        int downTint = (downAlpha << 24) | 0x00FFFFFF;
-        g.blit(RenderPipelines.GUI_TEXTURED, beamDownTex, beamX, beamYDown, 0.0f, 0.0f, beamW, beamHDown, 512, 512, 512, 512, downTint);
+    private static void drawParticleSprite(GuiGraphicsExtractor g, Identifier tex,
+                                           float px, float py, float size, int texSize, int alpha, int rgb) {
+        if (alpha <= 2) return;
+        int clampedA = Math.min(255, Math.max(0, alpha));
+        int tint = (clampedA << 24) | (rgb & 0x00FFFFFF);
+        g.pose().pushMatrix();
+        g.pose().translate(px, py);
+        g.pose().scale(size / texSize, size / texSize);
+        g.blit(RenderPipelines.GUI_TEXTURED, tex, -texSize / 2, -texSize / 2,
+                0.0f, 0.0f, texSize, texSize, texSize, texSize, texSize, texSize, tint);
+        g.pose().popMatrix();
     }
 
-    private static void drawLegendAura(GuiGraphicsExtractor g, int x, int y, double time, float power, float breath, float hover, boolean hidden) {
-        int w = BM_CARD_W;
-        int h = BM_CARD_H;
-
-        // 1. Dual-Directional Vertical Radiance Pillar (Shooting BOTH upwards and downwards, from Image 2!)
-        drawVerticalAuraBeam(g, x, y, w, h, time, power, breath, hover, false);
-
-        // 2. Soft golden 1-pixel outline track
-        int goldOutlineAlpha = (int) (190 * power);
-        drawCardOutline(g, x, y, w, h, (goldOutlineAlpha << 24) | 0xFFFFD700);
-
-        // 3. Two Counter-Rotating Celestial Rings of Divine Seals
-        float cx = x + w / 2f, cy = y + h / 2f;
-        for (int ring = 0; ring < 2; ring++) {
-            float radius = ring == 0 ? 13f : 17f;
-            for (int mark = 0; mark < 8; mark++) {
-                double angle = mark * Math.PI / 4.0 + time * (ring == 0 ? 0.38 : -0.28);
-                int px = Math.round(cx + (float) Math.cos(angle) * radius);
-                int py = Math.round(cy + (float) Math.sin(angle) * radius);
-                int alpha = (int) ((hidden ? 180 : 100) * power);
-                int markColor = ring == 0 ? 0xFFFFE89A : 0xFFFFC033;
-                g.fill(px, py, px + (mark % 2 == 0 ? 2 : 1), py + 1, (alpha << 24) | markColor);
-            }
-        }
-
-        // 4. Sealed Divine Sheen & Center Golden Star Pulse
-        if (hidden) {
-            float sweep = (float) ((time * 0.22) % 1) * (h + w + 16) - 8;
-            for (int row = 4; row < h - 4; row++) {
-                int sx = Math.round(sweep - row);
-                int left = Math.max(4, sx - 2), right = Math.min(w - 4, sx + 2);
-                if (right > left) {
-                    g.fill(x + left, y + row, x + right, y + row + 1, ((int) (40 * power) << 24) | 0xFFFFF5D0);
-                }
-            }
-            float radius = 9 + 2.0f * breath;
-            for (int i = 0; i < 12; i++) {
-                double angle = time * 0.55 + i * Math.PI / 6.0;
-                int px = Math.round(cx + (float) Math.cos(angle) * radius);
-                int py = Math.round(cy + (float) Math.sin(angle) * radius);
-                g.fill(px, py, px + 1, py + 1, ((int) (190 * power) << 24) | 0xFFFFE888);
-            }
-            int centerA = (int) ((140 + 90 * breath) * power);
-            g.fill((int) cx - 3, (int) cy, (int) cx + 4, (int) cy + 1, (centerA << 24) | 0xFFFFF0A0);
-            g.fill((int) cx, (int) cy - 3, (int) cx + 1, (int) cy + 4, (centerA << 24) | 0xFFFFF0A0);
-        }
-
-        // 5. 14 Divine Golden Particles (Stardust & Floating Star Sparkles)
-        drawLegendParticles(g, x, y, time, power);
-    }
-
-    private static void drawLegendParticles(GuiGraphicsExtractor g, int x, int y, double time, float power) {
-        int w = BM_CARD_W;
-        int h = BM_CARD_H;
-
-        // 8 Drifting Golden Motes hugging edges and light pillar with gentle sway
-        for (int i = 0; i < 8; i++) {
-            float t = (float) ((time * 0.28 + i * 0.125) % 1.0);
-            float sway = (float) Math.sin(t * Math.PI * 2.0 + i) * 1.8f;
-            int px = (i % 2 == 0) ? x - 2 + Math.round(sway) : x + w + 1 + Math.round(sway);
-            int py = y + h - (int) (t * (h + 55));
-            int alpha = (int) (Math.sin(t * Math.PI) * 220 * power);
-            int color = t < 0.3f ? 0xFFFFF2B0 : (t < 0.7f ? 0xFFFFD700 : 0xFFE5A820);
-            if (alpha > 4) {
-                g.fill(px, py, px + 1, py + 1, (alpha << 24) | color);
-            }
-        }
-
-        // 6 Floating Light Shaft Diamonds (Image 2 celestial stardust ascending through the beacon)
-        for (int i = 0; i < 6; i++) {
-            float t = (float) ((time * 0.20 + i * 0.166) % 1.0);
-            float drift = (float) Math.cos(t * Math.PI * 2.0 + i * 1.5) * 3.0f;
-            int px = x + 8 + (i * 6) + Math.round(drift);
-            int py = y + h + 6 - (int) (t * (h + 65));
-            int alpha = (int) (Math.sin(t * Math.PI) * 230 * power);
-            if (alpha > 6) {
-                g.fill(px, py, px + 1, py + 1, (alpha << 24) | 0xFFFFFDE0);
-                if (alpha > 110 && t > 0.25f && t < 0.75f) {
-                    int subA = (int) (alpha * 0.40f);
-                    g.fill(px - 1, py, px, py + 1, (subA << 24) | 0xFFFFD700);
-                    g.fill(px + 1, py, px + 2, py + 1, (subA << 24) | 0xFFFFD700);
-                    g.fill(px, py - 1, px + 1, py, (subA << 24) | 0xFFFFD700);
-                    g.fill(px, py + 1, px + 1, py + 2, (subA << 24) | 0xFFFFD700);
-                }
-            }
-        }
-
-        // 2 Corner Star Twinkles
-        for (int side = 0; side < 2; side++) {
-            float blink = (float) Math.max(0, Math.sin(time * 3.5 + side * Math.PI));
-            int cx = side == 0 ? x : x + w - 1;
-            int cy = y;
-            int alpha = (int) (blink * 200 * power);
-            if (alpha > 10) {
-                g.fill(cx, cy, cx + 1, cy + 1, (alpha << 24) | 0xFFFFFFE0);
-            }
-        }
-    }
-
-    private static void drawMythicAura(GuiGraphicsExtractor g, int x, int y, double time, float power, float breath, float hover, boolean hidden) {
-        int w = BM_CARD_W;
-        int h = BM_CARD_H;
-
-        // 1. Dual-Directional Vertical Radiance Pillar (Shooting BOTH upwards and downwards, straight from Image 2!)
-        drawVerticalAuraBeam(g, x, y, w, h, time, power, breath, hover, true);
-
-        // 2. Resting Molten 1-pixel Outline Track
-        int trackAlpha = (int) (220 * power);
-        drawCardOutline(g, x, y, w, h, (trackAlpha << 24) | 0xFFFF2200);
-
-        // 3. Flowing 1-pixel Molten Lava Border (with 3 circulating speed heads)
-        drawMythicLavaBorder(g, x, y, time, power, breath, hidden);
-
-        // 4. Corner Fiery Eruption Flares
-        for (int corner = 0; corner < 4; corner++) {
-            float flarePulse = (float) Math.max(0, Math.sin(time * 4.8 + corner * 1.57));
-            int flareReach = 1 + Math.round(flarePulse * 2.5f);
-            int flareA = (int) (flarePulse * 230 * power);
-            if (flareA > 8) {
-                int cx = (corner % 2 == 0) ? x : x + w - 1;
-                int cy = (corner < 2) ? y : y + h - 1;
-                int flareColor = flareReach > 2 ? 0xFFFFF6B8 : 0xFFFF4808;
-                g.fill(cx - (corner % 2 == 0 ? flareReach : 0), cy,
-                       cx + (corner % 2 == 0 ? 1 : flareReach + 1), cy + 1, (flareA << 24) | flareColor);
-                g.fill(cx, cy - (corner < 2 ? flareReach : 0),
-                       cx + 1, cy + (corner < 2 ? 1 : flareReach + 1), (flareA << 24) | flareColor);
-            }
-        }
-
-        // 5. Triple Rotating Fiery Abyssal Rings
-        float cx = x + w / 2f, cy = y + h / 2f;
-        for (int ring = 0; ring < 3; ring++) {
-            float radius = ring == 0 ? 12f : (ring == 1 ? 16f : 20f);
-            float dir = (ring % 2 == 0) ? 0.42f : -0.34f;
-            for (int mark = 0; mark < 8; mark++) {
-                double angle = mark * Math.PI / 4.0 + time * dir;
-                int px = Math.round(cx + (float) Math.cos(angle) * radius);
-                int py = Math.round(cy + (float) Math.sin(angle) * radius);
-                int alpha = (int) ((hidden ? 190 : 110) * power);
-                int markColor = (ring == 0) ? 0xFFFFF090 : ((ring == 1) ? 0xFFFF4400 : 0xFFB80800);
-                g.fill(px, py, px + (mark % 2 == 0 ? 2 : 1), py + 1, (alpha << 24) | markColor);
-            }
-        }
-
-        // 6. Sealed Magma Core Star & Dual Thermal Distortion Wave (when hidden)
-        if (hidden) {
-            for (int wIdx = 0; wIdx < 2; wIdx++) {
-                float sweep = (float) (((time * 0.28 + wIdx * 0.5) % 1.0) * (h + w + 20) - 10);
-                for (int row = 3; row < h - 3; row++) {
-                    int sx = Math.round(sweep - row);
-                    int left = Math.max(3, sx - 2), right = Math.min(w - 3, sx + 2);
-                    if (right > left) {
-                        int waveColor = wIdx == 0 ? 0xFFFFC040 : 0xFFFF2200;
-                        g.fill(x + left, y + row, x + right, y + row + 1, ((int) (48 * power) << 24) | waveColor);
-                    }
-                }
-            }
-
-            float radius = 10 + 2.5f * breath;
-            for (int i = 0; i < 16; i++) {
-                double angle = time * 0.7 + i * Math.PI / 8.0;
-                int px = Math.round(cx + (float) Math.cos(angle) * radius);
-                int py = Math.round(cy + (float) Math.sin(angle) * radius);
-                int starColor = (i % 2 == 0) ? 0xFFFFF080 : 0xFFFF2E08;
-                g.fill(px, py, px + 1, py + 1, ((int) (210 * power) << 24) | starColor);
-            }
-            int coreA = (int) ((160 + 95 * breath) * power);
-            g.fill((int) cx - 4, (int) cy, (int) cx + 5, (int) cy + 1, (coreA << 24) | 0xFFFFF2A0);
-            g.fill((int) cx, (int) cy - 4, (int) cx + 1, (int) cy + 5, (coreA << 24) | 0xFFFFF2A0);
-            g.fill((int) cx - 2, (int) cy - 2, (int) cx + 3, (int) cy + 3, (coreA << 24) | 0xFFFF4800);
-        }
-
-        // 7. Dense Shower of Volcanic Particles (40 particles - 2.5x more than Legend!)
-        drawMythicParticles(g, x, y, time, power);
-    }
-
-    private static void drawMythicParticles(GuiGraphicsExtractor g, int x, int y, double time, float power) {
-        int w = BM_CARD_W;
-        int h = BM_CARD_H;
-
-        // 1. Rising Molten Embers (12 particles) - surging upward with thermal wobble through the light column
-        for (int i = 0; i < 12; i++) {
-            float speed = 0.35f + (i % 4) * 0.08f;
-            float t = (float) ((time * speed + i * 0.083) % 1.0);
-            float wobble = (float) Math.sin(t * Math.PI * 4.0 + i * 1.7) * 2.2f;
-            int px = (int) (x + (i * 3.8f) % (w + 4) - 2 + wobble);
-            int py = y + h + 8 - (int) (t * (h + 65));
-            int alpha = (int) (Math.sin(t * Math.PI) * 240 * power);
-            int emberColor;
-            if (t < 0.25f) {
-                emberColor = 0xFFFFF6B8;
-            } else if (t < 0.55f) {
-                emberColor = 0xFFFF6E14;
-            } else if (t < 0.82f) {
-                emberColor = 0xFFFF1800;
-            } else {
-                emberColor = 0xFF8A0800;
-            }
-            if (alpha > 4) {
-                g.fill(px, py, px + 1, py + (t < 0.4f ? 2 : 1), (alpha << 24) | emberColor);
-            }
-        }
-
-        // 2. High-speed erratic sparks (10 particles) - shooting rapidly along flanks
-        for (int i = 0; i < 10; i++) {
-            float speed = 0.65f + (i % 3) * 0.18f;
-            float t = (float) ((time * speed + i * 0.10) % 1.0);
-            float jitter = (float) Math.sin(time * 18.0 + i * 4.0) * 1.5f;
-            int px = (i % 2 == 0) ? x - 2 + Math.round(jitter) : x + w + 1 + Math.round(jitter);
-            int py = y + h - (int) (t * (h + 12));
-            int alpha = (int) (Math.sin(t * Math.PI) * 255 * power);
-            int sparkColor = (i % 3 == 0) ? 0xFFFFF8D0 : ((i % 3 == 1) ? 0xFFFFB020 : 0xFFFF3300);
-            if (alpha > 5) {
-                g.fill(px, py, px + 1, py + 1, (alpha << 24) | sparkColor);
-            }
-        }
-
-        // 3. Volcanic ash / soot flakes (6 particles) - slow, heavy atmospheric haze
-        for (int i = 0; i < 6; i++) {
-            float t = (float) ((time * 0.16 + i * 0.166) % 1.0);
-            float drift = (float) Math.sin(t * Math.PI * 1.5 + i * 2.0) * 3.5f;
-            int px = x + 4 + (i * 7) + Math.round(drift);
-            int py = y + h - 2 - (int) (t * (h + 16));
-            int alpha = (int) (Math.sin(t * Math.PI) * 160 * power);
-            int ashColor = (i % 2 == 0) ? 0xFF6B1208 : 0xFF4A0A05;
-            if (alpha > 5) {
-                g.fill(px, py, px + 1, py + 1, (alpha << 24) | ashColor);
-            }
-        }
-
-        // 4. Corner Magma Jet Eruptions (4 particles) - shooting outward diagonally from the 4 corners
-        for (int c = 0; c < 4; c++) {
-            float t = (float) ((time * 0.5 + c * 0.25) % 1.0);
-            int cx = (c % 2 == 0) ? x : x + w - 1;
-            int cy = (c < 2) ? y : y + h - 1;
-            int dirX = (c % 2 == 0) ? -1 : 1;
-            int dirY = (c < 2) ? -1 : 1;
-            int px = cx + Math.round(dirX * t * 5.0f);
-            int py = cy + Math.round(dirY * t * 5.0f);
-            int alpha = (int) ((1.0f - t) * 220 * power);
-            int jetColor = t < 0.3f ? 0xFFFFF0A0 : (t < 0.7f ? 0xFFFF5010 : 0xFFFF1100);
-            if (alpha > 5) {
-                g.fill(px, py, px + 1, py + 1, (alpha << 24) | jetColor);
-            }
-        }
-
-        // 5. Light Shaft Diamonds (8 incandescent star motes drifting through the light column, Image 2 style)
-        for (int i = 0; i < 8; i++) {
-            float speed = 0.20f + (i % 4) * 0.05f;
-            float t = (float) ((time * speed + i * 0.125) % 1.0);
-            float sway = (float) Math.sin(t * Math.PI * 3.0 + i * 1.9) * 2.8f;
-            int px = (int) (x + 8 + (i * 4.5f) + sway);
-            int py = y + h + 6 - (int) (t * (h + 68));
-            int alpha = (int) (Math.sin(t * Math.PI) * 255 * power);
-            if (alpha > 8) {
-                g.fill(px, py, px + 1, py + 1, (alpha << 24) | 0xFFFFFBE8);
-                if (alpha > 120 && t > 0.25f && t < 0.75f) {
-                    int haloA = (int) (alpha * 0.45f);
-                    g.fill(px - 1, py, px, py + 1, (haloA << 24) | 0xFFFF7A18);
-                    g.fill(px + 1, py, px + 2, py + 1, (haloA << 24) | 0xFFFF7A18);
-                    g.fill(px, py - 1, px + 1, py, (haloA << 24) | 0xFFFF7A18);
-                    g.fill(px, py + 1, px + 1, py + 2, (haloA << 24) | 0xFFFF7A18);
-                }
-            }
-        }
-    }
-
-    private static void drawMythicLavaBorder(GuiGraphicsExtractor g, int x, int y, double time, float power, float breath, boolean hidden) {
-        int w = BM_CARD_W - 1;
-        int h = BM_CARD_H - 1;
-        int perimeter = 2 * (w + h);
-
-        int streamCount = 3;
-        int streamLen = 30;
-        double speed = time * 38.0 + Math.sin(time * 2.5) * 3.5;
-
-        for (int s = 0; s < streamCount; s++) {
-            int head = (int) (speed + s * (perimeter / (double) streamCount));
-            for (int pos = 0; pos < streamLen; pos++) {
-                int step = Math.floorMod(head - pos, perimeter);
-                int px, py;
-                if (step < w) {
-                    px = step; py = 0;
-                } else if (step < w + h) {
-                    px = w; py = step - w;
-                } else if (step < 2 * w + h) {
-                    px = 2 * w + h - step; py = h;
-                } else {
-                    px = 0; py = perimeter - step;
-                }
-
-                int rgb;
-                int alpha;
-
-                if (pos < 2) {
-                    rgb = 0xFFFFF0A8;
-                    alpha = (int) (255 * power);
-                } else if (pos < 6) {
-                    rgb = 0xFFFFC033;
-                    alpha = (int) (245 * power);
-                } else if (pos < 14) {
-                    float frac = (pos - 6) / 8f;
-                    int gr = (int) (0x3A * (1 - frac) + 0x0E * frac);
-                    rgb = (0xFF << 16) | (gr << 8);
-                    alpha = (int) ((240 - frac * 30) * power);
-                } else if (pos < 22) {
-                    float frac = (pos - 14) / 8f;
-                    int r = (int) (255 * (1 - frac) + 170 * frac);
-                    rgb = (r << 16) | 0x0600;
-                    alpha = (int) ((210 - frac * 60) * power);
-                } else {
-                    float frac = (pos - 22) / (float) (streamLen - 22);
-                    int r = (int) (170 * (1 - frac) + 50 * frac);
-                    rgb = (r << 16);
-                    alpha = (int) ((140 * (1 - frac)) * power);
-                }
-
-                if (alpha > 5) {
-                    g.fill(x + px, y + py, x + px + 1, y + py + 1, (alpha << 24) | (rgb & 0xFFFFFF));
-                }
-            }
-        }
+    private static void drawParticleSprite(GuiGraphicsExtractor g, Identifier tex,
+                                           float px, float py, float size, int texSize, int tint) {
+        drawParticleSprite(g, tex, px, py, size, texSize, (tint >>> 24) & 0xFF, tint & 0x00FFFFFF);
     }
 
     private static void drawCardOutline(GuiGraphicsExtractor g, int x, int y, int w, int h, int color) {
@@ -1405,570 +1058,134 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
     }
 
     private void renderLegendCinematic(GuiGraphicsExtractor g, ItemStack relic) {
-        long elapsed = System.currentTimeMillis() - godPullStartTime;
-        playLegendScore(elapsed);
-        float entrance = Math.clamp(elapsed / 700f, 0f, 1f);
-        float settle = 1 - (float) Math.pow(1 - entrance, 3);
-        float departure = Math.clamp((elapsed - 3600f) / 600f, 0f, 1f);
-        float presence = settle * (1 - departure * departure);
-        float envelope = Math.min(1, elapsed / 180f) * (1 - departure);
-
-        // 1. Full-screen Cinematic Vignette & Deep Starlight Celestial Abyss
-        g.fill(0, 0, this.width, this.height, ((int) (envelope * 220) << 24) | 0x03050C);
-        g.blit(RenderPipelines.GUI_TEXTURED, CINEMATIC_VIGNETTE, 0, 0, 0.0f, 0.0f, this.width, this.height, 512, 512, 512, 512, ((int) (envelope * 255) << 24) | 0x00FFFFFF);
-
-        // All geometry shares a viewport-aware stage; small GUI scales retain margins.
-        float stage = Math.min(1f, Math.min(this.width / 360f, this.height / 280f));
-        float sourceX = this.leftPos + BM_CARD_START_X + godPullCardIndex * BM_CARD_SPACING + BM_CARD_W / 2f;
-        float sourceY = this.topPos + BM_CARD_Y + BM_CARD_H / 2;
-        float cx = sourceX + (this.width / 2f - sourceX) * presence;
-        float cy = sourceY + (this.height / 2f - 12 * stage - sourceY) * presence;
-
-        // Cinematic Impact Screen Shake (700ms -> 1150ms)
-        if (elapsed >= 700 && elapsed < 1150) {
-            float shakeProgress = (elapsed - 700f) / 450f;
-            float shakeAmp = (1.0f - shakeProgress) * 4.5f * stage;
-            cx += (float) Math.sin(elapsed * 0.08) * shakeAmp;
-            cy += (float) Math.cos(elapsed * 0.11) * shakeAmp * 0.7f;
-        }
-
-        float impact = Math.clamp((elapsed - 700f) / 420f, 0f, 1f);
-        float rotation = elapsed * 0.00023f;
-        int gold = 0xE8BC64;
-
-        // 2. Towering Celestial Divine Light Pillar (matches table aura outside, magnified to full screen!)
-        float beamCharge = elapsed < 700f ? (0.4f + 0.6f * entrance) : (1.0f - 0.25f * Math.clamp((elapsed - 700f) / 2900f, 0f, 1f));
-        int beamWidth = Math.round((140 + 20 * (float) Math.sin(elapsed * 0.003)) * stage * (elapsed < 700f ? (0.6f + 0.4f * entrance) : 1f));
-        int beamAlpha = (int) (envelope * beamCharge * 240);
-        if (beamAlpha > 4) {
-            g.blit(RenderPipelines.GUI_TEXTURED, CINEMATIC_BEAM_LEGEND,
-                    (int) (cx - beamWidth / 2f), 0,
-                    0.0f, 0.0f, beamWidth, this.height,
-                    512, 512, 512, 512, (beamAlpha << 24) | 0x00FFFFFF);
-        }
-
-        // 3. Twelve Broad Celestial Translucent Rays (Phase 2 detonation)
-        if (elapsed >= 700) {
-            for (int ray = 0; ray < 12; ray++) {
-                g.pose().pushMatrix();
-                g.pose().translate(cx, cy);
-                g.pose().rotate((float) (ray * Math.PI / 6 + rotation));
-                int length = Math.round((90 + 40 * impact) * stage);
-                int alpha = (int) (envelope * (1 - impact * 0.55f) * (ray % 2 == 0 ? 35 : 20));
-                g.fill(-2, -length, 2, -28, (alpha << 24) | 0xFFD983);
-                g.pose().popMatrix();
-            }
-        }
-
-        // 4. Detonation Shockwaves & Anamorphic Sunburst Lens Flare (elapsed >= 700ms)
-        if (elapsed >= 700) {
-            // Relativistic Golden Shockwave Wave 1 (700ms -> 1550ms)
-            float shock1 = Math.clamp((elapsed - 700f) / 850f, 0f, 1f);
-            if (shock1 > 0 && shock1 < 1) {
-                float shockEase1 = 1 - (1 - shock1) * (1 - shock1);
-                int shockSize = Math.round((60 + shockEase1 * 260) * stage);
-                int shockA = (int) (240 * (1 - shock1) * envelope);
-                if (shockA > 4) {
-                    g.blit(RenderPipelines.GUI_TEXTURED, CINEMATIC_SHOCKWAVE_LEGEND,
-                            (int) (cx - shockSize / 2f), (int) (cy - shockSize / 2f),
-                            0.0f, 0.0f, shockSize, shockSize,
-                            512, 512, 512, 512, (shockA << 24) | 0x00FFFFFF);
-                }
-            }
-
-            // Secondary Echo Shockwave (920ms -> 1800ms)
-            float shock2 = Math.clamp((elapsed - 920f) / 880f, 0f, 1f);
-            if (shock2 > 0 && shock2 < 1) {
-                float shockEase2 = 1 - (1 - shock2) * (1 - shock2);
-                int shockSize2 = Math.round((50 + shockEase2 * 220) * stage);
-                int shockA2 = (int) (180 * (1 - shock2) * envelope);
-                if (shockA2 > 4) {
-                    g.blit(RenderPipelines.GUI_TEXTURED, CINEMATIC_SHOCKWAVE_LEGEND,
-                            (int) (cx - shockSize2 / 2f), (int) (cy - shockSize2 / 2f),
-                            0.0f, 0.0f, shockSize2, shockSize2,
-                            512, 512, 512, 512, (shockA2 << 24) | 0x00FFFFFF);
-                }
-            }
-
-            // Anamorphic Sunburst Lens Flare (700ms -> 1900ms)
-            float burstProgress = Math.clamp((elapsed - 700f) / 1200f, 0f, 1f);
-            if (burstProgress < 1f) {
-                float burstEase = (float) Math.pow(1 - burstProgress, 2.0);
-                int burstSize = Math.round((180 + (1 - burstEase) * 120) * stage);
-                int burstAlpha = (int) (230 * burstEase * envelope);
-                if (burstAlpha > 4) {
-                    g.pose().pushMatrix();
-                    g.pose().translate(cx, cy);
-                    g.pose().rotate((float) (elapsed * 0.0003));
-                    g.blit(RenderPipelines.GUI_TEXTURED, CINEMATIC_SUNBURST,
-                            -burstSize / 2, -burstSize / 2,
-                            0.0f, 0.0f, burstSize, burstSize,
-                            512, 512, 512, 512, (burstAlpha << 24) | 0x00FFFFFF);
-                    g.pose().popMatrix();
-
-                    // Horizontal Anamorphic Flare Streak
-                    int streakW = Math.round((120 + (1 - burstEase) * 220) * stage);
-                    int streakH = Math.max(1, Math.round(2 * stage));
-                    int streakA = (int) (burstAlpha * 0.85f);
-                    g.fill((int) (cx - streakW), (int) (cy - streakH), (int) (cx + streakW), (int) (cy + streakH), (streakA << 24) | 0xFFF8DC);
-                    g.fill((int) (cx - streakW / 2), (int) (cy - 1), (int) (cx + streakW / 2), (int) (cy + 1), (streakA << 24) | 0xFFFFFF);
-                }
-            }
-        }
-
-        // 5. Fixed-budget Orbital Rings & spoke markers
-        for (int ring = 0; ring < 2; ring++) {
-            float radius = (64 + ring * 15) * stage * presence;
-            drawLegendRing(g, cx, cy, radius, (int) (envelope * 100), ring == 0 ? gold : 0x9D89CB);
-            for (int spoke = 0; spoke < 12; spoke++) {
-                double angle = spoke * Math.PI / 6 + rotation * (ring == 0 ? 1 : -0.65);
-                float inner = radius - (spoke % 3 == 0 ? 5 : 2) * stage;
-                drawLegendRay(g, cx, cy, angle, inner, radius, (int) (envelope * 190), gold);
-            }
-        }
-
-        // 6. Inward sparks -> Outward burst of drifting embers
-        for (int i = 0; i < 24; i++) {
-            double angle = i * 2.399963 + rotation * 0.3;
-            float burst = Math.clamp((elapsed - 700f - (i % 8) * 18) / 1700f, 0f, 1f);
-            float radius = elapsed < 700 ? 95 * (1 - elapsed / 700f) : 15 + 100 * (1 - (1 - burst) * (1 - burst));
-            radius *= stage;
-            int alpha = (int) (envelope * (elapsed < 700 ? 160 : 220 * (1 - burst)));
-            if (alpha <= 0) continue;
-            int px = Math.round(cx + (float) Math.cos(angle) * radius);
-            int py = Math.round(cy + (float) Math.sin(angle) * radius * 0.8f - burst * burst * 15 * stage);
-            int color = (alpha << 24) | (i % 5 == 0 ? 0xE3D5FF : 0xFFE7A4);
-            g.fill(px, py, px + 1, py + 1, color);
-            if (i % 7 == 0) {
-                g.fill(px - 2, py, px + 3, py + 1, color);
-                g.fill(px, py - 2, px + 1, py + 3, color);
-            }
-        }
-
-        // 7. Six ribbons turn into drifting gold fragments during victory hold
-        if (elapsed >= 1050 && elapsed < 3000) {
-            float progress = (elapsed - 1050) / 1950f;
-            int alpha = (int) (170 * Math.sin(progress * Math.PI) * envelope);
-            if (alpha > 0) {
-                for (int ribbon = 0; ribbon < 6; ribbon++) {
-                    float direction = ribbon % 2 == 0 ? -1 : 1;
-                    float rx = cx + direction * (45 + progress * 50) * stage;
-                    float ry = cy - 40 * stage + progress * 80 * stage + (ribbon / 2) * 15 * stage;
-                    g.pose().pushMatrix();
-                    g.pose().translate(rx, ry);
-                    g.pose().rotate(direction * (progress * 3 + ribbon));
-                    g.fill(-1, -4, 1, 4, (alpha << 24) | (ribbon % 3 == 0 ? 0xE9DCFF : 0xFFE2A0));
-                    g.pose().popMatrix();
-                }
-            }
-        }
-
-        // 8. Card Scaling, Flip & Monumental 3D Floating Relic
-        float punch = elapsed >= 700 && elapsed < 1120 ? (float) Math.sin(impact * Math.PI) * 0.55f : 0;
-        float scale = 1 + presence * ((2.0f + punch) * stage);
-        boolean sealed = elapsed < 700;
-
-        // The Altar Card Frame
-        g.pose().pushMatrix();
-        g.pose().translate(cx, cy);
-        float flip = sealed ? Math.clamp((elapsed - 520f) / 180f, 0f, 1f) : 1.0f;
-        float faceScale = sealed ? Math.max(0.025f, (float) Math.cos(flip * Math.PI * 0.5)) : 1.0f;
-        g.pose().scale(scale * faceScale, scale);
-        drawCardOutline(g, -BM_CARD_W / 2 - 1, -BM_CARD_H / 2 - 1, BM_CARD_W + 2, BM_CARD_H + 2, 0xFFE8BC64);
-        drawCardTexture(g, sealed ? CARD_LEGEND_BACK : CARD_LEGEND_FRONT, -BM_CARD_W / 2, -BM_CARD_H / 2, BM_CARD_W, BM_CARD_H);
-        g.pose().popMatrix();
-
-        // 3D Monumental Floating Relic (in front of card, free from 2D squash!)
-        if (!sealed) {
-            float itemImpact = Math.clamp((elapsed - 700f) / 450f, 0f, 1f);
-            float itemPunch = (1.0f - itemImpact) * 0.70f;
-            float itemScale = (2.4f + itemPunch) * stage;
-            float itemBob = (float) Math.sin(elapsed * 0.0035) * 4.5f * stage;
-
-            // Radiant Divine Bloom Halo directly behind the weapon
-            int haloSize = Math.round(110 * stage);
-            int haloA = (int) (envelope * (0.85f + 0.15f * (float) Math.sin(elapsed * 0.004)) * 220);
-            g.blit(RenderPipelines.GUI_TEXTURED, AURA_HALO_LEGEND,
-                    (int) (cx - haloSize / 2f), (int) (cy + itemBob - haloSize / 2f),
-                    0.0f, 0.0f, haloSize, haloSize,
-                    256, 256, 256, 256, (haloA << 24) | 0x00FFFFFF);
-
-            // Floating 3D Item Icon
-            g.pose().pushMatrix();
-            g.pose().translate(cx, cy + itemBob);
-            g.pose().scale(itemScale, itemScale);
-            g.item(relic, -8, -8);
-            g.pose().popMatrix();
-
-            // Celestial Stardust orbiting the weapon
-            for (int m = 0; m < 6; m++) {
-                double mAngle = elapsed * 0.002 + m * Math.PI / 3.0;
-                float mDist = (26 + (m % 2) * 8) * stage;
-                int mx = Math.round(cx + (float) Math.cos(mAngle) * mDist);
-                int my = Math.round(cy + itemBob + (float) Math.sin(mAngle) * mDist * 0.75f);
-                int mA = (int) (envelope * (140 + 80 * Math.sin(elapsed * 0.005 + m)));
-                int mColor = m % 2 == 0 ? 0xFFFFF2D0 : 0xFFFFD700;
-                g.fill(mx - 1, my - 1, mx + 1, my + 1, (mA << 24) | mColor);
-            }
-        }
-
-        // 9. Letter-spaced title and item name
-        float titleProgress = Math.clamp((elapsed - 700f) / 350f, 0f, 1f);
-        float textFade = Math.clamp((elapsed - 700f) / 90f, 0f, 1f) * (1 - departure);
-        int textAlpha = (int) (textFade * 255);
-        if (textAlpha > 4) {
-            int titleY = Math.round(this.height / 2f - 105 * stage);
-            Component title = Component.translatable("vcoins.roman.reveal.title").withStyle(ChatFormatting.BOLD);
-            float titleScale = Math.min(1.65f + 0.6f * (1 - titleProgress) * (1 - titleProgress),
-                    (this.width - 24f) / Math.max(1, this.font.width(title)));
-            g.pose().pushMatrix();
-            g.pose().translate(this.width / 2f, titleY);
-            g.pose().scale(titleScale, titleScale);
-            g.centeredText(this.font, title, 1, 2, (textAlpha << 24) | 0x6E3918);
-            g.centeredText(this.font, title, 0, 0, (textAlpha << 24) | 0xFFE0A0);
-            g.pose().popMatrix();
-            int nameY = Math.round(this.height / 2f + 76 * stage);
-            String fullName = relic.getHoverName().getString();
-            int maxNameWidth = Math.min(260, this.width - 24);
-            String name = this.font.width(fullName) > maxNameWidth
-                    ? this.font.plainSubstrByWidth(fullName, maxNameWidth - this.font.width("…")) + "…" : fullName;
-            g.centeredText(this.font, Component.literal(name), this.width / 2, nameY, (textAlpha << 24) | 0xFFF2D7);
-            g.centeredText(this.font, Component.translatable("vcoins.roman.reveal.dismiss"),
-                    this.width / 2, nameY + 15, ((int) (textFade * 150) << 24) | 0xB9B4C7);
-        }
+        renderGloryCinematic(g, relic, false);
     }
 
     private void renderMythicCinematic(GuiGraphicsExtractor g, ItemStack relic) {
+        renderGloryCinematic(g, relic, true);
+    }
+
+    private void renderGloryCinematic(GuiGraphicsExtractor g, ItemStack relic, boolean mythic) {
         long elapsed = System.currentTimeMillis() - godPullStartTime;
-        playMythicScore(elapsed);
-        float entrance = Math.clamp(elapsed / 700f, 0f, 1f);
-        float settle = 1 - (float) Math.pow(1 - entrance, 3);
-        float departure = Math.clamp((elapsed - 3600f) / 600f, 0f, 1f);
-        float presence = settle * (1 - departure * departure);
-        float envelope = Math.min(1, elapsed / 180f) * (1 - departure);
+        if (mythic) playMythicScore(elapsed); else playLegendScore(elapsed);
+        float entrance = Math.clamp(elapsed / 650f, 0f, 1f);
+        float arrival = entrance * entrance * (3 - 2 * entrance);
+        float departure = Math.clamp((elapsed - (GOD_CINEMATIC_DURATION_MS - 700f)) / 700f, 0f, 1f);
+        float leave = departure * departure * (3 - 2 * departure);
+        float presence = arrival * (1 - leave);
+        float envelope = Math.clamp(elapsed / 200f, 0f, 1f) * (1 - leave);
+        float stage = Math.min(1f, Math.min(this.width / 380f, this.height / 300f));
+        int color = mythic ? VeloriaCardVfx.MYTHIC_FLAME : VeloriaCardVfx.GOLD_PRIMARY;
+        int lightColor = mythic ? VeloriaCardVfx.MYTHIC_SEARING : VeloriaCardVfx.GOLD_LIGHT;
+        VeloriaCardVfx.gloryBackground(g, this.width, this.height, stage, elapsed, envelope, mythic);
 
-        // 1. Full-screen Cinematic Vignette over Deep Abyssal Void
-        g.fill(0, 0, this.width, this.height, ((int) (envelope * 230) << 24) | 0x070104);
-        g.blit(RenderPipelines.GUI_TEXTURED, CINEMATIC_VIGNETTE, 0, 0, 0.0f, 0.0f, this.width, this.height, 512, 512, 512, 512, ((int) (envelope * 255) << 24) | 0x00FFFFFF);
+        float sourceX = leftPos + BM_CARD_START_X + godPullCardIndex * BM_CARD_SPACING + BM_CARD_W / 2f;
+        float sourceY = topPos + BM_CARD_Y + BM_CARD_H / 2f;
+        float cx = sourceX + (width / 2f - sourceX) * presence;
+        float cy = sourceY + (height / 2f - 10 * stage - sourceY) * presence;
 
-        float stage = Math.min(1f, Math.min(this.width / 360f, this.height / 280f));
-        float sourceX = this.leftPos + BM_CARD_START_X + godPullCardIndex * BM_CARD_SPACING + BM_CARD_W / 2f;
-        float sourceY = this.topPos + BM_CARD_Y + BM_CARD_H / 2;
-        float cx = sourceX + (this.width / 2f - sourceX) * presence;
-        float cy = sourceY + (this.height / 2f - 14 * stage - sourceY) * presence;
-
-        // Gravitational micro-jitter right before detonation (520ms -> 700ms)
-        if (elapsed >= 520 && elapsed < 700) {
-            float tension = (elapsed - 520f) / 180f;
-            float shake = (float) Math.sin(elapsed * 0.15) * tension * 2.2f * stage;
-            cx += shake;
-            cy += (float) Math.cos(elapsed * 0.17) * tension * 1.5f * stage;
+        // 2. Powerful tactile impact camera shake on reveal (700ms) and mythic second ignition (1250ms)
+        if (elapsed >= 700 && elapsed < 950) {
+            float t = (elapsed - 700) / 250f;
+            float impactShake = (1 - t) * (mythic ? 5.8f : 3.8f) * stage;
+            cx += (float) Math.sin((elapsed - 700) * 0.09) * impactShake;
+            cy += (float) Math.cos((elapsed - 700) * 0.11) * impactShake * 0.75f;
+        }
+        if (mythic && elapsed >= 1250 && elapsed < 1480) {
+            float t = (elapsed - 1250) / 230f;
+            float secondShake = (1 - t) * 3.2f * stage;
+            cx += (float) Math.sin((elapsed - 1250) * 0.08) * secondShake;
+            cy += (float) Math.cos((elapsed - 1250) * 0.10) * secondShake * 0.65f;
         }
 
-        // Relativistic Seismic Screen Shake during supernova detonation (700ms -> 1250ms)
-        if (elapsed >= 700 && elapsed < 1250) {
-            float shakeProgress = 1.0f - (elapsed - 700f) / 550f;
-            float shakeMagnitude = shakeProgress * 6.5f * stage;
-            cx += (float) (Math.sin(elapsed * 0.11) * shakeMagnitude);
-            cy += (float) (Math.cos(elapsed * 0.13) * shakeMagnitude * 0.8f);
-        }
+        // 3. Smooth celestial levitation (gentle vertical float & horizontal drift)
+        float floatBob = elapsed >= 700 ? (float) Math.sin((elapsed - 700) * 0.0028) * 3.5f * stage * presence : 0f;
+        float floatSway = elapsed >= 700 ? (float) Math.cos((elapsed - 700) * 0.0020) * 1.5f * stage * presence : 0f;
+        float cardX = cx + floatSway;
+        float cardY = cy + floatBob;
 
-        float impact = Math.clamp((elapsed - 700f) / 420f, 0f, 1f);
-        float rotation = elapsed * 0.00035f;
+        // 4. Card dynamic scale
+        float punch = elapsed >= 700 && elapsed < 1100
+                ? (float) Math.sin((elapsed - 700) / 400f * Math.PI) * (mythic ? 0.32f : 0.22f) : 0;
+        float scale = 1 + presence * ((mythic ? 1.42f : 1.22f) * stage + punch);
 
-        // 2. Towering Full-Height Volcanic Plasma Light Pillar (Shooting across entire screen!)
-        float beamCharge = elapsed < 700f ? (0.45f + 0.55f * entrance) : (1.0f - 0.20f * Math.clamp((elapsed - 700f) / 2900f, 0f, 1f));
-        int beamWidth = Math.round((155 + 24 * (float) Math.sin(elapsed * 0.0035)) * stage * (elapsed < 700f ? (0.55f + 0.45f * entrance) : 1f));
-        int beamAlpha = (int) (envelope * beamCharge * 245);
-        if (beamAlpha > 4) {
-            g.blit(RenderPipelines.GUI_TEXTURED, CINEMATIC_BEAM_MYTHIC,
-                    (int) (cx - beamWidth / 2f), 0,
-                    0.0f, 0.0f, beamWidth, this.height,
-                    512, 512, 512, 512, (beamAlpha << 24) | 0x00FFFFFF);
-        }
+        // 5. Render Glory behind the hero card (Mandala, shockwaves, orbits, spark bursts, pillars)
+        VeloriaCardVfx.pillars(g, cardX, cardY - BM_CARD_H * scale / 2f, cardY + BM_CARD_H * scale / 2f, stage, elapsed, envelope, mythic);
+        VeloriaCardVfx.glory(g, cardX, cardY, stage, elapsed, envelope, mythic);
+        VeloriaCardVfx.ascension(g, cardX, cardY, stage, elapsed, envelope, mythic);
 
-        // 3. PHASE 1: SINGULARITY (0 -> 700ms) - Inward Cosmic Starlight Spiral
-        if (elapsed < 700) {
-            float compress = 1 - entrance;
-            for (int k = 0; k < 12; k++) {
-                double spiralAngle = k * (Math.PI / 6) + entrance * 3.8;
-                float dist = (30 + compress * 140) * stage;
-                float sx = cx + (float) Math.cos(spiralAngle) * dist;
-                float sy = cy + (float) Math.sin(spiralAngle) * dist * 0.85f;
-                int alpha = (int) (envelope * (0.3f + 0.7f * entrance) * 220);
-                int color = (alpha << 24) | (k % 2 == 0 ? 0x63F4FF : 0xEA94FF);
-                g.fill((int) sx - 1, (int) sy - 1, (int) sx + 2, (int) sy + 2, color);
-            }
-        }
-
-        // 4. PHASE 2: SUPERNOVA DETONATION (elapsed >= 700ms)
-        if (elapsed >= 700) {
-            // Relativistic Volcanic Shockwave 1 (700ms -> 1550ms)
-            float wave1 = Math.clamp((elapsed - 700f) / 850f, 0f, 1f);
-            if (wave1 > 0 && wave1 < 1) {
-                float eased1 = 1 - (1 - wave1) * (1 - wave1);
-                int shockSize1 = Math.round((70 + eased1 * 280) * stage);
-                int shockA1 = (int) (245 * (1 - wave1) * envelope);
-                if (shockA1 > 4) {
-                    g.blit(RenderPipelines.GUI_TEXTURED, CINEMATIC_SHOCKWAVE_MYTHIC,
-                            (int) (cx - shockSize1 / 2f), (int) (cy - shockSize1 / 2f),
-                            0.0f, 0.0f, shockSize1, shockSize1,
-                            512, 512, 512, 512, (shockA1 << 24) | 0x00FFFFFF);
-                }
-            }
-
-            // Secondary Echo Shockwave (880ms -> 1800ms)
-            float wave2 = Math.clamp((elapsed - 880f) / 920f, 0f, 1f);
-            if (wave2 > 0 && wave2 < 1) {
-                float eased2 = 1 - (1 - wave2) * (1 - wave2);
-                int shockSize2 = Math.round((55 + eased2 * 230) * stage);
-                int shockA2 = (int) (190 * (1 - wave2) * envelope);
-                if (shockA2 > 4) {
-                    g.blit(RenderPipelines.GUI_TEXTURED, CINEMATIC_SHOCKWAVE_MYTHIC,
-                            (int) (cx - shockSize2 / 2f), (int) (cy - shockSize2 / 2f),
-                            0.0f, 0.0f, shockSize2, shockSize2,
-                            512, 512, 512, 512, (shockA2 << 24) | 0x00FFFFFF);
-                }
-            }
-
-            // Anamorphic Sunburst Lens Flare (700ms -> 2000ms)
-            float flareProgress = Math.clamp((elapsed - 700f) / 1300f, 0f, 1f);
-            if (flareProgress < 1f) {
-                float flareEase = (float) Math.pow(1 - flareProgress, 2.0);
-                int sunburstSize = Math.round((200 + (1 - flareEase) * 140) * stage);
-                int flareAlpha = (int) (240 * flareEase * envelope);
-                if (flareAlpha > 4) {
-                    g.pose().pushMatrix();
-                    g.pose().translate(cx, cy);
-                    g.pose().rotate((float) (elapsed * 0.00035));
-                    g.blit(RenderPipelines.GUI_TEXTURED, CINEMATIC_SUNBURST,
-                            -sunburstSize / 2, -sunburstSize / 2,
-                            0.0f, 0.0f, sunburstSize, sunburstSize,
-                            512, 512, 512, 512, (flareAlpha << 24) | 0x00FFFFFF);
-                    g.pose().popMatrix();
-
-                    // Dual Anamorphic Laser Flare Streaks (Electric Cyan & Pure Starlight)
-                    int hReach = Math.round((140 + (1 - flareEase) * 240) * stage);
-                    int vReach = Math.max(1, Math.round(2 * stage));
-                    int streakA = (int) (flareAlpha * 0.85f);
-                    g.fill((int) (cx - hReach), (int) (cy - vReach), (int) (cx + hReach), (int) (cy + vReach), (streakA << 24) | 0x63F4FF);
-                    g.fill((int) (cx - hReach / 2), (int) (cy - 1), (int) (cx + hReach / 2), (int) (cy + 1), (streakA << 24) | 0xFFFFFF);
-                    int vStreakReach = Math.round((80 + (1 - flareEase) * 140) * stage);
-                    g.fill((int) (cx - 1), (int) (cy - vStreakReach), (int) (cx + 1), (int) (cy + vStreakReach), ((streakA / 2) << 24) | 0xE285FF);
-                }
-            }
-
-            // 8 Rotating Celestial Prismatic Light Blades
-            float beamFade = 1 - Math.clamp((elapsed - 700f) / 2600f, 0f, 1f);
-            if (beamFade > 0) {
-                int bladeAlpha = (int) (envelope * beamFade * (55 + 25 * (1 - impact)));
-                int bladeLen = Math.round((95 + 45 * impact) * stage);
-                for (int ray = 0; ray < 8; ray++) {
-                    g.pose().pushMatrix();
-                    g.pose().translate(cx, cy);
-                    g.pose().rotate((float) (ray * Math.PI / 4 + rotation));
-                    int col = ray % 2 == 0 ? 0x6DF6FF : 0xE685FF;
-                    // Tapered celestial beam
-                    g.fill(-2, -bladeLen, 2, -26, (bladeAlpha << 24) | col);
-                    g.fill(-1, -bladeLen - 12, 1, -bladeLen, ((bladeAlpha / 2) << 24) | 0xFFFFFF);
-                    g.pose().popMatrix();
-                }
-            }
-        }
-
-        // 5. CONCENTRIC SACRED GEOMETRY (Dual Runic Rings & Octagram Nodes)
-        float ringRadius1 = (68 + 18 * (float) Math.sin(elapsed * 0.0018)) * stage * presence;
-        drawMythicRing(g, cx, cy, ringRadius1, (int) (envelope * 110), 0x5CE7FF);
-
-        float ringRadius2 = (52 + 10 * (float) Math.cos(elapsed * 0.0022)) * stage * presence;
-        drawMythicRing(g, cx, cy, ringRadius2, (int) (envelope * 95), 0xD577FF);
-
-        for (int node = 0; node < 8; node++) {
-            double nodeAngle = node * Math.PI / 4 + rotation;
-            float nx = cx + (float) Math.cos(nodeAngle) * ringRadius1;
-            float ny = cy + (float) Math.sin(nodeAngle) * ringRadius1;
-            int nAlpha = (int) (envelope * 180);
-            int nColor = (nAlpha << 24) | (node % 2 == 0 ? 0xFFFFFF : 0x76F6FF);
-            g.fill((int) nx - 1, (int) ny - 1, (int) nx + 2, (int) ny + 2, nColor);
-        }
-
-        // 6. ORBITING ASTRAL CRYSTAL SHARDS (8 Floating 3D Prismatic Diamonds)
-        if (elapsed >= 900 && elapsed < 3500) {
-            float shardProgress = (elapsed - 900f) / 2600f;
-            float shardFade = (float) Math.sin(shardProgress * Math.PI) * envelope;
-            int shardAlpha = (int) (210 * shardFade);
-            if (shardAlpha > 0) {
-                for (int s = 0; s < 8; s++) {
-                    double orbitAngle = s * (Math.PI / 4) + elapsed * 0.0009;
-                    float rx = (72 + (s % 2) * 22) * stage;
-                    float ry = (40 + (s % 2) * 14) * stage;
-                    float sx = cx + (float) Math.cos(orbitAngle) * rx;
-                    float sy = cy + (float) Math.sin(orbitAngle) * ry + (float) Math.sin(elapsed * 0.0035 + s * 1.5) * 6 * stage;
-
-                    g.pose().pushMatrix();
-                    g.pose().translate(sx, sy);
-                    g.pose().rotate((float) (orbitAngle + elapsed * 0.003));
-                    int bodyColor = (shardAlpha << 24) | (s % 2 == 0 ? 0x63F4FF : 0xF2B5FF);
-                    int coreColor = (shardAlpha << 24) | 0xFFFFFF;
-                    g.fill(-2, 0, 3, 1, coreColor);
-                    g.fill(0, -2, 1, 3, coreColor);
-                    g.fill(-1, -1, 2, 2, bodyColor);
-                    g.pose().popMatrix();
-                }
-            }
-        }
-
-        // 7. Card Scaling, Flip & Monumental 3D Floating Relic
-        float punch = elapsed >= 700 && elapsed < 1180 ? (float) Math.sin(impact * Math.PI) * 0.68f : 0;
-        float scale = 1 + presence * ((2.15f + punch) * stage);
         boolean sealed = elapsed < 700;
+        float face = elapsed < 520 ? 1 : elapsed < 700
+                ? Math.max(0.025f, (700 - elapsed) / 180f)
+                : Math.min(1, 0.025f + (elapsed - 700) / 180f);
 
-        // The Altar Card Frame
+        // 6. Draw Card Texture (Sealed Back or Revealed Front)
         g.pose().pushMatrix();
-        g.pose().translate(cx, cy);
-        float flip = sealed ? Math.clamp((elapsed - 500f) / 200f, 0f, 1f) : 1.0f;
-        float faceScale = sealed ? Math.max(0.025f, (float) Math.cos(flip * Math.PI * 0.5)) : 1.0f;
-        g.pose().scale(scale * faceScale, scale);
-
-        if (elapsed >= 520 && elapsed < 700) {
-            int ghostA = (int) (((elapsed - 520) / 180f) * 60);
-            drawCardOutline(g, -BM_CARD_W / 2 - 3, -BM_CARD_H / 2 - 1, BM_CARD_W + 2, BM_CARD_H + 2, (ghostA << 24) | 0x00F0FF);
-            drawCardOutline(g, -BM_CARD_W / 2 + 1, -BM_CARD_H / 2 - 1, BM_CARD_W + 2, BM_CARD_H + 2, (ghostA << 24) | 0xFF00D4);
-        }
-
-        drawCardOutline(g, -BM_CARD_W / 2 - 1, -BM_CARD_H / 2 - 1, BM_CARD_W + 2, BM_CARD_H + 2, 0xFFFF2E14);
-        drawCardTexture(g, sealed ? CARD_MYTHIC_BACK : CARD_MYTHIC_FRONT, -BM_CARD_W / 2, -BM_CARD_H / 2, BM_CARD_W, BM_CARD_H);
+        g.pose().translate(cardX, cardY);
+        g.pose().scale(scale * face, scale);
+        drawCardTexture(g, sealed ? getCardBackTexture(relic) : getCardFrontTexture(relic),
+                -BM_CARD_W / 2, -BM_CARD_H / 2, BM_CARD_W, BM_CARD_H);
+        drawCardOutline(g, -BM_CARD_W / 2, -BM_CARD_H / 2, BM_CARD_W, BM_CARD_H,
+                VeloriaCardVfx.tint(0.92f, color));
         g.pose().popMatrix();
 
-        // 3D Monumental Floating Relic (in front of card, free from 2D squash!)
+        // 7. Holographic Foil Sheen & Prismatic Edge Luster on Revealed Card
         if (!sealed) {
-            float itemImpact = Math.clamp((elapsed - 700f) / 450f, 0f, 1f);
-            float itemPunch = (1.0f - itemImpact) * 0.85f;
-            float itemScale = (2.6f + itemPunch) * stage;
-            float itemBob = (float) Math.sin(elapsed * 0.0038) * 5.0f * stage;
+            VeloriaCardVfx.gloryCardFace(g, cardX, cardY, scale * face, scale, stage, elapsed, envelope, mythic);
 
-            // Radiant Mythic Supernova Bloom Halo directly behind the weapon
-            int haloSize = Math.round(130 * stage);
-            int haloA = (int) (envelope * (0.85f + 0.15f * (float) Math.sin(elapsed * 0.004)) * 240);
-            g.blit(RenderPipelines.GUI_TEXTURED, AURA_HALO_MYTHIC,
-                    (int) (cx - haloSize / 2f), (int) (cy + itemBob - haloSize / 2f),
-                    0.0f, 0.0f, haloSize, haloSize,
-                    256, 256, 256, 256, (haloA << 24) | 0x00FFFFFF);
+            // 8. Floating 3D Relic Item with Sacred Star Core
+            float reveal = Math.clamp((elapsed - 700f) / 220f, 0f, 1f);
+            float itemScale = (1 + (mythic ? 2.3f : 1.95f) * stage * presence) * reveal;
+            float itemBob = (float) Math.sin((elapsed - 700) * 0.0032) * 2.2f * stage * presence;
 
-            // Floating 3D Item Icon
+            VeloriaCardVfx.gloryItemCore(g, cardX, cardY + itemBob, itemScale, stage, elapsed, envelope, mythic);
+
             g.pose().pushMatrix();
-            g.pose().translate(cx, cy + itemBob);
+            g.pose().translate(cardX, cardY + itemBob);
             g.pose().scale(itemScale, itemScale);
             g.item(relic, -8, -8);
             g.pose().popMatrix();
-
-            // Orbiting Volcanic Embers & Supernova Stardust
-            for (int m = 0; m < 8; m++) {
-                double mAngle = elapsed * 0.0024 + m * Math.PI / 4.0;
-                float mDist = (30 + (m % 2) * 10) * stage;
-                int mx = Math.round(cx + (float) Math.cos(mAngle) * mDist);
-                int my = Math.round(cy + itemBob + (float) Math.sin(mAngle) * mDist * 0.75f);
-                int mA = (int) (envelope * (160 + 80 * Math.sin(elapsed * 0.006 + m)));
-                int mColor = (m % 2 == 0) ? 0xFF63F4FF : 0xFFFF3B14;
-                g.fill(mx - 1, my - 1, mx + 2, my + 2, (mA << 24) | mColor);
-            }
         }
 
-        // 8. TRANSCENDENT TYPOGRAPHY & MULTI-LAYER CHROMATIC TITLE
-        float titleProgress = Math.clamp((elapsed - 700f) / 350f, 0f, 1f);
-        float textFade = Math.clamp((elapsed - 700f) / 90f, 0f, 1f) * (1 - departure);
-        int textAlpha = (int) (textFade * 255);
-        if (textAlpha > 4) {
-            int titleY = Math.round(this.height / 2f - 108 * stage);
-            Component title = Component.translatable("vcoins.mythic.reveal").withStyle(ChatFormatting.BOLD);
-            float titleScale = Math.min(1.85f + 0.75f * (1 - titleProgress) * (1 - titleProgress),
-                    (this.width - 24f) / Math.max(1, this.font.width(title)));
-            g.pose().pushMatrix();
-            g.pose().translate(this.width / 2f, titleY);
-            g.pose().scale(titleScale, titleScale);
-            g.centeredText(this.font, title, 2, 2, (textAlpha << 24) | 0x240438);
-            g.centeredText(this.font, title, -1, 0, ((int) (textAlpha * 0.65f) << 24) | 0x00E5FF);
-            g.centeredText(this.font, title, 0, 0, (textAlpha << 24) | 0xFFEDFF);
-            g.pose().popMatrix();
+        // 9. Foreground Ascending Embers & Celestial Sparks
+        VeloriaCardVfx.gloryForeground(g, cardX, cardY, stage, elapsed, envelope, mythic);
 
-            int nameY = Math.round(this.height / 2f + 78 * stage);
-            String rawName = relic.getHoverName().getString();
-            int maxNameWidth = Math.min(270, this.width - 24);
-            String name = this.font.width(rawName) > maxNameWidth
-                    ? this.font.plainSubstrByWidth(rawName, maxNameWidth - this.font.width("…")) + "…" : rawName;
-            g.centeredText(this.font, Component.literal("✧ " + name + " ✧"), this.width / 2, nameY, (textAlpha << 24) | 0xFFF0BD);
-            g.centeredText(this.font, Component.translatable("vcoins.mythic.header"),
-                    this.width / 2, nameY + 13, ((int) (textFade * 210) << 24) | 0xD296FF);
-            g.centeredText(this.font, Component.translatable("vcoins.roman.reveal.dismiss"),
-                    this.width / 2, nameY + 26, ((int) (textFade * 150) << 24) | 0x9D95B3);
+        // 10. Regal Title with Animated Glory VFX
+        Component heading = Component.translatable(mythic ? "vcoins.mythic.reveal" : "vcoins.roman.reveal.title")
+                .withStyle(ChatFormatting.BOLD);
+        float headerY = height / 2f - 112 * stage;
+        VeloriaCardVfx.gloryTitle(g, this.font, heading, width / 2f, headerY, stage, elapsed, (1 - leave), mythic);
+
+        float textFade = Math.clamp((elapsed - 920f) / 300f, 0f, 1f) * (1 - leave);
+        if (textFade > 0.02f) {
+
+            // Relic Nameplate with Framed Plaque Backing
+            String name = relic.getHoverName().getString();
+            int maxWidth = Math.max(20, Math.min(290, width - 30));
+            if (font.width(name) > maxWidth) name = font.plainSubstrByWidth(name, maxWidth - font.width("…")) + "…";
+            int nameY = Math.round(height / 2f + 85 * stage);
+
+            int nameW = font.width(name);
+            int plaqueW = Math.min(nameW + 36, width - 24);
+            int plaqueH = 18;
+            int plaqueX = (width - plaqueW) / 2;
+            int plaqueY = nameY - 4;
+
+            // Translucent glassmorphic plaque fill
+            g.fill(plaqueX, plaqueY, plaqueX + plaqueW, plaqueY + plaqueH,
+                    VeloriaCardVfx.tint(textFade * 0.82f, mythic ? 0x1A080C : 0x100D1A));
+            InventoryTextures.frame(g, plaqueX, plaqueY, plaqueW, plaqueH,
+                    VeloriaCardVfx.tint(textFade * 0.88f, color));
+
+            g.centeredText(font, Component.literal(name), width / 2, nameY + 1,
+                    VeloriaCardVfx.tint(textFade, 0xFFFFFF));
+
+            // Dismiss prompt with smooth breathing pulse
+            float dismissPulse = 0.55f + 0.35f * (float) Math.sin(elapsed * 0.005);
+            g.centeredText(font, Component.translatable("vcoins.roman.reveal.dismiss"), width / 2, nameY + 20,
+                    VeloriaCardVfx.tint(textFade * dismissPulse, 0xD0C4E2));
         }
     }
-
-    private static void drawLegendRay(GuiGraphicsExtractor g, float cx, float cy, double angle,
-                                       float inner, float outer, int alpha, int rgb) {
-        if (alpha <= 0) return;
-        // One small marker replaces a ray made of overlapping per-pixel quads.
-        float radius = (inner + outer) * 0.5f;
-        int x = Math.round(cx + (float) Math.cos(angle) * radius);
-        int y = Math.round(cy + (float) Math.sin(angle) * radius);
-        g.fill(x, y, x + 2, y + 2, (alpha << 24) | rgb);
-    }
-
-    private static final int LEGEND_RING_POINTS = 24;
-    private static final float[] LEGEND_RING_X = new float[LEGEND_RING_POINTS];
-    private static final float[] LEGEND_RING_Y = new float[LEGEND_RING_POINTS];
-    private static final float[] LEGEND_SEGMENT_ANGLE = new float[LEGEND_RING_POINTS];
-    static {
-        for (int i = 0; i < LEGEND_RING_POINTS; i++) {
-            double angle = i * Math.PI * 2 / LEGEND_RING_POINTS;
-            LEGEND_RING_X[i] = (float) Math.cos(angle);
-            LEGEND_RING_Y[i] = (float) Math.sin(angle);
-            LEGEND_SEGMENT_ANGLE[i] = (float) (angle + Math.PI / LEGEND_RING_POINTS + Math.PI / 2);
-        }
-    }
-
-    private static void drawLegendRing(GuiGraphicsExtractor g, float cx, float cy, float radius, int alpha, int rgb) {
-        if (alpha <= 0 || radius < 1) return;
-        // 24 connected segments replace 48 isolated points: fuller ring, half the quads.
-        int length = Math.max(1, (int) Math.ceil(2 * radius * Math.sin(Math.PI / LEGEND_RING_POINTS)));
-        for (int i = 0; i < LEGEND_RING_POINTS; i++) {
-            float px = cx + LEGEND_RING_X[i] * radius;
-            float py = cy + LEGEND_RING_Y[i] * radius;
-            g.pose().pushMatrix();
-            g.pose().translate(px, py);
-            g.pose().rotate(LEGEND_SEGMENT_ANGLE[i]);
-            g.fill(0, 0, length, 1, (alpha << 24) | rgb);
-            g.pose().popMatrix();
-        }
-    }
-
-    private static final int MYTHIC_RING_POINTS = 32;
-    private static final float[] MYTHIC_RING_X = new float[MYTHIC_RING_POINTS];
-    private static final float[] MYTHIC_RING_Y = new float[MYTHIC_RING_POINTS];
-    private static final float[] MYTHIC_SEGMENT_ANGLE = new float[MYTHIC_RING_POINTS];
-    static {
-        for (int i = 0; i < MYTHIC_RING_POINTS; i++) {
-            double angle = i * Math.PI * 2 / MYTHIC_RING_POINTS;
-            MYTHIC_RING_X[i] = (float) Math.cos(angle);
-            MYTHIC_RING_Y[i] = (float) Math.sin(angle);
-            MYTHIC_SEGMENT_ANGLE[i] = (float) (angle + Math.PI / MYTHIC_RING_POINTS + Math.PI / 2);
-        }
-    }
-
-    private static void drawMythicRing(GuiGraphicsExtractor g, float cx, float cy, float radius, int alpha, int rgb) {
-        if (alpha <= 0 || radius < 1) return;
-        int length = Math.max(1, (int) Math.ceil(2 * radius * Math.sin(Math.PI / MYTHIC_RING_POINTS)));
-        for (int i = 0; i < MYTHIC_RING_POINTS; i++) {
-            float px = cx + MYTHIC_RING_X[i] * radius;
-            float py = cy + MYTHIC_RING_Y[i] * radius;
-            g.pose().pushMatrix();
-            g.pose().translate(px, py);
-            g.pose().rotate(MYTHIC_SEGMENT_ANGLE[i]);
-            g.fill(0, 0, length, 1, (alpha << 24) | rgb);
-            g.pose().popMatrix();
-        }
-    }
-
     private void spawnCardBurst(int cx, int cy) {
         spawnCardBurst(cx, cy, ItemStack.EMPTY);
     }
@@ -2007,10 +1224,10 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
         mythicSoundStage = 0;
         if (this.minecraft != null) {
             if (VBlackMarket.isMythicItem(stack)) {
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.RESPAWN_ANCHOR_CHARGE, 0.65f, 0.85f));
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.END_PORTAL_SPAWN, 1.6f, 0.45f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.RESPAWN_ANCHOR_CHARGE, 0.65f, 0.90f));
             } else {
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_RESONATE, 0.65f, 0.45f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.RESPAWN_ANCHOR_CHARGE, 0.70f, 0.55f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_RESONATE, 0.85f, 0.60f));
             }
         }
     }
@@ -2020,20 +1237,30 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
         // Crossed stages are consumed once. Skip stale cues after a long frame stall.
         if (legendSoundStage < 1 && elapsed >= 350) {
             legendSoundStage = 1;
-            if (elapsed < 650) this.minecraft.getSoundManager().play(
-                    SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_CHIME, 1.35f, 0.4f));
+            if (elapsed < 650) {
+                this.minecraft.getSoundManager().play(
+                        SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_CHIME, 1.35f, 0.55f));
+                this.minecraft.getSoundManager().play(
+                        SimpleSoundInstance.forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, 0.80f, 0.85f));
+            }
         }
         if (legendSoundStage < 2 && elapsed >= 700) {
             legendSoundStage = 2;
             if (elapsed < 1150) {
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.TOTEM_USE, 0.85f, 0.55f));
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 0.7f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.TOTEM_USE, 0.85f, 0.70f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 0.85f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.PLAYER_LEVELUP, 0.90f, 1.25f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.BEACON_ACTIVATE, 0.80f, 1.05f));
             }
         }
         if (legendSoundStage < 3 && elapsed >= 1350) {
             legendSoundStage = 3;
-            if (elapsed < 1800) this.minecraft.getSoundManager().play(
-                    SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_CHIME, 1.65f, 0.35f));
+            if (elapsed < 1800) {
+                this.minecraft.getSoundManager().play(
+                        SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_CHIME, 1.65f, 0.50f));
+                this.minecraft.getSoundManager().play(
+                        SimpleSoundInstance.forUI(SoundEvents.BELL_RESONATE, 1.10f, 0.65f));
+            }
         }
     }
 
@@ -2042,30 +1269,32 @@ public class VBlackMarketScreen extends VeloriaContainerScreen<VBlackMarketScree
         if (mythicSoundStage < 1 && elapsed >= 350) {
             mythicSoundStage = 1;
             if (elapsed < 650) {
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.RESPAWN_ANCHOR_SET_SPAWN, 1.45f, 0.6f));
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, 0.55f, 0.7f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.RESPAWN_ANCHOR_SET_SPAWN, 1.45f, 0.75f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, 0.65f, 0.85f));
             }
         }
         if (mythicSoundStage < 2 && elapsed >= 700) {
             mythicSoundStage = 2;
             if (elapsed < 1150) {
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.LIGHTNING_BOLT_THUNDER, 1.45f, 0.65f));
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.TOTEM_USE, 0.80f, 0.90f));
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_CLUSTER_BREAK, 0.95f, 0.85f));
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.25f, 0.85f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.TOTEM_USE, 0.80f, 0.80f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.BEACON_ACTIVATE, 0.90f, 0.85f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_CLUSTER_BREAK, 0.95f, 0.45f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 1.10f, 0.75f));
             }
         }
-        if (mythicSoundStage < 3 && elapsed >= 1150) {
+        if (mythicSoundStage < 3 && elapsed >= 1250) {
             mythicSoundStage = 3;
-            if (elapsed < 1600) {
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.BEACON_ACTIVATE, 1.65f, 0.70f));
+            if (elapsed < 1700) {
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.BELL_RESONATE, 1.25f, 0.70f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.PLAYER_LEVELUP, 1.0f, 1.45f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_CHIME, 1.70f, 0.45f));
             }
         }
         if (mythicSoundStage < 4 && elapsed >= 1700) {
             mythicSoundStage = 4;
             if (elapsed < 2200) {
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.BELL_RESONATE, 1.75f, 0.60f));
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_CHIME, 1.90f, 0.50f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.BELL_RESONATE, 1.75f, 0.45f));
+                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_RESONATE, 1.30f, 0.50f));
             }
         }
     }

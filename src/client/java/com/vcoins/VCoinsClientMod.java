@@ -18,7 +18,11 @@ public class VCoinsClientMod implements ClientModInitializer {
         System.out.println("Initializing Veloria client...");
         
         VMarketEngine.registerClientThread();
-        net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> VMarketEngine.clearClientSync());
+        net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            VMarketEngine.clearClientSync();
+            VCoinsState.clearClientCoins();
+            VBlackMarketScreen.clearClientSync();
+        });
         registerScreens();
         registerKeybindings();
         registerNetworking();
@@ -26,6 +30,8 @@ public class VCoinsClientMod implements ClientModInitializer {
     }
 
     private static void registerScreens() {
+        net.minecraft.client.gui.screens.MenuScreens.register(VCoinsMod.VGIFT_MENU, VGiftBoxScreen::new);
+        net.minecraft.client.gui.screens.MenuScreens.register(VCoinsMod.VFORTUNA_MENU, VFortunaScreen::new);
         net.minecraft.client.gui.screens.MenuScreens.register(VCoinsMod.VTRADE_SCREEN_HANDLER, VTradeScreen::new);
         net.minecraft.client.gui.screens.MenuScreens.register(VCoinsMod.VDUPLICATE_SCREEN_HANDLER, VDuplicateScreen::new);
         net.minecraft.client.gui.screens.MenuScreens.register(VCoinsMod.VBLACK_MARKET_SCREEN_HANDLER, VBlackMarketScreen::new);
@@ -57,8 +63,8 @@ public class VCoinsClientMod implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(VCoinsSyncPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
                 if (context.client().player != null) {
-                    VeloriaMenuEffects.balanceChanged(VCoinsState.getCoins(context.client().player.getUUID()), payload.coins());
-                    VCoinsState.setCoins(context.client().player.getUUID(), payload.coins());
+                    VeloriaMenuEffects.balanceChanged(VCoinsState.getClientCoins(context.client().player.getUUID()), payload.coins());
+                    VCoinsState.setClientCoins(context.client().player.getUUID(), payload.coins());
                 }
             });
         });
@@ -137,6 +143,10 @@ public class VCoinsClientMod implements ClientModInitializer {
                         .withStyle(net.minecraft.ChatFormatting.GREEN);
                 sellComp.append(net.minecraft.network.chat.Component.literal(" ")).append(VMarketEngine.getSellTrend(stack).getBadge());
                 lines.add(sellComp);
+                if (VCoinsPricing.getEnchantmentCount(stack) > 0) {
+                    lines.add(net.minecraft.network.chat.Component.translatable("vcoins.tooltip.resale_material_only")
+                            .withStyle(net.minecraft.ChatFormatting.DARK_GRAY));
+                }
             }
         });
     }

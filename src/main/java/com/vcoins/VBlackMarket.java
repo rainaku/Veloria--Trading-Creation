@@ -40,10 +40,22 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class VBlackMarket {
-    public static final double GOD_ITEM_ROLL_CHANCE = 0.0005; // 0.05% roll rate (1 in 2000)
-    public static final int DAILY_ITEM_COUNT = 5; // Exactly 5 cards per day
-    /** Pity system: guaranteed Roman God item every this many individual card flips (lifetime, across all days) */
-    public static final int PITY_THRESHOLD = 300;
+    /** 0.25% (1 in 400) chance of rolling a Legend (Roman God) item per card */
+    public static final double GOD_ITEM_ROLL_CHANCE = 0.0025;
+    /** 0.0125% (1 in 8000) chance of rolling a Mythic item per card */
+    public static final double MYTHIC_ROLL_CHANCE = 0.000125;
+    /** 10% chance of rolling an Exclusive item per card */
+    public static final double EXCLUSIVE_ROLL_CHANCE = 0.10;
+    /** 20% chance of rolling an Epic item per card */
+    public static final double EPIC_ROLL_CHANCE = 0.20;
+    public static final int DAILY_ITEM_COUNT = 10; // 10 cards per day
+    /** Pity: guaranteed item every PITY_THRESHOLD flips; Lucky bar boosts Mythic chance */
+    public static final int PITY_THRESHOLD = 500;
+    /** Lucky bar: after this many non-legend flips, luckyPercent increases by LUCKY_STEP */
+    public static final int LUCKY_STEP_FLIPS = 250;
+    /** Lucky bar: Mystic chance in pity increases by this % per step */
+    public static final int LUCKY_STEP_PERCENT = 1;
+    public static final int MAX_LUCKY_PERCENT = 1;
     private static final List<ItemStack> dailyItems = new ArrayList<>();
 
     private static long currentEpochDay = 0L;
@@ -71,12 +83,24 @@ public class VBlackMarket {
         /** OP-scheduled legend guarantee: inject god item on next successful reset */
         public boolean legendNextReset;
         public boolean mythicNextReset;
+        /**
+         * Lucky Bar: counts flips since the last Legend/Mystic drop.
+         * Every LUCKY_STEP_FLIPS flips without a legend, luckyPercent increases by LUCKY_STEP_PERCENT.
+         * Resets to 0 when a Legend or Mystic drops.
+         */
+        public int luckyFlipCount;
+        /** Current lucky bonus %, used to boost Mystic chance in pity reward. */
+        public int luckyPercent;
 
         public PlayerDailyRecord(long day, int revealedMask, int purchasedMask, int bankedResets, int resetSequence, List<ItemStack> customItems, int lifetimeFlipCount, boolean legendNextReset) {
             this(day, revealedMask, purchasedMask, bankedResets, resetSequence, customItems, lifetimeFlipCount, legendNextReset, false);
         }
 
         public PlayerDailyRecord(long day, int revealedMask, int purchasedMask, int bankedResets, int resetSequence, List<ItemStack> customItems, int lifetimeFlipCount, boolean legendNextReset, boolean mythicNextReset) {
+            this(day, revealedMask, purchasedMask, bankedResets, resetSequence, customItems, lifetimeFlipCount, legendNextReset, mythicNextReset, 0, 0);
+        }
+
+        public PlayerDailyRecord(long day, int revealedMask, int purchasedMask, int bankedResets, int resetSequence, List<ItemStack> customItems, int lifetimeFlipCount, boolean legendNextReset, boolean mythicNextReset, int luckyFlipCount, int luckyPercent) {
             this.day = day;
             this.revealedMask = revealedMask;
             this.purchasedMask = purchasedMask;
@@ -86,6 +110,8 @@ public class VBlackMarket {
             this.lifetimeFlipCount = lifetimeFlipCount;
             this.legendNextReset = legendNextReset;
             this.mythicNextReset = mythicNextReset;
+            this.luckyFlipCount = luckyFlipCount;
+            this.luckyPercent = Math.clamp(luckyPercent, 0, MAX_LUCKY_PERCENT);
         }
     }
 
@@ -655,33 +681,22 @@ public class VBlackMarket {
         lore.add(Component.translatable("vcoins.roman.price", String.format(Locale.ROOT, "%,d", price)).withStyle(ChatFormatting.GOLD));
         stack.set(DataComponents.LORE, new ItemLore(lore));
 
-        // Apply Enchantments
-        var lookup = getRegistryLookup().lookupOrThrow(Registries.ENCHANTMENT);
-
-        List<ResourceKey<Enchantment>> enchantsToApply = new ArrayList<>(archetype.primaryEnchants());
-        int extraCount = (int) Math.round(powerRatio * archetype.secondaryEnchants().size());
-        for (int i = 0; i < extraCount && i < archetype.secondaryEnchants().size(); i++) {
-            enchantsToApply.add(archetype.secondaryEnchants().get(i));
+        // Max survival levels, with archetype preferences and compatible additions.
+        var candidates = applicableEnchantments(stack);
+        List<ResourceKey<Enchantment>> preferred = new ArrayList<>(archetype.primaryEnchants());
+        preferred.addAll(archetype.secondaryEnchants());
+        candidates.sort(Comparator.comparingInt(h -> {
+            int index = preferred.indexOf(h.unwrapKey().orElse(null));
+            return index < 0 ? Integer.MAX_VALUE : index;
+        }));
+        List<Holder<Enchantment>> applied = new ArrayList<>();
+        for (var enchantment : candidates) {
+            if (applied.stream().anyMatch(other -> !areEnchantmentsCompatible(other, enchantment))) continue;
+            stack.enchant(enchantment, enchantment.value().getMaxLevel());
+            applied.add(enchantment);
         }
 
-        for (ResourceKey<Enchantment> key : enchantsToApply) {
-            var holderOpt = lookup.get(key);
-            if (holderOpt.isPresent()) {
-                var holder = holderOpt.get();
-                int maxLevel = holder.value().getMaxLevel();
-                int level;
-                if (maxLevel <= 1) {
-                    level = 1;
-                } else if (powerRatio >= 0.85) {
-                    level = maxLevel;
-                } else {
-                    level = Math.max(1, (int) Math.round(maxLevel * (0.60 + 0.40 * powerRatio)));
-                }
-                stack.enchant(holder, level);
-            }
-        }
-
-        // Tag custom data
+        // Tag custom data — Legend items cannot be traded
         long finalPrice = price;
         String finalName = generatedName.canonicalViName();
         String finalLoreKey = loreKey;
@@ -693,17 +708,58 @@ public class VBlackMarket {
             tag.putString("VRomanFigKey", generatedName.figKey());
             tag.putString("VRomanLore", finalLoreKey);
             tag.putBoolean("VAnnounced", false);
+            tag.putBoolean("VNoTrade", true); // Legend cannot be traded in any form
         });
 
+        stampEquipment(stack);
         return stack;
     }
 
-    private static final Item[] EPIC_EQUIPMENT = {
+    private static final Item[] EPIC_WEAPONS_ARMOR = {
             Items.IRON_SWORD, Items.IRON_AXE, Items.IRON_PICKAXE, Items.IRON_SHOVEL, Items.IRON_HOE,
-            Items.IRON_HELMET, Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS, Items.IRON_BOOTS };
-    private static final Item[] EXCLUSIVE_EQUIPMENT = {
+            Items.IRON_HELMET, Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS, Items.IRON_BOOTS,
             Items.DIAMOND_SWORD, Items.DIAMOND_AXE, Items.DIAMOND_PICKAXE, Items.DIAMOND_SHOVEL, Items.DIAMOND_HOE,
             Items.DIAMOND_HELMET, Items.DIAMOND_CHESTPLATE, Items.DIAMOND_LEGGINGS, Items.DIAMOND_BOOTS };
+
+    private static final Item[] EXCLUSIVE_WEAPONS_ARMOR = {
+            Items.DIAMOND_SWORD, Items.DIAMOND_AXE, Items.DIAMOND_PICKAXE, Items.DIAMOND_SHOVEL, Items.DIAMOND_HOE,
+            Items.DIAMOND_HELMET, Items.DIAMOND_CHESTPLATE, Items.DIAMOND_LEGGINGS, Items.DIAMOND_BOOTS,
+            Items.NETHERITE_SWORD, Items.NETHERITE_AXE, Items.NETHERITE_PICKAXE, Items.NETHERITE_SHOVEL, Items.NETHERITE_HOE,
+            Items.NETHERITE_HELMET, Items.NETHERITE_CHESTPLATE, Items.NETHERITE_LEGGINGS, Items.NETHERITE_BOOTS };
+
+    /**
+     * Safe item pool for Epic bundles (≤500k total value each).
+     * Avoids shulker shells, netherite, ancient debris, rare boss drops.
+     */
+    private static final Item[] EPIC_BUNDLE_POOL = {
+            Items.IRON_INGOT, Items.GOLD_INGOT, Items.REDSTONE, Items.LAPIS_LAZULI, Items.QUARTZ,
+            Items.COAL, Items.ENDER_PEARL, Items.BLAZE_ROD, Items.GHAST_TEAR, Items.SLIME_BALL,
+            Items.MAGMA_CREAM, Items.BONE_MEAL, Items.GUNPOWDER, Items.STRING, Items.FEATHER,
+            Items.LEATHER, Items.AMETHYST_SHARD, Items.COPPER_INGOT, Items.EMERALD,
+            Items.GOLDEN_CARROT, Items.GOLDEN_APPLE, Items.RABBIT_FOOT,
+            Items.PHANTOM_MEMBRANE, Items.TURTLE_SCUTE, Items.ARMADILLO_SCUTE,
+            Items.GLOWSTONE, Items.OBSIDIAN, Items.NETHER_BRICK,
+            Items.NAUTILUS_SHELL, Items.INK_SAC, Items.HONEY_BLOCK
+    };
+
+    /**
+     * Safe item pool for Exclusive bundles (≤1.5M total value each).
+     * Higher-value materials but still no game-breaking drops.
+     */
+    private static final Item[] EXCLUSIVE_BUNDLE_POOL = {
+            Items.DIAMOND, Items.GOLD_BLOCK, Items.IRON_BLOCK, Items.DIAMOND_BLOCK,
+            Items.PRISMARINE_CRYSTALS, Items.PRISMARINE_SHARD,
+            Items.ECHO_SHARD, Items.SNIFFER_EGG,
+            Items.EXPERIENCE_BOTTLE, Items.SADDLE, Items.NAME_TAG, Items.LEAD,
+            Items.MUSIC_DISC_PIGSTEP, Items.MUSIC_DISC_RELIC, Items.MUSIC_DISC_OTHERSIDE,
+            Items.SCULK_CATALYST, Items.SCULK_SHRIEKER,
+            Items.BREEZE_ROD, Items.TRIAL_KEY, Items.OMINOUS_TRIAL_KEY,
+            Items.CONDUIT, Items.TOTEM_OF_UNDYING
+    };
+
+    /** Max value (Velicoins) of total item bundle for each tier. */
+    private static final long EPIC_BUNDLE_MAX_VALUE    = 500_000L;
+    private static final long EXCLUSIVE_BUNDLE_MAX_VALUE = 1_500_000L;
 
     public static String getCardTier(ItemStack stack) {
         var data = stack.get(DataComponents.CUSTOM_DATA);
@@ -778,21 +834,131 @@ public class VBlackMarket {
         }
     }
 
+    /**
+     * Epic card: 50% chance → iron tool/armor with 1 random enchant OR diamond tool/armor with 0 enchants.
+     *            50% chance → item bundle from EPIC_BUNDLE_POOL, total value ≤ EPIC_BUNDLE_MAX_VALUE.
+     * Gear drops are NOT tradeable (VNoTrade=true); bundles ARE tradeable (VNoTrade=false).
+     */
     public static ItemStack generateTierEquipment(Random random, boolean exclusive) {
-        Item[] pool = exclusive ? EXCLUSIVE_EQUIPMENT : EPIC_EQUIPMENT;
-        ItemStack stack = new ItemStack(pool[random.nextInt(pool.length)]);
         String tier = exclusive ? "exclusive" : "epic";
-        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> tag.putString("VCardTier", tier));
-        var candidates = applicableEnchantments(stack);
-        Collections.shuffle(candidates, random);
-        List<Holder<Enchantment>> chosen = new ArrayList<>();
-        for (var enchantment : candidates) {
-            if (chosen.stream().anyMatch(other -> !areEnchantmentsCompatible(other, enchantment))) continue;
-            stack.enchant(enchantment, 1 + random.nextInt(enchantment.value().getMaxLevel()));
-            chosen.add(enchantment);
-            if (chosen.size() >= (exclusive ? 4 : 2)) break;
+        ItemStack stack;
+        boolean isGear;
+
+        if (exclusive) {
+            isGear = random.nextBoolean();
+            stack = isGear
+                    ? generateExclusiveGear(random)
+                    : generateBundleStack(random, EXCLUSIVE_BUNDLE_POOL, EXCLUSIVE_BUNDLE_MAX_VALUE, tier);
+        } else {
+            isGear = random.nextBoolean();
+            stack = isGear
+                    ? generateEpicGear(random)
+                    : generateBundleStack(random, EPIC_BUNDLE_POOL, EPIC_BUNDLE_MAX_VALUE, tier);
+        }
+
+        // Gear from Black Market cannot be traded; bundles can
+        final boolean noTrade = isGear;
+        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+            tag.putString("VCardTier", tier);
+            tag.putBoolean("VNoTrade", noTrade);
+        });
+        stampEquipment(stack);
+        return stack;
+    }
+
+    /**
+     * Epic gear: iron tool/armor + 1 random enchant, OR diamond tool/armor with 0 enchants.
+     */
+    private static ItemStack generateEpicGear(Random random) {
+        boolean ironVariant = random.nextBoolean();
+        Item[] ironPool = {
+                Items.IRON_SWORD, Items.IRON_AXE, Items.IRON_PICKAXE, Items.IRON_SHOVEL,
+                Items.IRON_HOE, Items.IRON_HELMET, Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS, Items.IRON_BOOTS
+        };
+        Item[] diamondPool = {
+                Items.DIAMOND_SWORD, Items.DIAMOND_AXE, Items.DIAMOND_PICKAXE, Items.DIAMOND_SHOVEL,
+                Items.DIAMOND_HOE, Items.DIAMOND_HELMET, Items.DIAMOND_CHESTPLATE, Items.DIAMOND_LEGGINGS, Items.DIAMOND_BOOTS
+        };
+
+        ItemStack stack;
+        if (ironVariant) {
+            stack = new ItemStack(ironPool[random.nextInt(ironPool.length)]);
+            // 1 random enchant, no Fortune/Looting
+            var candidates = applicableEnchantments(stack);
+            candidates.removeIf(h -> {
+                var key = h.unwrapKey().orElse(null);
+                return key != null && (key.equals(Enchantments.FORTUNE) || key.equals(Enchantments.LOOTING));
+            });
+            if (!candidates.isEmpty()) {
+                var chosen = candidates.get(random.nextInt(candidates.size()));
+                stack.enchant(chosen, 1 + random.nextInt(Math.max(1, chosen.value().getMaxLevel())));
+            }
+        } else {
+            // Diamond, no enchant
+            stack = new ItemStack(diamondPool[random.nextInt(diamondPool.length)]);
         }
         return stack;
+    }
+
+    /**
+     * Exclusive gear: diamond tool/armor with 1-2 enchants, OR netherite tool/armor with 0 enchants.
+     */
+    private static ItemStack generateExclusiveGear(Random random) {
+        Item[] diamondPool = {
+                Items.DIAMOND_SWORD, Items.DIAMOND_AXE, Items.DIAMOND_PICKAXE, Items.DIAMOND_SHOVEL,
+                Items.DIAMOND_HOE, Items.DIAMOND_HELMET, Items.DIAMOND_CHESTPLATE, Items.DIAMOND_LEGGINGS, Items.DIAMOND_BOOTS
+        };
+        Item[] netheritePool = {
+                Items.NETHERITE_SWORD, Items.NETHERITE_AXE, Items.NETHERITE_PICKAXE,
+                Items.NETHERITE_SHOVEL, Items.NETHERITE_HOE,
+                Items.NETHERITE_HELMET, Items.NETHERITE_CHESTPLATE, Items.NETHERITE_LEGGINGS, Items.NETHERITE_BOOTS
+        };
+
+        boolean diamondVariant = random.nextBoolean();
+        ItemStack stack;
+        if (diamondVariant) {
+            stack = new ItemStack(diamondPool[random.nextInt(diamondPool.length)]);
+            // 1-2 enchants, no Fortune/Looting
+            var candidates = applicableEnchantments(stack);
+            candidates.removeIf(h -> {
+                var key = h.unwrapKey().orElse(null);
+                return key != null && (key.equals(Enchantments.FORTUNE) || key.equals(Enchantments.LOOTING));
+            });
+            Collections.shuffle(candidates, random);
+            List<Holder<Enchantment>> chosen = new ArrayList<>();
+            for (var enchantment : candidates) {
+                if (chosen.stream().anyMatch(other -> !areEnchantmentsCompatible(other, enchantment))) continue;
+                stack.enchant(enchantment, 1 + random.nextInt(enchantment.value().getMaxLevel()));
+                chosen.add(enchantment);
+                if (chosen.size() >= (1 + random.nextInt(2))) break; // 1 or 2 enchants
+            }
+        } else {
+            // Netherite, no enchant
+            stack = new ItemStack(netheritePool[random.nextInt(netheritePool.length)]);
+        }
+        return stack;
+    }
+
+    /**
+     * Generate an ItemStack from the given pool with count 1-30, ensuring total reference value ≤ maxValue.
+     * Uses VCoinsPricing.getReferencePrice to enforce the cap.
+     */
+    private static ItemStack generateBundleStack(Random random, Item[] pool, long maxValue, String tier) {
+        VCoinsPricing.ensureInitialized();
+        // Shuffle pool and pick a safe item
+        List<Item> shuffled = new ArrayList<>(List.of(pool));
+        Collections.shuffle(shuffled, random);
+        for (Item item : shuffled) {
+            ItemStack sample = new ItemStack(item);
+            long unitPrice = VCoinsPricing.getReferencePrice(sample);
+            if (unitPrice <= 0 || unitPrice > maxValue) continue;
+            int maxCount = (int) Math.min(30, maxValue / unitPrice);
+            if (maxCount < 1) continue;
+            int count = 1 + random.nextInt(maxCount);
+            return new ItemStack(item, count);
+        }
+        // Fallback: iron ingot x1
+        return new ItemStack(Items.IRON_INGOT, 1);
     }
 
     public static ItemStack generateMythicItem(Random random) {
@@ -805,8 +971,10 @@ public class VBlackMarket {
         CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
             tag.putString("VCardTier", "mythic");
             tag.putLong("VCoinsBlackMarketPrice", price);
+            tag.putBoolean("VNoTrade", true); // Mythic cannot be traded in any form
         });
         applyMythicPresentation(stack);
+        stampEquipment(stack);
         return stack;
     }
 
@@ -836,25 +1004,86 @@ public class VBlackMarket {
         return Component.literal(name);
     }
 
-    public static ItemStack generatePityReward(Random random) {
-        if (random.nextInt(10) == 0) return generateMythicItem(random);
+    /**
+     * Pity reward uses the player's Lucky Bar to boost Mystic chance.
+     * Base: (1 + luckyPercent)% Mythic, rest Legend.
+     */
+    public static ItemStack generatePityReward(Random random, int luckyPercent) {
+        int mythicChance = 1 + Math.clamp(luckyPercent, 0, MAX_LUCKY_PERCENT);
+        if (random.nextInt(100) < mythicChance) return generateMythicItem(random);
         long price = 750_000_000L + random.nextInt(250) * 1_000_000L;
         return generateRomanGodItem(random, price);
     }
 
+    /** Overload for backward compat where luckyPercent is unavailable. */
+    public static ItemStack generatePityReward(Random random) {
+        return generatePityReward(random, 0);
+    }
+
+    /**
+     * Roll a single card item with the drop-rate table:
+     *   Mythic    0.0125% (1 in 8000)
+     *   Legend    0.25% (1 in 400)
+     *   Exclusive 10% (1 in 10)
+     *   Epic      20% (1 in 5)
+     *   Common    69.7375% remaining
+     */
     public static ItemStack rollCardItem(Random random, Item fallbackItem) {
         double roll = random.nextDouble();
-        if (roll < GOD_ITEM_ROLL_CHANCE) return generateRomanGodItem(random);
-        if (roll < GOD_ITEM_ROLL_CHANCE + 0.00005) return generateMythicItem(random);
-        if (roll < 0.08) return generateTierEquipment(random, true);
-        if (roll < 0.25) return generateTierEquipment(random, false);
-        return new ItemStack(fallbackItem);
+        if (roll < MYTHIC_ROLL_CHANCE) return generateMythicItem(random);
+        if (roll < MYTHIC_ROLL_CHANCE + GOD_ITEM_ROLL_CHANCE) return generateRomanGodItem(random);
+        if (roll < MYTHIC_ROLL_CHANCE + GOD_ITEM_ROLL_CHANCE + EXCLUSIVE_ROLL_CHANCE) return generateTierEquipment(random, true);
+        if (roll < MYTHIC_ROLL_CHANCE + GOD_ITEM_ROLL_CHANCE + EXCLUSIVE_ROLL_CHANCE + EPIC_ROLL_CHANCE) return generateTierEquipment(random, false);
+        List<Item> common = new ArrayList<>();
+        for (Item item : BuiltInRegistries.ITEM) if (isCommonCardItem(item)) common.add(item);
+        if (common.isEmpty()) throw new IllegalStateException("No eligible common Black Market items");
+        ItemStack fallback = new ItemStack(common.get(random.nextInt(common.size())), 30 + random.nextInt(35));
+        stampEquipment(fallback);
+        return fallback;
+    }
+
+    static boolean isCommonCardItem(Item item) {
+        if (!BuiltInRegistries.ITEM.getKey(item).getNamespace().equals("minecraft")
+                || !VCoinsPricing.isTradeable(item) || VCoinsPricing.getBasePrice(BuiltInRegistries.ITEM.getKey(item).toString()) <= 0) return false;
+        for (Item high : EPIC_WEAPONS_ARMOR) if (item == high) return false;
+        for (Item high : EXCLUSIVE_WEAPONS_ARMOR) if (item == high) return false;
+        for (Item high : EPIC_BUNDLE_POOL) if (item == high) return false;
+        for (Item high : EXCLUSIVE_BUNDLE_POOL) if (item == high) return false;
+        for (var archetype : ROMAN_ARCHETYPES) if (item == archetype.item()) return false;
+        return true;
+    }
+
+    public static boolean isEquipment(ItemStack stack) {
+        return stack.isDamageableItem() || stack.has(DataComponents.EQUIPPABLE);
+    }
+
+    static void stampEquipment(ItemStack stack) {
+        if (stack.isEmpty() || !isEquipment(stack)) return;
+        String existing = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY)
+                .copyTag().getString("VBlackMarketEquipmentId").orElse("");
+        String identity = existing.isEmpty() ? UUID.randomUUID().toString() : existing;
+        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+            tag.putBoolean("VNoTrade", true);
+            tag.putString("VBlackMarketEquipmentId", identity);
+        });
+        var lore = new ArrayList<>(stack.getOrDefault(DataComponents.LORE, ItemLore.EMPTY).lines());
+        lore.removeIf(line -> line.getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents text
+                && (text.getKey().equals("vcoins.black_market.origin") || text.getKey().equals("vcoins.black_market.equipment_id")));
+        lore.add(Component.translatable("vcoins.black_market.origin").withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
+        lore.add(Component.translatable("vcoins.black_market.equipment_id", identity).withStyle(ChatFormatting.GRAY));
+        stack.set(DataComponents.LORE, new ItemLore(lore));
     }
 
     public static boolean isRomanGodItem(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return false;
         CustomData data = stack.get(DataComponents.CUSTOM_DATA);
         return data != null && data.copyTag().getBoolean("VRomanGodItem").orElse(false);
+    }
+
+    public static boolean isBlackMarketItem(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return false;
+        CustomData data = stack.get(DataComponents.CUSTOM_DATA);
+        return data != null && data.copyTag().getBoolean("VBlackMarketPurchased").orElse(false);
     }
 
     public static long getRomanGodItemPrice(ItemStack stack) {
@@ -970,10 +1199,11 @@ public class VBlackMarket {
         }
 
         // Regular black market items use STATIC base reference price without dynamic market multiplier
-        long referencePrice = VCoinsPricing.getReferencePrice(stack);
+        long referencePrice = VCoinsPricing.getBlackMarketReferencePrice(stack);
         if (referencePrice <= 0) return 0;
         int discount = getDiscountPercent(stack, epochDay, resetSequence);
-        return Math.max(1L, Math.round(referencePrice * ((100 - discount) / 100.0)));
+        long unit = Math.max(1L, Math.round(referencePrice * ((100 - discount) / 100.0)));
+        return unit > Long.MAX_VALUE / stack.getCount() ? Long.MAX_VALUE : unit * stack.getCount();
     }
 
     public static synchronized List<ItemStack> getDailyItems() {
@@ -1157,8 +1387,11 @@ public class VBlackMarket {
     }
 
     public static synchronized void revealCard(UUID uuid, int slotIndex) {
+        if (slotIndex < -1 || slotIndex >= DAILY_ITEM_COUNT) return;
         PlayerDailyRecord playerRecord = getPlayerRecord(uuid);
         int prevRevealedMask = playerRecord.revealedMask;
+        int requestedMask = slotIndex == -1 ? (1 << DAILY_ITEM_COUNT) - 1 : 1 << slotIndex;
+        if ((requestedMask & ~prevRevealedMask) == 0) return;
 
         if (slotIndex == -1) {
             // Reveal-all: count how many new cards are revealed for pity
@@ -1171,9 +1404,42 @@ public class VBlackMarket {
             if (wasNew) playerRecord.lifetimeFlipCount++;
         }
 
-        // Pity check: if lifetime flips >= PITY_THRESHOLD, inject guaranteed god item
-        if (playerRecord.lifetimeFlipCount >= PITY_THRESHOLD) {
+        // Lucky Bar: count non-legend flips for the lucky step bonus
+        List<ItemStack> allItems = getItemsForPlayer(uuid);
+        // Count newly revealed slots
+        int newlyRevealedCount;
+        if (slotIndex == -1) {
+            newlyRevealedCount = Integer.bitCount(~prevRevealedMask & ((1 << DAILY_ITEM_COUNT) - 1));
+        } else {
+            newlyRevealedCount = ((prevRevealedMask & (1 << slotIndex)) == 0) ? 1 : 0;
+        }
+
+        // For each newly revealed card, check if it was a legend/mystic to reset lucky bar
+        boolean legendDropped = false;
+        if (slotIndex == -1) {
+            for (int i = 0; i < allItems.size() && i < DAILY_ITEM_COUNT; i++) {
+                if ((prevRevealedMask & (1 << i)) == 0) {
+                    ItemStack s = allItems.get(i);
+                    if (isRomanGodItem(s) || isMythicItem(s)) { legendDropped = true; break; }
+                }
+            }
+        } else if (slotIndex >= 0 && slotIndex < allItems.size()) {
+            ItemStack s = allItems.get(slotIndex);
+            legendDropped = isRomanGodItem(s) || isMythicItem(s);
+        }
+
+        if (legendDropped) {
             playerRecord.lifetimeFlipCount = 0;
+            playerRecord.luckyFlipCount = 0;
+            playerRecord.luckyPercent = 0;
+        } else {
+            playerRecord.luckyFlipCount += newlyRevealedCount;
+            int newSteps = playerRecord.luckyFlipCount / LUCKY_STEP_FLIPS;
+            playerRecord.luckyPercent = Math.clamp(newSteps * LUCKY_STEP_PERCENT, 0, MAX_LUCKY_PERCENT);
+        }
+
+        // Pity check: if lifetime flips >= PITY_THRESHOLD, inject guaranteed item
+        if (playerRecord.lifetimeFlipCount >= PITY_THRESHOLD) {
             triggerPityGodItem(uuid, playerRecord);
         }
 
@@ -1207,6 +1473,12 @@ public class VBlackMarket {
             playerRecord.customItems = new ArrayList<>(getDailyItems());
         }
 
+        for (int i = 0; i < playerRecord.customItems.size() && i < DAILY_ITEM_COUNT; i++) {
+            if (isRomanGodItem(playerRecord.customItems.get(i)) && (playerRecord.purchasedMask & (1 << i)) == 0) {
+                return;
+            }
+        }
+
         Random rng = new Random();
         int targetSlot = -1;
         for (int pass = 0; pass < 2; pass++) {
@@ -1226,8 +1498,12 @@ public class VBlackMarket {
         }
         if (targetSlot < 0) return;
 
-        ItemStack godItem = generatePityReward(rng);
+        ItemStack godItem = generatePityReward(rng, playerRecord.luckyPercent);
         playerRecord.customItems.set(targetSlot, godItem);
+        // Consume the guarantee when generated, not when eventually purchased.
+        playerRecord.lifetimeFlipCount = 0;
+        playerRecord.luckyFlipCount = 0;
+        playerRecord.luckyPercent = 0;
 
         playerRecord.revealedMask &= ~(1 << targetSlot);
 
@@ -1255,8 +1531,17 @@ public class VBlackMarket {
         }
     }
 
+    /**
+     * One paid item per revealed card. Both packet-compatible entry points use
+     * the same server-authoritative payment path.
+     */
     public static synchronized void buyItem(ServerPlayer player, int slotIndex, boolean buyStack) {
-        if (player == null || slotIndex < 0 || slotIndex >= DAILY_ITEM_COUNT || !player.isAlive() || player.isRemoved()) {
+        claimCard(player, slotIndex);
+    }
+
+    public static synchronized void claimCard(ServerPlayer player, int slotIndex) {
+        if (player == null || slotIndex < 0 || slotIndex >= DAILY_ITEM_COUNT || !player.isAlive() || player.isRemoved()
+                || !(player.containerMenu instanceof VBlackMarketScreenHandler)) {
             return;
         }
 
@@ -1265,8 +1550,14 @@ public class VBlackMarket {
             return;
         }
 
+        // Card must be revealed before claiming
+        PlayerDailyRecord rec = getPlayerRecord(player.getUUID());
+        if ((rec.revealedMask & (1 << slotIndex)) == 0) {
+            return;
+        }
+
         if (hasPurchasedToday(player.getUUID(), slotIndex)) {
-            player.sendOverlayMessage(Component.translatable("vcoins.black_market.already_bought")
+            player.sendOverlayMessage(Component.translatable("vcoins.black_market.already_claimed")
                     .withStyle(ChatFormatting.RED));
             VTradeScreenHandler.sendSoundToPlayer(player, SoundEvents.VILLAGER_NO, 1.0f, 1.0f);
             syncToPlayer(player);
@@ -1278,46 +1569,64 @@ public class VBlackMarket {
             return;
         }
 
-        int resetSequence = getPlayerRecord(player.getUUID()).resetSequence;
-        long unitPrice = getDiscountedPrice(displayed, getCurrentDay(), resetSequence);
-        if (unitPrice <= 0) {
-            return;
-        }
-
-        int amount = 1;
-        long totalCost = unitPrice;
-        long currentCoins = VCoinsState.getCoins(player.getUUID());
-
-        if (currentCoins < totalCost) {
+        long price = getDiscountedPrice(displayed, rec.day, rec.resetSequence);
+        if (!payForCard(player.getUUID(), slotIndex)) {
             player.sendOverlayMessage(Component.translatable("vcoins.message.not_enough",
-                    String.format(Locale.ROOT, "%,d", totalCost), String.format(Locale.ROOT, "%,d", currentCoins)).withStyle(ChatFormatting.RED));
-            VTradeScreenHandler.sendSoundToPlayer(player, SoundEvents.VILLAGER_NO, 1.0f, 1.0f);
+                    String.format(java.util.Locale.ROOT, "%,d", price),
+                    String.format(java.util.Locale.ROOT, "%,d", VCoinsState.getCoins(player.getUUID())))
+                    .withStyle(ChatFormatting.RED));
+            VCoinsMod.syncCoins(player);
             return;
         }
-
-        VCoinsState.removeCoins(player.getUUID(), totalCost);
-        VCoinsMod.syncCoins(player);
-
-        markPurchasedToday(player.getUUID(), slotIndex);
         if (player.level().getServer() != null) {
             save(player.level().getServer());
         }
 
-        ItemStack purchased = displayed.copy();
-        purchased.setCount(amount);
-        player.getInventory().placeItemBackInInventory(purchased, Prediction.SERVER_ONLY);
+        ItemStack reward = displayed.copy();
+        // Only equipment is bound; ordinary materials remain normal trade goods.
+        if (isEquipment(reward)) {
+            stampEquipment(reward);
+            CustomData.update(DataComponents.CUSTOM_DATA, reward, tag -> {
+                tag.putBoolean("VBlackMarketPurchased", true);
+            });
+        }
+        while (!reward.isEmpty()) {
+            ItemStack part = reward.split(Math.min(reward.getCount(), reward.getMaxStackSize()));
+            player.getInventory().placeItemBackInInventory(part, Prediction.SERVER_ONLY);
+        }
+        VCoinsState.checkpoint(player);
+        VCoinsMod.syncCoins(player);
 
         VTradeScreenHandler.sendSoundToPlayer(player, SoundEvents.ITEM_PICKUP, 0.9f, 1.25f);
         VTradeScreenHandler.sendSoundToPlayer(player, SoundEvents.NOTE_BLOCK_CHIME, 0.6f, 1.75f);
         VTradeScreenHandler.sendSoundToPlayer(player, SoundEvents.PLAYER_LEVELUP, 0.5f, 1.5f);
-        player.sendOverlayMessage(Component.translatable("vcoins.message.buy_success",
-                amount, displayed.getHoverName(), String.format(Locale.ROOT, "%,d", totalCost)).withStyle(ChatFormatting.GREEN));
+        player.sendOverlayMessage(Component.translatable("vcoins.black_market.claim_success",
+                displayed.getHoverName()).withStyle(ChatFormatting.GREEN));
 
-        if (isRomanGodItem(displayed)) {
-            broadcastGodItemPurchased(player, displayed, totalCost);
+        if (isRomanGodItem(displayed) || isMythicItem(displayed)) {
+            broadcastGodItemPurchased(player, displayed, getRomanGodItemPrice(displayed));
+            PlayerDailyRecord claimRec = getPlayerRecord(player.getUUID());
+            claimRec.lifetimeFlipCount = 0;
+            // Reset lucky bar on legend/mystic claim
+            claimRec.luckyFlipCount = 0;
+            claimRec.luckyPercent = 0;
         }
 
         syncToPlayer(player);
+    }
+
+    static synchronized boolean payForCard(UUID id, int slotIndex) {
+        if (slotIndex < 0 || slotIndex >= DAILY_ITEM_COUNT || timeAnomalyDetected) return false;
+        var rec = getPlayerRecord(id);
+        int bit = 1 << slotIndex;
+        if ((rec.revealedMask & bit) == 0 || (rec.purchasedMask & bit) != 0) return false;
+        var items = getItemsForPlayer(id);
+        if (slotIndex >= items.size() || items.get(slotIndex).isEmpty()) return false;
+        long price = getDiscountedPrice(items.get(slotIndex), rec.day, rec.resetSequence);
+        if (price <= 0 || VCoinsState.getCoins(id) < price) return false;
+        VCoinsState.removeCoins(id, price);
+        rec.purchasedMask |= bit;
+        return true;
     }
 
     public static void syncToPlayer(ServerPlayer player) {
@@ -1328,7 +1637,7 @@ public class VBlackMarket {
         ServerPlayNetworking.send(player, new BlackMarketSyncPayload(
                 secondsLeft, playerRecord.revealedMask, playerRecord.purchasedMask, playerRecord.day,
                 playerRecord.bankedResets, playerRecord.resetSequence, items,
-                playerRecord.lifetimeFlipCount
+                playerRecord.lifetimeFlipCount, playerRecord.luckyPercent
         ));
     }
 
@@ -1419,6 +1728,7 @@ public class VBlackMarket {
     }
 
     public static void registerEvents() {
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> clearWorldState());
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             activeServer = server;
             nanoAnchor  = System.nanoTime();
@@ -1429,6 +1739,7 @@ public class VBlackMarket {
             save(server);
             activeServer = null;
         });
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> clearWorldState());
 
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             activeServer = server;
@@ -1468,6 +1779,20 @@ public class VBlackMarket {
                 lastSavedEpochSecond = Math.max(lastSavedEpochSecond, nowEpoch);
             }
         });
+    }
+
+    static void clearWorldState() {
+        // Item enchantment holders belong to one world's registry lookup.
+        dailyItems.clear();
+        playerRecords.clear();
+        currentEpochDay = 0L;
+        lastSavedEpochSecond = 0L;
+        adminResetCount = 0;
+        timeAnomalyDetected = false;
+        tickCounter = 0;
+        activeServer = null;
+        nanoAnchor = 0L;
+        epochAnchor = 0L;
     }
 
     private static void load(MinecraftServer server) {
@@ -1515,7 +1840,8 @@ public class VBlackMarket {
             playerRecords.put(id, new PlayerDailyRecord(
                     prd.day, prd.revealedMask, prd.purchasedMask,
                     prd.bankedResets, prd.resetSequence, custom,
-                    prd.lifetimeFlipCount, prd.legendNextReset, prd.mythicNextReset));
+                    prd.lifetimeFlipCount, prd.legendNextReset, prd.mythicNextReset,
+                    prd.luckyFlipCount, prd.luckyPercent));
         } catch (IllegalArgumentException e) {
             VCoinsMod.LOGGER.warn("Skipping corrupt black market player UUID entry: {}", entry.getKey());
         }
@@ -1552,7 +1878,8 @@ public class VBlackMarket {
                 recordMap.put(entry.getKey().toString(), new PlayerRecordData(
                         rec.day, rec.revealedMask, rec.purchasedMask,
                         rec.bankedResets, rec.resetSequence, customEntries,
-                        rec.lifetimeFlipCount, rec.legendNextReset, rec.mythicNextReset));
+                        rec.lifetimeFlipCount, rec.legendNextReset, rec.mythicNextReset,
+                        rec.luckyFlipCount, rec.luckyPercent));
             }
 
             MarketSaveData data = new MarketSaveData(currentEpochDay, lastSavedEpochSecond, adminResetCount, itemEntries, recordMap);
@@ -1564,6 +1891,8 @@ public class VBlackMarket {
 
     public static class BlackMarketItemEntry {
         public String itemId;
+        public int count = 1;
+        public String equipmentId;
         public boolean isGodItem;
         public String cardTier;
         public String romanName;
@@ -1583,7 +1912,10 @@ public class VBlackMarket {
         }
 
         public BlackMarketItemEntry(ItemStack stack) {
+            this.count = stack.getCount();
             this.itemId = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+            this.equipmentId = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY)
+                    .copyTag().getString("VBlackMarketEquipmentId").orElse(null);
             this.isGodItem = isRomanGodItem(stack);
             this.cardTier = getCardTier(stack);
             if (this.isGodItem || !this.cardTier.isEmpty()) {
@@ -1613,7 +1945,7 @@ public class VBlackMarket {
             if (item == Items.AIR) {
                 return ItemStack.EMPTY;
             }
-            ItemStack stack = new ItemStack(item);
+            ItemStack stack = new ItemStack(item, Math.clamp(count, 1, 64));
             if (isGodItem) {
                 int maxDur = stack.getMaxDamage();
                 stack.setDamageValue(damage);
@@ -1676,6 +2008,9 @@ public class VBlackMarket {
                 }
                 if (isMythicItem(stack)) applyMythicPresentation(stack);
             }
+            if (equipmentId != null && !equipmentId.isEmpty())
+                CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> tag.putString("VBlackMarketEquipmentId", equipmentId));
+            stampEquipment(stack);
             return stack;
         }
     }
@@ -1689,6 +2024,9 @@ public class VBlackMarket {
                 com.google.gson.JsonObject obj = json.getAsJsonObject();
                 BlackMarketItemEntry entry = new BlackMarketItemEntry();
                 entry.itemId = obj.has("itemId") ? obj.get("itemId").getAsString() : "minecraft:air";
+                entry.count = obj.has("count") ? Math.clamp(obj.get("count").getAsInt(), 1, 64) : 1;
+                entry.equipmentId = obj.has("equipmentId") && !obj.get("equipmentId").isJsonNull()
+                        ? obj.get("equipmentId").getAsString() : null;
                 entry.cardTier = obj.has("cardTier") ? obj.get("cardTier").getAsString() : "";
                 entry.isGodItem = obj.has("isGodItem") && obj.get("isGodItem").getAsBoolean();
                 entry.romanName = obj.has("romanName") ? obj.get("romanName").getAsString() : "";
@@ -1715,6 +2053,6 @@ public class VBlackMarket {
             .setPrettyPrinting()
             .create();
 
-    private record PlayerRecordData(long day, int revealedMask, int purchasedMask, int bankedResets, int resetSequence, List<BlackMarketItemEntry> customItems, int lifetimeFlipCount, boolean legendNextReset, boolean mythicNextReset) {}
+    private record PlayerRecordData(long day, int revealedMask, int purchasedMask, int bankedResets, int resetSequence, List<BlackMarketItemEntry> customItems, int lifetimeFlipCount, boolean legendNextReset, boolean mythicNextReset, int luckyFlipCount, int luckyPercent) {}
     private record MarketSaveData(long day, long lastSavedEpochSecond, int adminResetCount, List<BlackMarketItemEntry> items, Map<String, PlayerRecordData> playerRecords) {}
 }

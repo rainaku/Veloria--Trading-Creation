@@ -161,7 +161,7 @@ public class VMarketEngine {
 
     public static MarketTrend getTrend(String key) { return trend(key, false, null); }
     public static MarketTrend getTrend(ItemStack stack) { return trend(VCoinsPricing.getMarketKey(stack), false, stack); }
-    public static MarketTrend getSellTrend(ItemStack stack) { return trend(VCoinsPricing.getMarketKey(stack), true, stack); }
+    public static MarketTrend getSellTrend(ItemStack stack) { return trend(VCoinsPricing.getSellMarketKey(stack), true, stack); }
 
     private static MarketTrend trend(String key, boolean selling, ItemStack stack) {
         long now = getEffectiveEpochSecond();

@@ -61,7 +61,6 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
 
     // View Navigation Buttons
     private Button verifyToggleButton;
-    private Button shopTabButton;
     private Button blackMarketTabButton;
     private Button duplicateTabButton;
 
@@ -103,12 +102,6 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
                 .build());
 
         // 3 nút chuyển đổi Chế độ ngay trên thanh Toolbar
-        this.shopTabButton = this.addRenderableWidget(VeloriaButton.create(
-                Component.translatable("vcoins.title"),
-                button -> {})
-                .bounds(this.leftPos + 14, this.topPos + 132, 64, 16)
-                .build());
-
         this.blackMarketTabButton = this.addRenderableWidget(VeloriaButton.create(
                 Component.translatable("vcoins.tab.black_market"),
                 button -> {
@@ -117,7 +110,7 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
                     }
                     ClientPlayNetworking.send(new OpenBlackMarketPayload());
                 })
-                .bounds(this.leftPos + 82, this.topPos + 132, 72, 16)
+                .bounds(this.leftPos + 14, this.topPos + 132, 78, 16)
                 .build());
 
         this.duplicateTabButton = this.addRenderableWidget(VeloriaButton.create(
@@ -128,8 +121,12 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
                     }
                     ClientPlayNetworking.send(new OpenDuplicatePayload());
                 })
-                .bounds(this.leftPos + 158, this.topPos + 132, 64, 16)
+                .bounds(this.leftPos + 95, this.topPos + 132, 68, 16)
                 .build());
+
+        this.addRenderableWidget(VeloriaButton.create(Component.literal("Fortuna"),
+                button -> ClientPlayNetworking.send(new ShopActionPayload("FORTUNA", "")))
+                .bounds(this.leftPos + 166, this.topPos + 132, 56, 16).build());
 
         this.setInitialFocus(this.searchBox);
     }
@@ -183,7 +180,7 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
         extractor.fill(this.leftPos + 12, this.topPos + 149, this.leftPos + 224, this.topPos + 150, 0x22D4AF37);
 
         // Highlight line under active mode button (Shop - gold)
-        extractor.fill(this.leftPos + 14, this.topPos + 147, this.leftPos + 78, this.topPos + 148, 0xFFD4AF37);
+        extractor.fill(this.leftPos + 14, this.topPos + 147, this.leftPos + 63, this.topPos + 148, 0xFFD4AF37);
 
         // Player Inventory label
         extractor.text(this.font, Component.translatable("vcoins.inventory"),
@@ -193,7 +190,7 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
 
     private void renderShopBalance(GuiGraphicsExtractor extractor) {
         long balance = this.minecraft != null && this.minecraft.player != null
-                ? VCoinsState.getCoins(this.minecraft.player.getUUID())
+                ? VCoinsState.getClientCoins(this.minecraft.player.getUUID())
                 : 0L;
         extractor.fill(this.leftPos + 16, this.topPos + 22, this.leftPos + 220, this.topPos + 35, 0x88080310);
         extractor.fill(this.leftPos + 16, this.topPos + 22, this.leftPos + 220, this.topPos + 23, 0x33D4AF37);
@@ -284,7 +281,7 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
 
         if (slot.index < VTradeScreenHandler.SHOP_SLOT_COUNT) {
             long buyPrice = (selectedCategory == ShopCategory.BUYBACK)
-                    ? VCoinsPricing.getBuybackPrice(stack)
+                    ? this.menu.getBuybackUnitPrice(slot.index)
                     : VCoinsPricing.getPrice(stack);
             long sellPrice = VCoinsPricing.getSellPrice(stack);
 
@@ -308,12 +305,14 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
             }
 
             long balance = (this.minecraft != null && this.minecraft.player != null)
-                    ? VCoinsState.getCoins(this.minecraft.player.getUUID()) : 0L;
+                    ? VCoinsState.getClientCoins(this.minecraft.player.getUUID()) : 0L;
             if (buyPrice > 0 && balance < buyPrice) {
                 tooltip.add(Component.translatable("vcoins.tooltip.cannot_afford").withStyle(ChatFormatting.RED));
             } else if (buyPrice > 0) {
-                tooltip.add(Component.translatable("vcoins.tooltip.buy_left").withStyle(ChatFormatting.GRAY));
-                if (stack.getMaxStackSize() > 1) {
+                tooltip.add((selectedCategory == ShopCategory.BUYBACK
+                        ? Component.translatable("vcoins.tooltip.buyback_stack", stack.getCount())
+                        : Component.translatable("vcoins.tooltip.buy_left")).withStyle(ChatFormatting.GRAY));
+                if (stack.getMaxStackSize() > 1 && selectedCategory != ShopCategory.BUYBACK) {
                     tooltip.add(Component.translatable("vcoins.tooltip.buy_right_stack").withStyle(ChatFormatting.DARK_GRAY));
                 }
             }
@@ -361,9 +360,9 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
                 if (slot != null && slot.hasItem()) {
                     ItemStack stack = slot.getItem();
                     long unitPrice = (this.selectedCategory == ShopCategory.BUYBACK)
-                            ? VCoinsPricing.getBuybackPrice(stack)
+                            ? this.menu.getBuybackUnitPrice(slot.index)
                             : VCoinsPricing.getPrice(stack);
-                    int amount = buyStack ? stack.getMaxStackSize() : 1;
+                    int amount = selectedCategory == ShopCategory.BUYBACK ? stack.getCount() : (buyStack ? stack.getMaxStackSize() : 1);
                     long totalCost = safeMultiply(unitPrice, amount);
 
                     if (purchaseConfirm.checkOrArm(shopSlot, buyStack, stack, totalCost, this.minecraft)) {

@@ -17,7 +17,9 @@ public record BlackMarketSyncPayload(
         int bankedResets,
         int resetSequence,
         List<ItemStack> items,
-        int lifetimeFlipCount
+        int lifetimeFlipCount,
+        /** Current lucky bonus %, increments of 5 per 130 non-legend flips */
+        int luckyPercent
 ) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<BlackMarketSyncPayload> ID =
             new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(VCoinsMod.MOD_ID, "black_market_sync"));
@@ -31,6 +33,7 @@ public record BlackMarketSyncPayload(
                 buf.writeVarInt(payload.resetSequence());
                 ItemStack.OPTIONAL_LIST_STREAM_CODEC.encode(buf, payload.items());
                 buf.writeVarInt(payload.lifetimeFlipCount());
+                buf.writeVarInt(payload.luckyPercent());
             },
             buf -> new BlackMarketSyncPayload(
                     buf.readVarLong(),
@@ -40,6 +43,7 @@ public record BlackMarketSyncPayload(
                     buf.readVarInt(),
                     buf.readVarInt(),
                     ItemStack.OPTIONAL_LIST_STREAM_CODEC.decode(buf),
+                    buf.readVarInt(),
                     buf.readVarInt()
             )
     );

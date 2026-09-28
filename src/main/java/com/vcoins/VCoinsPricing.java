@@ -30,127 +30,126 @@ public class VCoinsPricing {
         prices.clear();
         categories.clear();
         // ==================== BASIC / EASILY FARMABLE BLOCKS (Priced to eliminate AFK exploit loops) ====================
-        // ==================== BASIC / EASILY FARMABLE BLOCKS (Priced to eliminate AFK exploit loops) ====================
-        setPrice("minecraft:cobblestone", 4);
-        setPrice("minecraft:dirt", 4);
-        setPrice("minecraft:sand", 4);
-        setPrice("minecraft:red_sand", 5);
-        setPrice("minecraft:gravel", 4);
-        setPrice("minecraft:netherrack", 4);
-        setPrice("minecraft:stone", 5);
-        setPrice("minecraft:smooth_stone", 6);
-        setPrice("minecraft:cobbled_deepslate", 4);
-        setPrice("minecraft:deepslate", 5);
-        setPrice("minecraft:blackstone", 4);
-        setPrice("minecraft:basalt", 5);
-        setPrice("minecraft:smooth_basalt", 6);
-        setPrice("minecraft:end_stone", 8);
-        setPrice("minecraft:obsidian", 60);
-        setPrice("minecraft:crying_obsidian", 250);
-        setPrice("minecraft:clay_ball", 3);
-        setPrice("minecraft:clay", 12);
-        setPrice("minecraft:mud", 4);
-        setPrice("minecraft:packed_mud", 10);
-        setPrice("minecraft:mud_bricks", 12);
-        setPrice("minecraft:pointed_dripstone", 8);
-        setPrice("minecraft:dripstone_block", 10);
-        setPrice("minecraft:snowball", 2);
-        setPrice("minecraft:snow_block", 6);
-        setPrice("minecraft:ice", 6);
-        setPrice("minecraft:packed_ice", 54);
-        setPrice("minecraft:blue_ice", 486);
+        setPrice("minecraft:cobblestone", 10);
+        setPrice("minecraft:dirt", 8);
+        setPrice("minecraft:sand", 10);
+        setPrice("minecraft:red_sand", 12);
+        setPrice("minecraft:gravel", 10);
+        setPrice("minecraft:netherrack", 6);
+        setPrice("minecraft:stone", 12);
+        setPrice("minecraft:smooth_stone", 16);
+        setPrice("minecraft:cobbled_deepslate", 10);
+        setPrice("minecraft:deepslate", 12);
+        setPrice("minecraft:blackstone", 10);
+        setPrice("minecraft:basalt", 10);
+        setPrice("minecraft:smooth_basalt", 14);
+        setPrice("minecraft:end_stone", 16);
+        setPrice("minecraft:obsidian", 150);
+        setPrice("minecraft:crying_obsidian", 400);
+        setPrice("minecraft:clay_ball", 8);
+        setPrice("minecraft:clay", 32);
+        setPrice("minecraft:mud", 8);
+        setPrice("minecraft:packed_mud", 20);
+        setPrice("minecraft:mud_bricks", 24);
+        setPrice("minecraft:pointed_dripstone", 15);
+        setPrice("minecraft:dripstone_block", 20);
+        setPrice("minecraft:snowball", 4);
+        setPrice("minecraft:snow_block", 16);
+        setPrice("minecraft:ice", 12);
+        setPrice("minecraft:packed_ice", 108);
+        setPrice("minecraft:blue_ice", 972);
         
         // ==================== WOOD & BAMBOO (Tree Farms / Bamboo Farms) ====================
-        setPrice("minecraft:oak_log", 8);
-        setPrice("minecraft:spruce_log", 8);
-        setPrice("minecraft:birch_log", 8);
-        setPrice("minecraft:jungle_log", 8);
-        setPrice("minecraft:acacia_log", 8);
-        setPrice("minecraft:dark_oak_log", 8);
-        setPrice("minecraft:mangrove_log", 8);
-        setPrice("minecraft:cherry_log", 8);
-        setPrice("minecraft:pale_oak_log", 8);
-        setPrice("minecraft:oak_planks", 2);
-        setPrice("minecraft:stick", 1);
-        setPrice("minecraft:bamboo", 2);
+        setPrice("minecraft:oak_log", 32);
+        setPrice("minecraft:spruce_log", 32);
+        setPrice("minecraft:birch_log", 32);
+        setPrice("minecraft:jungle_log", 32);
+        setPrice("minecraft:acacia_log", 32);
+        setPrice("minecraft:dark_oak_log", 32);
+        setPrice("minecraft:mangrove_log", 32);
+        setPrice("minecraft:cherry_log", 32);
+        setPrice("minecraft:pale_oak_log", 32);
+        setPrice("minecraft:oak_planks", 8);
+        setPrice("minecraft:stick", 4);
+        setPrice("minecraft:bamboo", 6);
 
         // ==================== MINERALS (Balanced against Iron Golem & Piglin Gold Farms) ====================
-        setPrice("minecraft:coal", 16);
-        setPrice("minecraft:charcoal", 10);
-        setPrice("minecraft:coal_block", 144);
-        setPrice("minecraft:raw_copper", 8);
-        setPrice("minecraft:copper_ingot", 10);
-        setPrice("minecraft:copper_nugget", 1);
-        setPrice("minecraft:raw_copper_block", 72);
-        setPrice("minecraft:copper_block", 90);
-        setPrice("minecraft:waxed_copper_block", 100);
+        setPrice("minecraft:coal", 45);
+        setPrice("minecraft:charcoal", 35);
+        setPrice("minecraft:coal_block", 405);
+        setPrice("minecraft:raw_copper", 20);
+        setPrice("minecraft:copper_ingot", 25);
+        setPrice("minecraft:copper_nugget", 3);
+        setPrice("minecraft:raw_copper_block", 180);
+        setPrice("minecraft:copper_block", 225);
+        setPrice("minecraft:waxed_copper_block", 250);
 
-        // Iron and Gold: balanced against industrial automated golem/piglin farms
-        setPrice("minecraft:raw_iron", 24);
-        setPrice("minecraft:iron_ingot", 30);
-        setPrice("minecraft:iron_nugget", 3);
-        setPrice("minecraft:raw_iron_block", 216);
-        setPrice("minecraft:iron_block", 270);
+        // Iron and Gold: rewarding for mining and balanced for industrial farms
+        setPrice("minecraft:raw_iron", 60);
+        setPrice("minecraft:iron_ingot", 80);
+        setPrice("minecraft:iron_nugget", 8);
+        setPrice("minecraft:raw_iron_block", 540);
+        setPrice("minecraft:iron_block", 720);
 
-        setPrice("minecraft:raw_gold", 48);
-        setPrice("minecraft:gold_ingot", 60);
-        setPrice("minecraft:gold_nugget", 6);
-        setPrice("minecraft:raw_gold_block", 432);
-        setPrice("minecraft:gold_block", 540);
+        setPrice("minecraft:raw_gold", 100);
+        setPrice("minecraft:gold_ingot", 140);
+        setPrice("minecraft:gold_nugget", 15);
+        setPrice("minecraft:raw_gold_block", 900);
+        setPrice("minecraft:gold_block", 1260);
 
-        setPrice("minecraft:redstone", 10);
-        setPrice("minecraft:redstone_block", 90);
-        setPrice("minecraft:lapis_lazuli", 16);
-        setPrice("minecraft:lapis_block", 144);
-        setPrice("minecraft:quartz", 16);
-        setPrice("minecraft:quartz_block", 64);
-        setPrice("minecraft:amethyst_shard", 16);
-        setPrice("minecraft:amethyst_block", 64);
-        setPrice("minecraft:amethyst_cluster", 64);
+        setPrice("minecraft:redstone", 35);
+        setPrice("minecraft:redstone_block", 315);
+        setPrice("minecraft:lapis_lazuli", 45);
+        setPrice("minecraft:lapis_block", 405);
+        setPrice("minecraft:quartz", 40);
+        setPrice("minecraft:quartz_block", 160);
+        setPrice("minecraft:amethyst_shard", 40);
+        setPrice("minecraft:amethyst_block", 160);
+        setPrice("minecraft:amethyst_cluster", 160);
 
         // Economy Currencies & Finite High-Value Minerals (Raid Farm / Villager Trading balanced)
-        setPrice("minecraft:emerald", 25);
-        setPrice("minecraft:emerald_block", 225);
-        setPrice("minecraft:diamond", 300_000);
-        setPrice("minecraft:diamond_block", 2_700_000);
+        setPrice("minecraft:emerald", 75);
+        setPrice("minecraft:emerald_block", 675);
+        setPrice("minecraft:diamond", 10_000);
+        setPrice("minecraft:diamond_block", 90_000);
         setPrice("minecraft:ancient_debris", 3_500_000);
         setPrice("minecraft:netherite_scrap", 3_500_000);
         setPrice("minecraft:netherite_ingot", 15_000_000);
         setPrice("minecraft:netherite_block", 135_000_000);
         
-        // ==================== MOB & COMBAT REWARDS (AFK Farm Adjusted - Donut SMP Balanced) ====================
-        setPrice("minecraft:rotten_flesh", 3);
-        setPrice("minecraft:bone", 6);
-        setPrice("minecraft:bone_meal", 2);
-        setPrice("minecraft:string", 5);
-        setPrice("minecraft:spider_eye", 6);
-        setPrice("minecraft:feather", 4);
-        setPrice("minecraft:leather", 12);
-        setPrice("minecraft:gunpowder", 15);
-        setPrice("minecraft:slime_ball", 16);
-        setPrice("minecraft:slime_block", 144);
-        setPrice("minecraft:magma_cream", 20);
-        setPrice("minecraft:magma_block", 80);
-        setPrice("minecraft:prismarine_shard", 12);
-        setPrice("minecraft:prismarine_crystals", 24);
-        setPrice("minecraft:ender_pearl", 25);
-        setPrice("minecraft:blaze_rod", 45);
-        setPrice("minecraft:blaze_powder", 25);
-        setPrice("minecraft:ghast_tear", 180);
-        setPrice("minecraft:nautilus_shell", 600);
+        // ==================== MOB & COMBAT REWARDS (AFK Farm Adjusted - Rewarding Grind) ====================
+        setPrice("minecraft:rotten_flesh", 10);
+        setPrice("minecraft:bone", 18);
+        setPrice("minecraft:bone_meal", 6);
+        setPrice("minecraft:string", 15);
+        setPrice("minecraft:spider_eye", 18);
+        setPrice("minecraft:feather", 10);
+        setPrice("minecraft:leather", 30);
+        setPrice("minecraft:gunpowder", 45);
+        setPrice("minecraft:slime_ball", 50);
+        setPrice("minecraft:slime_block", 450);
+        setPrice("minecraft:magma_cream", 55);
+        setPrice("minecraft:magma_block", 220);
+        setPrice("minecraft:prismarine_shard", 30);
+        setPrice("minecraft:prismarine_crystals", 50);
+        setPrice("minecraft:ender_pearl", 60);
+        setPrice("minecraft:blaze_rod", 90);
+        setPrice("minecraft:blaze_powder", 45);
+        setPrice("minecraft:ghast_tear", 400);
+        setPrice("minecraft:nautilus_shell", 1_500);
         setPrice("minecraft:shulker_shell", 1_500_000);
         setPrice("minecraft:breeze_rod", 200_000);
-        setPrice("minecraft:phantom_membrane", 120);
-        setPrice("minecraft:ink_sac", 15);
-        setPrice("minecraft:glow_ink_sac", 20);
-        setPrice("minecraft:rabbit_hide", 8);
-        setPrice("minecraft:rabbit_foot", 60);
-        setPrice("minecraft:turtle_scute", 180);
-        setPrice("minecraft:armadillo_scute", 120);
-        setPrice("minecraft:saddle", 1_500);
-        setPrice("minecraft:sponge", 4_000);
-        setPrice("minecraft:wet_sponge", 3_500);
-        setPrice("minecraft:dragon_breath", 250);
+        setPrice("minecraft:phantom_membrane", 200);
+        setPrice("minecraft:ink_sac", 30);
+        setPrice("minecraft:glow_ink_sac", 40);
+        setPrice("minecraft:rabbit_hide", 20);
+        setPrice("minecraft:rabbit_foot", 120);
+        setPrice("minecraft:turtle_scute", 300);
+        setPrice("minecraft:armadillo_scute", 200);
+        setPrice("minecraft:saddle", 2_500);
+        setPrice("minecraft:sponge", 6_000);
+        setPrice("minecraft:wet_sponge", 5_000);
+        setPrice("minecraft:dragon_breath", 500);
 
         // Mob Heads (Charged Creeper farm balanced)
         setPrice("minecraft:creeper_head", 5_000);
@@ -199,57 +198,57 @@ public class VCoinsPricing {
         setPrice("minecraft:dragon_head", 50_000_000);
         setPrice("minecraft:dragon_egg", 500_000_000);
         
-        // ==================== CROPS & AGRICULTURAL PRODUCTS (Automated Farms) ====================
-        setPrice("minecraft:wheat_seeds", 2);
-        setPrice("minecraft:wheat", 5);
-        setPrice("minecraft:hay_block", 45);
-        setPrice("minecraft:potato", 4);
-        setPrice("minecraft:baked_potato", 6);
-        setPrice("minecraft:poisonous_potato", 2);
-        setPrice("minecraft:carrot", 4);
-        setPrice("minecraft:beetroot", 4);
-        setPrice("minecraft:beetroot_seeds", 2);
-        setPrice("minecraft:melon_slice", 2);
-        setPrice("minecraft:melon", 14);
-        setPrice("minecraft:pumpkin", 8);
-        setPrice("minecraft:sugar_cane", 4);
-        setPrice("minecraft:kelp", 2);
-        setPrice("minecraft:dried_kelp", 3);
-        setPrice("minecraft:dried_kelp_block", 27);
-        setPrice("minecraft:sweet_berries", 3);
-        setPrice("minecraft:glow_berries", 4);
-        setPrice("minecraft:cocoa_beans", 4);
-        setPrice("minecraft:cactus", 4);
-        setPrice("minecraft:apple", 10);
-        setPrice("minecraft:beef", 8);
-        setPrice("minecraft:porkchop", 8);
-        setPrice("minecraft:mutton", 8);
-        setPrice("minecraft:chicken", 6);
-        setPrice("minecraft:bread", 18);
-        setPrice("minecraft:golden_carrot", 70);
-        setPrice("minecraft:glistering_melon_slice", 70);
-        setPrice("minecraft:golden_apple", 650);
+        // ==================== CROPS & AGRICULTURAL PRODUCTS (Rewarding Grinding) ====================
+        setPrice("minecraft:wheat_seeds", 4);
+        setPrice("minecraft:wheat", 16);
+        setPrice("minecraft:hay_block", 144);
+        setPrice("minecraft:potato", 12);
+        setPrice("minecraft:baked_potato", 18);
+        setPrice("minecraft:poisonous_potato", 5);
+        setPrice("minecraft:carrot", 12);
+        setPrice("minecraft:beetroot", 12);
+        setPrice("minecraft:beetroot_seeds", 4);
+        setPrice("minecraft:melon_slice", 5);
+        setPrice("minecraft:melon", 35);
+        setPrice("minecraft:pumpkin", 25);
+        setPrice("minecraft:sugar_cane", 12);
+        setPrice("minecraft:kelp", 6);
+        setPrice("minecraft:dried_kelp", 8);
+        setPrice("minecraft:dried_kelp_block", 72);
+        setPrice("minecraft:sweet_berries", 8);
+        setPrice("minecraft:glow_berries", 10);
+        setPrice("minecraft:cocoa_beans", 12);
+        setPrice("minecraft:cactus", 12);
+        setPrice("minecraft:apple", 25);
+        setPrice("minecraft:beef", 22);
+        setPrice("minecraft:porkchop", 22);
+        setPrice("minecraft:mutton", 20);
+        setPrice("minecraft:chicken", 18);
+        setPrice("minecraft:bread", 48);
+        setPrice("minecraft:golden_carrot", 180);
+        setPrice("minecraft:glistering_melon_slice", 180);
+        setPrice("minecraft:golden_apple", 1_500);
         setPrice("minecraft:enchanted_golden_apple", 80_000_000);
-        setPrice("minecraft:pumpkin_pie", 30);
-        setPrice("minecraft:cake", 350);
-        setPrice("minecraft:chorus_fruit", 8);
-        setPrice("minecraft:chorus_flower", 32);
-        setPrice("minecraft:sea_pickle", 8);
-        setPrice("minecraft:shroomlight", 24);
+        setPrice("minecraft:pumpkin_pie", 75);
+        setPrice("minecraft:cake", 500);
+        setPrice("minecraft:chorus_fruit", 15);
+        setPrice("minecraft:chorus_flower", 60);
+        setPrice("minecraft:sea_pickle", 15);
+        setPrice("minecraft:shroomlight", 50);
         
         // ==================== COMMONLY CRAFTED MATERIALS ====================
-        setPrice("minecraft:glass", 4);
-        setPrice("minecraft:white_wool", 8);
-        setPrice("minecraft:torch", 6);
-        setPrice("minecraft:bone_block", 54);
-        setPrice("minecraft:glowstone_dust", 8);
-        setPrice("minecraft:glowstone", 32);
-        setPrice("minecraft:honeycomb", 8);
-        setPrice("minecraft:honeycomb_block", 32);
-        setPrice("minecraft:honey_block", 48);
-        setPrice("minecraft:honey_bottle", 16);
-        setPrice("minecraft:resin_clump", 12);
-        setPrice("minecraft:resin_block", 108);
+        setPrice("minecraft:glass", 12);
+        setPrice("minecraft:white_wool", 20);
+        setPrice("minecraft:torch", 12);
+        setPrice("minecraft:bone_block", 162);
+        setPrice("minecraft:glowstone_dust", 15);
+        setPrice("minecraft:glowstone", 60);
+        setPrice("minecraft:honeycomb", 20);
+        setPrice("minecraft:honeycomb_block", 80);
+        setPrice("minecraft:honey_block", 120);
+        setPrice("minecraft:honey_bottle", 40);
+        setPrice("minecraft:resin_clump", 25);
+        setPrice("minecraft:resin_block", 225);
         setPrice("minecraft:disc_fragment_5", 10_000);
 
         // ==================== ENDGAME / RARE PROGRESSION ITEMS ====================
@@ -321,6 +320,12 @@ public class VCoinsPricing {
 
     public static long getReferencePrice(ItemStack stack) {
         if (!isTradeable(stack)) return 0L;
+        return getBlackMarketReferencePrice(stack);
+    }
+
+    /** Acquisition valuation only; bound-item resale/duplication stays forbidden. */
+    static long getBlackMarketReferencePrice(ItemStack stack) {
+        if (stack.isEmpty() || !isTradeable(stack.getItem())) return 0L;
         String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         long base = getBasePrice(id);
         if (base <= 0) return 0L;
@@ -334,11 +339,20 @@ public class VCoinsPricing {
     }
 
     public static long getReferenceSellPrice(ItemStack stack) {
-        String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        return calculateSellPrice(id, getDurabilityAdjustedPrice(stack, getReferencePrice(stack)));
+        if (!isTradeable(stack)) return 0L;
+        String id = getSellMarketKey(stack);
+        return calculateSellPrice(id, getDurabilityAdjustedPrice(stack, getBasePrice(id)));
+    }
+
+    /** Enchantments can be added/combined outside the shop; resale buys materials only. */
+    public static String getSellMarketKey(ItemStack stack) {
+        return stack.is(Items.ENCHANTED_BOOK) ? "minecraft:book"
+                : BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
     }
 
     public static long getSellPrice(String itemId) {
+        itemId = itemId.split("\\|", 2)[0];
+        if (itemId.equals("minecraft:enchanted_book")) itemId = "minecraft:book";
         long basePrice = getBasePrice(itemId);
         if (basePrice <= 0) {
             return 0L;
@@ -349,10 +363,11 @@ public class VCoinsPricing {
     }
 
     public static long getSellPrice(ItemStack stack) {
-        long reference = getReferencePrice(stack);
+        if (!isTradeable(stack)) return 0L;
+        String id = getSellMarketKey(stack);
+        long reference = getBasePrice(id);
         if (reference <= 0) return 0L;
-        String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        long adjusted = Math.max(1L, Math.round(reference * VMarketEngine.getSellMultiplier(getMarketKey(stack))));
+        long adjusted = Math.max(1L, Math.round(reference * VMarketEngine.getSellMultiplier(id)));
         return calculateSellPrice(id, getDurabilityAdjustedPrice(stack, adjusted));
     }
 
@@ -370,19 +385,19 @@ public class VCoinsPricing {
 
         // Tiered Sell Margins:
         // 1. Easily farmable resources, basic blocks, mob drops, iron/gold, and craftable redstone/functional items:
-        // 20% sell margin max. Under extreme market saturation (dumping), sell price drops to 0 (shop refusal).
+        // 30% sell margin, with a minimum floor of 1 coin so grind items are never refused with 0 payout.
         if (isFarmableOrCrafted(path)) {
-            return buyPrice / 5L; // 20% sell margin
+            return Math.max(1L, percentageOf(buyPrice, 30));
         }
 
         // 2. Agricultural crops, food, wood, and standard building blocks:
         ShopCategory category = getCategory(itemId);
         if (category == ShopCategory.FOOD || category == ShopCategory.NATURAL || category == ShopCategory.BUILDING) {
-            return buyPrice / 4L; // 25% sell margin
+            return Math.max(1L, percentageOf(buyPrice, 35));
         }
 
-        // 3. Other items (Tools, Combat, Rare exploration loot): 35% sell margin
-        return percentageOf(buyPrice, 35);
+        // 3. Other items (Tools, Combat, Rare exploration loot): 40% sell margin
+        return Math.max(1L, percentageOf(buyPrice, 40));
     }
 
     private static boolean isFarmableOrCrafted(String path) {
@@ -442,11 +457,11 @@ public class VCoinsPricing {
         return calculateBuybackPrice(getSellPrice(stack));
     }
 
-    private static long calculateBuybackPrice(long sellPrice) {
+    public static long calculateBuybackPrice(long sellPrice) {
         if (sellPrice <= 0) {
             return 0L;
         }
-        return sellPrice + Math.max(1L, sellPrice / 10L);
+        return safeAdd(sellPrice, Math.max(1L, sellPrice / 10L));
     }
 
     public static int getEnchantmentCount(ItemStack stack) {
@@ -472,7 +487,16 @@ public class VCoinsPricing {
     }
 
     public static boolean isTradeable(ItemStack stack) {
-        return !stack.isEmpty() && !VBlackMarket.isRomanGodItem(stack) && isTradeable(stack.getItem());
+        if (stack.isEmpty()) return false;
+        // Legend and Mythic items (VNoTrade tag) cannot be traded, sold, or duplicated
+        var customData = stack.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
+        if (customData != null && customData.copyTag().getBoolean("VNoTrade").orElse(false)) {
+            return false;
+        }
+        return !VBlackMarket.isRomanGodItem(stack)
+                && !VFortuna.isReward(stack)
+                && !(VBlackMarket.isBlackMarketItem(stack) && VBlackMarket.isEquipment(stack))
+                && isTradeable(stack.getItem());
     }
 
     public static boolean isTradeable(Item item) {
@@ -606,12 +630,12 @@ public class VCoinsPricing {
             case "leather_horse_armor" -> 150L;
             case "iron_horse_armor" -> 15_000L;
             case "golden_horse_armor" -> 30_000L;
-            case "diamond_horse_armor" -> 8_000_000L;
+            case "diamond_horse_armor" -> 120_000L;
             case "netherite_horse_armor" -> 60_000_000L;
             case "copper_nautilus_armor" -> 4_000L;
             case "iron_nautilus_armor" -> 12_000L;
             case "golden_nautilus_armor" -> 24_000L;
-            case "diamond_nautilus_armor" -> 8_000_000L;
+            case "diamond_nautilus_armor" -> 120_000L;
             case "netherite_nautilus_armor" -> 60_000_000L;
             default -> 0L;
         };
@@ -672,7 +696,7 @@ public class VCoinsPricing {
         if (path.startsWith("copper_")) return 10L;
         if (path.startsWith("iron_") || path.startsWith("chainmail_")) return 30L;
         if (path.startsWith("golden_")) return 60L;
-        if (path.startsWith("diamond_")) return 300_000L;
+        if (path.startsWith("diamond_")) return 10_000L;
         if (path.startsWith("leather_")) return 16L;
         return 0L;
     }
@@ -783,7 +807,6 @@ public class VCoinsPricing {
     }
 
     private static long getColoredItemPrice(String path) {
-        if (path.contains("shulker_box")) return 30_000L;
         if (path.endsWith("_stained_glass_pane")) return 4L;
         if (path.endsWith("_stained_glass")) return 10L;
         if (path.endsWith("_glazed_terracotta")) return 70L;
@@ -815,8 +838,8 @@ public class VCoinsPricing {
             case "deepslate_redstone_ore" -> 176L;
             case "lapis_ore" -> 384L;
             case "deepslate_lapis_ore" -> 416L;
-            case "diamond_ore" -> 160_000L;
-            case "deepslate_diamond_ore" -> 175_000L;
+            case "diamond_ore" -> 9_000L;
+            case "deepslate_diamond_ore" -> 9_500L;
             case "emerald_ore" -> 30_000L;
             case "deepslate_emerald_ore" -> 35_000L;
             case "nether_quartz_ore" -> 112L;
@@ -935,12 +958,12 @@ public class VCoinsPricing {
             case "anvil" -> 1_100L;
             case "chipped_anvil" -> 750L;
             case "damaged_anvil" -> 400L;
-            case "enchanting_table" -> 390_000L;
+            case "enchanting_table" -> 22_000L;
             case "brewing_stand" -> 220L;
             case "ender_chest" -> 1_300L;
             case "cauldron" -> 250L;
             case "composter" -> 18L;
-            case "jukebox" -> 19_250L;
+            case "jukebox" -> 10_800L;
             case "note_block" -> 35L;
             case "respawn_anchor" -> 4_200L;
             case "lodestone" -> 192_000L;
@@ -1096,7 +1119,7 @@ public class VCoinsPricing {
             return 60_000_000L; // Extremely rare drop in Ancient City (1.2% chest chance)
         }
         if (path.contains("netherite_upgrade")) {
-            return 20_000_000L; // Found in Bastion Remnants — bottleneck for netherite gear
+            return 20_000_000L; // Found in Bastion Remnants â€” bottleneck for netherite gear
         }
         if (containsAny(path, "ward_armor_trim", "spire_armor_trim", "rib_armor_trim")) {
             return 25_000_000L; // Ancient City, End City, Nether Fortress

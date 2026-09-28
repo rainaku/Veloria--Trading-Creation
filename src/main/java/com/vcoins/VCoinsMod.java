@@ -18,6 +18,12 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 public class VCoinsMod implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger("vcoins");
     public static final String MOD_ID = "vcoins";
+    public static final MenuType<VGiftBoxMenu> VGIFT_MENU = Registry.register(
+            BuiltInRegistries.MENU, Identifier.fromNamespaceAndPath(MOD_ID, "gift_box"),
+            new MenuType<>(VGiftBoxMenu::new, net.minecraft.world.flag.FeatureFlags.VANILLA_SET));
+    public static final MenuType<VFortunaMenu> VFORTUNA_MENU = Registry.register(
+            BuiltInRegistries.MENU, Identifier.fromNamespaceAndPath(MOD_ID, "fortuna"),
+            new MenuType<>(VFortunaMenu::new, net.minecraft.world.flag.FeatureFlags.VANILLA_SET));
 
     public static final MenuType<VTradeScreenHandler> VTRADE_SCREEN_HANDLER = Registry.register(
             BuiltInRegistries.MENU, Identifier.fromNamespaceAndPath(MOD_ID, "vtrade"),
@@ -34,6 +40,7 @@ public class VCoinsMod implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        VGiftBox.registerLifecycle();
         LOGGER.info("Initializing Veloria: Trading & Creation...");
 
         registerActionNetworking();
@@ -69,6 +76,7 @@ public class VCoinsMod implements ModInitializer {
         
         VCoinsState.registerEvents();
         VBlackMarket.registerEvents();
+        VFortuna.register();
     }
 
     private static void registerActionNetworking() {
@@ -102,6 +110,8 @@ public class VCoinsMod implements ModInitializer {
 
         ServerPlayNetworking.registerGlobalReceiver(BlackMarketRevealPayload.ID, (payload, context) -> {
             context.server().execute(() -> {
+                if (!(context.player().containerMenu instanceof VBlackMarketScreenHandler)) return;
+                if (payload.slotIndex() < -1 || payload.slotIndex() >= VBlackMarket.DAILY_ITEM_COUNT) return;
                 VBlackMarket.revealCard(context.player().getUUID(), payload.slotIndex());
                 if (context.server() != null) {
                     VBlackMarket.save(context.server());
@@ -118,6 +128,8 @@ public class VCoinsMod implements ModInitializer {
     }
 
     private static void handleShopAction(VTradeScreenHandler shop, ServerPlayer player, String action, String data) {
+        if ("FORTUNA".equals(action)) { VFortuna.open(player); return; }
+        if ("GIFTBOX".equals(action)) { VGiftBox.showMenu(player); return; }
         if ("SCROLL".equals(action)) {
             try {
                 shop.setScrollOffset(Integer.parseInt(data));
