@@ -42,6 +42,28 @@ Veloria must be installed on the server and on every connecting client.
 
 Open the market with `B` or `/shop`.
 
+### Continuous prices and farm metas
+
+Every tradeable item has a short real-time price wave, including items outside a farm
+meta. Ghost traders visit the whole catalogue in rotation while the server is running.
+Prices are rounded to whole Velicoins, so a small movement may not change the displayed
+number every second.
+
+Every **10 real days**, the market selects **three distinct commodity families**:
+two demand surges and one supply crash. At their strongest, primary items approach
+**4× their reference price (+300%)** or **0.05× (-95%)**, including rare items.
+Material variants and equipment in the same family share the event; closely related
+products receive 60% of its influence. For example, an iron meta affects ingots,
+blocks and iron tools, with a smaller effect on hoppers, buckets and anvils.
+Overlapping events use the strongest relationship rather than multiplying extremes.
+
+Events build smoothly toward the middle of each ten-day window and fade before the
+next one. Short price waves continue throughout. Windows are anchored to Unix time,
+shared by server and client, and do not reset on restart or pause while the server
+is offline. No offline trading process or extra save file is needed; the next quote
+uses the current time. The active families are written to the server log on startup
+and at each new window.
+
 ### Trading controls
 
 | Action | Control |

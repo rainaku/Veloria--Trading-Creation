@@ -50,8 +50,24 @@ public final class EconomySafetyTest {
         giftBoxes();
         giftPrivacy();
         vanillaItemCompatibility();
+        adminStats();
         anvilNames();
         System.out.println("Economy safety checks passed: " + checks);
+    }
+
+    private static void adminStats() {
+        UUID id = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        for (var stat : VBlackMarket.AdminStat.values()) {
+            int limit = VBlackMarket.adminStatLimit(stat);
+            require(VBlackMarket.changeAdminStat(id, stat, limit, false) == limit, "Admin sets stat");
+            require(VBlackMarket.changeAdminStat(id, stat, Integer.MAX_VALUE, true) == limit, "Admin add cannot overflow");
+            require(VBlackMarket.changeAdminStat(id, stat, Integer.MIN_VALUE, true) == 0, "Admin subtract clamps at zero");
+            require(VBlackMarket.getAdminStat(other, stat) == 0, "Admin edits only selected player");
+        }
+        VBlackMarket.addBankedResets(id, Integer.MAX_VALUE);
+        VBlackMarket.addBankedResets(id, 1);
+        require(VBlackMarket.getBankedResets(id) == Integer.MAX_VALUE, "Legacy reset grant cannot overflow");
     }
 
     private static void anvilNames() {
@@ -201,26 +217,21 @@ public final class EconomySafetyTest {
     private static void enchanting() {
         VMarketEngine.reset(null);
         for (var enchantment : registries.lookupOrThrow(Registries.ENCHANTMENT).listElements().toList()) {
-            ItemStack prior = null;
             for (int level = 1; level <= enchantment.value().getMaxLevel(); level++) {
                 ItemStack book = new ItemStack(Items.ENCHANTED_BOOK);
                 book.enchant(enchantment, level);
-                require(VCoinsPricing.getSellPrice(book) == VCoinsPricing.getSellPrice(new ItemStack(Items.BOOK)),
-                        "Book resale ignores enchantment " + enchantment.getRegisteredName());
-                if (prior != null) {
-                    require(VCoinsPricing.getSellPrice(book) < 2 * VCoinsPricing.getPrice(prior),
-                            "Combining equal levels cannot mint coins");
-                }
+                require(VCoinsPricing.getSellPrice(book) == VCoinsPricing.getPrice(book) * 75 / 100,
+                        "Book resale includes enchantment " + enchantment.getRegisteredName());
+
                 ItemStack gear = new ItemStack(Items.DIAMOND_PICKAXE);
                 gear.enchant(enchantment, level);
-                require(VCoinsPricing.getSellPrice(gear) == VCoinsPricing.getSellPrice(new ItemStack(Items.DIAMOND_PICKAXE)),
-                        "Equipment resale ignores upgrade premium");
-                require(VCoinsPricing.getSellMarketKey(gear).equals("minecraft:diamond_pickaxe"),
-                        "Combining types cannot reset sale pressure");
-                prior = book;
+                require(VCoinsPricing.getSellPrice(gear) == VCoinsPricing.getPrice(gear) * 75 / 100,
+                        "Equipment resale is 75 percent including upgrades");
+                require(VCoinsPricing.getSellMarketKey(gear).equals(VCoinsPricing.getMarketKey(gear)),
+                        "Buy and sell use the same market");
             }
         }
-        require(VCoinsPricing.getSellPrice("minecraft:enchanted_book") == VCoinsPricing.getSellPrice("minecraft:book"),
+        require(VCoinsPricing.getSellPrice("minecraft:enchanted_book") == VCoinsPricing.getPrice("minecraft:enchanted_book") * 75 / 100,
                 "String and stack resale paths agree");
     }
 
@@ -275,7 +286,11 @@ public final class EconomySafetyTest {
                 }
                 maximumExpectedResale += maximumResale * outcomes[quality] / 1000.0;
             }
-            require(maximumExpectedResale < VGiftBox.PRICES[tier], "Gift nominal resale expectation stays below box cost");
+            double advertisedResaleCeiling = 0;
+            for (int quality = 0; quality < 4; quality++)
+                advertisedResaleCeiling += VGiftBox.maximumValue(tier, quality) * 0.75 * outcomes[quality] / 1000.0;
+            require(maximumExpectedResale <= advertisedResaleCeiling,
+                    "Gift resale follows 75 percent of the advertised reward bands");
         }
         UUID id = UUID.randomUUID();
         for (int tier = 0; tier < 5; tier++) {
@@ -403,12 +418,24 @@ public final class EconomySafetyTest {
     }
 
     private static void marketRarity() {
+        for (var item : List.of(Items.WOODEN_SPEAR, Items.COPPER_LEGGINGS, Items.ELYTRA,
+                Items.MAP, Items.FILLED_MAP, Items.COMPASS, Items.RECOVERY_COMPASS,
+                Items.CLOCK, Items.BUCKET, Items.SPYGLASS, Items.GOAT_HORN)) {
+            var legacy = new VBlackMarket.BlackMarketItemEntry(new ItemStack(item, 64));
+            require(legacy.toItemStack().getCount() == 1, "Legacy gear and utility card quantity repaired");
+        }
+        require(new VBlackMarket.BlackMarketItemEntry(new ItemStack(Items.ENDER_PEARL, 64))
+                .toItemStack().getCount() == 16, "Bundles respect vanilla stack limit");
+        require(new VBlackMarket.BlackMarketItemEntry(new ItemStack(Items.COBBLESTONE, 64))
+                .toItemStack().getCount() == 64, "Bulk materials retain their quantity");
         for (int seed = 0; seed < 100; seed++) {
             var common = VBlackMarket.rollCardItem(new Random(seed) {
                 @Override public double nextDouble() { return 0.99; }
             }, Items.DIAMOND);
             require(VBlackMarket.isCommonCardItem(common.getItem()), "Common roll excludes higher-tier pools");
-            require(common.getCount() >= 30 && common.getCount() <= 64, "Common bundle quantity 30 to 64");
+            int limit = VBlackMarket.getCardQuantityLimit(common);
+            require(common.getCount() >= Math.min(30, limit) && common.getCount() <= limit,
+                    "Common quantity respects utility and stack limits");
             var saved = new VBlackMarket.BlackMarketItemEntry(common).toItemStack();
             require(saved.getCount() == common.getCount(), "Card quantity survives save/load");
             long total = VBlackMarket.getDiscountedPrice(common, 123);

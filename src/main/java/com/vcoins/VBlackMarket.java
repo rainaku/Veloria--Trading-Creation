@@ -952,7 +952,7 @@ public class VBlackMarket {
             CustomData.update(DataComponents.CUSTOM_DATA, sample, tag -> tag.putString("VCardTier", tier));
             long unitPrice = VCoinsPricing.getReferencePrice(sample);
             if (unitPrice <= 0 || unitPrice > maxValue) continue;
-            int maxCount = (int) Math.min(30, maxValue / unitPrice);
+            int maxCount = (int) Math.min(Math.min(30, getCardQuantityLimit(sample)), maxValue / unitPrice);
             if (maxCount < 1) continue;
             int count = 1 + random.nextInt(maxCount);
             return new ItemStack(item, count);
@@ -1037,6 +1037,7 @@ public class VBlackMarket {
         for (Item item : BuiltInRegistries.ITEM) if (isCommonCardItem(item)) common.add(item);
         if (common.isEmpty()) throw new IllegalStateException("No eligible common Black Market items");
         ItemStack fallback = new ItemStack(common.get(random.nextInt(common.size())), 30 + random.nextInt(35));
+        fallback.setCount(Math.min(fallback.getCount(), getCardQuantityLimit(fallback)));
         stampEquipment(fallback);
         return fallback;
     }
@@ -1054,6 +1055,14 @@ public class VBlackMarket {
 
     public static boolean isEquipment(ItemStack stack) {
         return stack.isDamageableItem() || stack.has(DataComponents.EQUIPPABLE);
+    }
+
+    /** Reusable utility items are sold individually, even when vanilla allows stacking. */
+    static int getCardQuantityLimit(ItemStack stack) {
+        if (isEquipment(stack) || stack.is(Items.MAP) || stack.is(Items.FILLED_MAP)
+                || stack.is(Items.COMPASS) || stack.is(Items.RECOVERY_COMPASS)
+                || stack.is(Items.CLOCK) || stack.is(Items.BUCKET)) return 1;
+        return Math.max(1, stack.getMaxStackSize());
     }
 
     static void stampEquipment(ItemStack stack) {
@@ -1245,9 +1254,44 @@ public class VBlackMarket {
         return getPlayerRecord(uuid).bankedResets;
     }
 
+    public enum AdminStat { LUCK, PITY, RESETS }
+
+    public static int adminStatLimit(AdminStat stat) {
+        return switch (stat) {
+            case LUCK -> MAX_LUCKY_PERCENT;
+            case PITY -> PITY_THRESHOLD - 1;
+            case RESETS -> Integer.MAX_VALUE;
+        };
+    }
+
+    public static synchronized int getAdminStat(UUID uuid, AdminStat stat) {
+        var rec = getPlayerRecord(uuid);
+        return switch (stat) {
+            case LUCK -> rec.luckyPercent;
+            case PITY -> rec.lifetimeFlipCount;
+            case RESETS -> rec.bankedResets;
+        };
+    }
+
+    public static synchronized int changeAdminStat(UUID uuid, AdminStat stat, int value, boolean add) {
+        int updated = (int) Math.clamp((add ? (long) getAdminStat(uuid, stat) : 0L) + value,
+                0L, (long) adminStatLimit(stat));
+        var rec = getPlayerRecord(uuid);
+        switch (stat) {
+            case LUCK -> {
+                rec.luckyPercent = updated;
+                rec.luckyFlipCount = updated * LUCKY_STEP_FLIPS / LUCKY_STEP_PERCENT;
+            }
+            case PITY -> rec.lifetimeFlipCount = updated;
+            case RESETS -> rec.bankedResets = updated;
+        }
+        if (activeServer != null) save(activeServer);
+        return updated;
+    }
+
     public static synchronized void addBankedResets(UUID uuid, int count) {
         PlayerDailyRecord playerRecord = getPlayerRecord(uuid);
-        playerRecord.bankedResets = Math.max(0, playerRecord.bankedResets + count);
+        playerRecord.bankedResets = (int) Math.clamp((long) playerRecord.bankedResets + count, 0L, (long) Integer.MAX_VALUE);
         if (activeServer != null) {
             save(activeServer);
         }
@@ -1943,6 +1987,8 @@ public class VBlackMarket {
                 return ItemStack.EMPTY;
             }
             ItemStack stack = new ItemStack(item, Math.clamp(count, 1, 64));
+            // Repair quantities from older saved market cards as well.
+            stack.setCount(Math.min(stack.getCount(), getCardQuantityLimit(stack)));
             if (isGodItem) {
                 int maxDur = stack.getMaxDamage();
                 stack.setDamageValue(damage);

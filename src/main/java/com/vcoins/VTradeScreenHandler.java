@@ -282,15 +282,7 @@ public class VTradeScreenHandler extends AbstractContainerMenu {
     }
 
     private boolean matchesSearch(ItemStack stack) {
-        if (searchQuery.isEmpty()) {
-            return true;
-        }
-
-        Item item = stack.getItem();
-        Identifier id = BuiltInRegistries.ITEM.getKey(item);
-        String fullId = id.toString().toLowerCase(Locale.ROOT);
-        String translatedName = stack.getHoverName().getString().toLowerCase(Locale.ROOT);
-        return fullId.contains(searchQuery) || id.getPath().contains(searchQuery) || translatedName.contains(searchQuery);
+        return VeloriaShopSearch.matches(stack, searchQuery);
     }
 
     private long getBuyPrice(ItemStack stack) {

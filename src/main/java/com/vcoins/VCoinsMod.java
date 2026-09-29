@@ -54,6 +54,7 @@ public class VCoinsMod implements ModInitializer {
         // Register commands
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             VCoinsCommands.register(dispatcher);
+            BlackMarketAdminCommands.register(dispatcher);
         });
 
         // Initialize Pricing Engine on server start or on demand
@@ -61,9 +62,11 @@ public class VCoinsMod implements ModInitializer {
             VCoinsPricing.ensureInitialized();
             VCoinsPricing.calculateRecipes(server);
             VMarketEngine.load(server);
+            VMarketSimulator.start(server); // Ghost market — 10 000 phantom traders
         });
 
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            VMarketSimulator.stop();
             VMarketEngine.save(server);
         });
 

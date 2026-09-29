@@ -64,7 +64,7 @@ public class VCoinsPricing {
         setPrice("minecraft:blue_ice", 60_750);
         
         // ==================== WOOD & BAMBOO (Tree Farms / Bamboo Farms) ====================
-        // Tree farms: log -> 4 planks -> 2 logs = 1 chest. Log sell target ~390 coins
+        // Tree farms: log -> 4 planks -> 2 logs = 1 chest. prices reflect renewable supply
         setPrice("minecraft:oak_log", 1_300);
         setPrice("minecraft:spruce_log", 1_300);
         setPrice("minecraft:birch_log", 1_300);
@@ -92,16 +92,16 @@ public class VCoinsPricing {
 
         // Iron and Gold: rewarding for mining and balanced for industrial farms
         setPrice("minecraft:raw_iron", 1_300);
-        setPrice("minecraft:iron_ingot", 1_700);
-        setPrice("minecraft:iron_nugget", 190);
+        setPrice("minecraft:iron_ingot", 800);
+        setPrice("minecraft:iron_nugget", 88);
         setPrice("minecraft:raw_iron_block", 11_700);
-        setPrice("minecraft:iron_block", 15_300);
+        setPrice("minecraft:iron_block", 7200);
 
         setPrice("minecraft:raw_gold", 3_300);
-        setPrice("minecraft:gold_ingot", 4_300);
-        setPrice("minecraft:gold_nugget", 480);
+        setPrice("minecraft:gold_ingot", 1600);
+        setPrice("minecraft:gold_nugget", 177);
         setPrice("minecraft:raw_gold_block", 29_700);
-        setPrice("minecraft:gold_block", 38_700);
+        setPrice("minecraft:gold_block", 14400);
 
         setPrice("minecraft:redstone", 420);
         setPrice("minecraft:redstone_block", 3_780);
@@ -114,8 +114,8 @@ public class VCoinsPricing {
         setPrice("minecraft:amethyst_cluster", 1_800);
 
         // Economy Currencies & Finite High-Value Minerals (Raid Farm / Villager Trading balanced)
-        setPrice("minecraft:emerald", 75);
-        setPrice("minecraft:emerald_block", 675);
+        setPrice("minecraft:emerald", 40);
+        setPrice("minecraft:emerald_block", 360);
         setPrice("minecraft:diamond", 10_000);
         setPrice("minecraft:diamond_block", 90_000);
         setPrice("minecraft:ancient_debris", 3_500_000);
@@ -124,31 +124,31 @@ public class VCoinsPricing {
         setPrice("minecraft:netherite_block", 135_000_000);
         
         // ==================== MOB & COMBAT REWARDS (AFK Farm Adjusted - Rewarding Grind) ====================
-        // Mob drops: sell target ~100-500 coins each depending on farm difficulty
-        setPrice("minecraft:rotten_flesh", 330);
-        setPrice("minecraft:bone", 600);
-        setPrice("minecraft:bone_meal", 200);
-        setPrice("minecraft:string", 500);
-        setPrice("minecraft:spider_eye", 600);
-        setPrice("minecraft:feather", 330);
+        // Mob drops: base prices reflect farm output
+        setPrice("minecraft:rotten_flesh", 80);
+        setPrice("minecraft:bone", 180);
+        setPrice("minecraft:bone_meal", 60);
+        setPrice("minecraft:string", 120);
+        setPrice("minecraft:spider_eye", 160);
+        setPrice("minecraft:feather", 80);
         setPrice("minecraft:leather", 1_000);
-        setPrice("minecraft:gunpowder", 1_300);
-        setPrice("minecraft:slime_ball", 1_500);
-        setPrice("minecraft:slime_block", 13_500);
-        setPrice("minecraft:magma_cream", 1_700);
-        setPrice("minecraft:magma_block", 6_600);
-        setPrice("minecraft:prismarine_shard", 900);
-        setPrice("minecraft:prismarine_crystals", 1_500);
-        setPrice("minecraft:ender_pearl", 2_000);
-        setPrice("minecraft:blaze_rod", 3_000);
-        setPrice("minecraft:blaze_powder", 1_500);
-        setPrice("minecraft:ghast_tear", 13_000);
-        setPrice("minecraft:nautilus_shell", 40_000);
-        setPrice("minecraft:shulker_shell", 1_500_000);
+        setPrice("minecraft:gunpowder", 400);
+        setPrice("minecraft:slime_ball", 400);
+        setPrice("minecraft:slime_block", 3600);
+        setPrice("minecraft:magma_cream", 500);
+        setPrice("minecraft:magma_block", 2000);
+        setPrice("minecraft:prismarine_shard", 240);
+        setPrice("minecraft:prismarine_crystals", 400);
+        setPrice("minecraft:ender_pearl", 600);
+        setPrice("minecraft:blaze_rod", 1000);
+        setPrice("minecraft:blaze_powder", 500);
+        setPrice("minecraft:ghast_tear", 4000);
+        setPrice("minecraft:nautilus_shell", 15000);
+        setPrice("minecraft:shulker_shell", 80000);
         setPrice("minecraft:breeze_rod", 200_000);
-        setPrice("minecraft:phantom_membrane", 3_300);
-        setPrice("minecraft:ink_sac", 900);
-        setPrice("minecraft:glow_ink_sac", 1_200);
+        setPrice("minecraft:phantom_membrane", 1600);
+        setPrice("minecraft:ink_sac", 240);
+        setPrice("minecraft:glow_ink_sac", 320);
         setPrice("minecraft:rabbit_hide", 660);
         setPrice("minecraft:rabbit_foot", 3_600);
         setPrice("minecraft:turtle_scute", 9_000);
@@ -197,8 +197,8 @@ public class VCoinsPricing {
         setPrice("minecraft:sculk_shrieker", 2_500);
 
         // Boss & Mini-boss Drops: high reward for combat exploration
-        setPrice("minecraft:wither_skeleton_skull", 1_800_000);
-        setPrice("minecraft:nether_star", 40_000_000);
+        setPrice("minecraft:wither_skeleton_skull", 120000);
+        setPrice("minecraft:nether_star", 1500000);
         setPrice("minecraft:heart_of_the_sea", 20_000_000);
         setPrice("minecraft:echo_shard", 2_000_000);
         setPrice("minecraft:heavy_core", 120_000_000);
@@ -206,27 +206,27 @@ public class VCoinsPricing {
         setPrice("minecraft:dragon_egg", 500_000_000);
         
         // ==================== CROPS & AGRICULTURAL PRODUCTS (Rewarding Grinding) ====================
-        // Crops: wheat sell ~250/each, 64 wheat = ~16,000 coins (reasonable farm grind)
-        setPrice("minecraft:wheat_seeds", 130);
-        setPrice("minecraft:wheat", 850);
+        // Crops: renewable crops use lower base prices
+        setPrice("minecraft:wheat_seeds", 40);
+        setPrice("minecraft:wheat", 280);
         setPrice("minecraft:hay_block", 7_650);
-        setPrice("minecraft:potato", 700);
-        setPrice("minecraft:baked_potato", 1_100);
+        setPrice("minecraft:potato", 220);
+        setPrice("minecraft:baked_potato", 350);
         setPrice("minecraft:poisonous_potato", 320);
-        setPrice("minecraft:carrot", 700);
+        setPrice("minecraft:carrot", 220);
         setPrice("minecraft:beetroot", 700);
         setPrice("minecraft:beetroot_seeds", 130);
-        setPrice("minecraft:melon_slice", 320);
-        setPrice("minecraft:melon", 2_250);
-        setPrice("minecraft:pumpkin", 1_600);
-        setPrice("minecraft:sugar_cane", 700);
-        setPrice("minecraft:kelp", 390);
-        setPrice("minecraft:dried_kelp", 520);
-        setPrice("minecraft:dried_kelp_block", 4_680);
+        setPrice("minecraft:melon_slice", 80);
+        setPrice("minecraft:melon", 720);
+        setPrice("minecraft:pumpkin", 400);
+        setPrice("minecraft:sugar_cane", 180);
+        setPrice("minecraft:kelp", 100);
+        setPrice("minecraft:dried_kelp", 150);
+        setPrice("minecraft:dried_kelp_block", 1350);
         setPrice("minecraft:sweet_berries", 520);
         setPrice("minecraft:glow_berries", 650);
         setPrice("minecraft:cocoa_beans", 700);
-        setPrice("minecraft:cactus", 700);
+        setPrice("minecraft:cactus", 180);
         setPrice("minecraft:apple", 1_600);
         setPrice("minecraft:beef", 1_400);
         setPrice("minecraft:porkchop", 1_400);
@@ -251,10 +251,10 @@ public class VCoinsPricing {
         setPrice("minecraft:bone_block", 5_400);
         setPrice("minecraft:glowstone_dust", 900);
         setPrice("minecraft:glowstone", 3_600);
-        setPrice("minecraft:honeycomb", 1_200);
-        setPrice("minecraft:honeycomb_block", 4_800);
-        setPrice("minecraft:honey_block", 7_000);
-        setPrice("minecraft:honey_bottle", 2_400);
+        setPrice("minecraft:honeycomb", 320);
+        setPrice("minecraft:honeycomb_block", 1280);
+        setPrice("minecraft:honey_block", 2600);
+        setPrice("minecraft:honey_bottle", 650);
         setPrice("minecraft:resin_clump", 1_560);
         setPrice("minecraft:resin_block", 14_000);
         setPrice("minecraft:disc_fragment_5", 10_000);
@@ -262,8 +262,8 @@ public class VCoinsPricing {
         // ==================== ENDGAME / RARE PROGRESSION ITEMS ====================
         setPrice("minecraft:enchanted_book", 50_000);
         setPrice("minecraft:elytra", 200_000_000);
-        setPrice("minecraft:totem_of_undying", 20_000_000);
-        setPrice("minecraft:beacon", 80_000_000);
+        setPrice("minecraft:totem_of_undying", 80000);
+        setPrice("minecraft:beacon", 1520000);
         setPrice("minecraft:conduit", 40_000_000);
         setPrice("minecraft:mace", 150_000_000);
         setPrice("minecraft:trident", 3_500_000);
@@ -287,10 +287,24 @@ public class VCoinsPricing {
             }
         }
         // Apply once per initialization to explicit prices and fallback variants alike.
-        // Integer unit payouts make 525,312 the closest double-chest total to 525,000.
+        // Keep the existing common-block price baseline.
         prices.replaceAll((id, price) -> isCommonBuildingMaterial(id)
                 ? Math.max(1L, percentageOf(price, 78)) : price);
+        // Explicit support-item list keeps armor, weapons and ammunition unchanged.
+        prices.replaceAll((id, price) -> isPvpSupportItem(id) ? safeMultiply(price, 2L) : price);
         initialized = true;
+    }
+
+    static boolean isPvpSupportItem(String id) {
+        return switch (id) {
+            case "minecraft:totem_of_undying", "minecraft:end_crystal",
+                    "minecraft:golden_apple", "minecraft:enchanted_golden_apple",
+                    "minecraft:ender_pearl", "minecraft:wind_charge",
+                    "minecraft:potion", "minecraft:splash_potion", "minecraft:lingering_potion",
+                    "minecraft:cobweb", "minecraft:obsidian", "minecraft:respawn_anchor",
+                    "minecraft:glowstone", "minecraft:water_bucket", "minecraft:lava_bucket" -> true;
+            default -> false;
+        };
     }
 
     private static boolean isCommonBuildingMaterial(String id) {
@@ -354,12 +368,6 @@ public class VCoinsPricing {
                 cardPricePercent(stack));
     }
 
-    private static long getTieredSellBase(ItemStack stack, String id) {
-        ensureInitialized();
-        return percentageOf(prices.getOrDefault(id, 0L),
-                Math.max(baseTierPercents.getOrDefault(id, 100), cardPricePercent(stack)));
-    }
-
     public static boolean isRareMarketItem(String itemId) {
         if (itemId.contains("|")) return true; // Enchanted variants use rare-item limits.
         Item item = BuiltInRegistries.ITEM.getValue(net.minecraft.resources.Identifier.parse(itemId));
@@ -398,7 +406,50 @@ public class VCoinsPricing {
         long base = prices.getOrDefault(id, 0L);
         if (base <= 0) return 0L;
         if (!id.startsWith("minecraft:")) base = Math.max(base, getRarityFloor(stack.getItem().getDefaultInstance().getRarity()));
+        base = safeAdd(base, getPotionPremium(stack, base));
         return percentageOf(safeAdd(base, getEnchantmentPremium(stack)), getTierPricePercent(stack));
+    }
+
+    /** Effect variants share the item's market wave so stronger/longer doses retain their premium. */
+    private static long getPotionPremium(ItemStack stack, long base) {
+        if (!stack.is(Items.POTION) && !stack.is(Items.SPLASH_POTION)
+                && !stack.is(Items.LINGERING_POTION) && !stack.is(Items.TIPPED_ARROW)) return 0L;
+        var contents = stack.get(DataComponents.POTION_CONTENTS);
+        if (contents == null) return 0L;
+        long premium = 0L;
+        for (var effect : contents.getAllEffects()) {
+            String id = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value()).getPath();
+            int weight = switch (id) {
+                case "instant_health" -> 90;
+                case "instant_damage" -> 110;
+                case "regeneration" -> 100;
+                case "strength" -> 95;
+                case "resistance" -> 120;
+                case "invisibility" -> 85;
+                case "fire_resistance" -> 75;
+                case "water_breathing" -> 65;
+                case "night_vision" -> 55;
+                case "speed" -> 60;
+                case "slowness" -> 45;
+                case "jump_boost" -> 40;
+                case "poison" -> 70;
+                case "weakness" -> 50;
+                case "slow_falling" -> 80;
+                case "wind_charged" -> 105;
+                case "weaving" -> 115;
+                case "oozing" -> 125;
+                case "infested" -> 135;
+                default -> 60;
+            };
+            // Bound custom effects and use long arithmetic; infinite duration gets the maximum.
+            long level = Math.clamp((long) effect.getAmplifier() + 1L, 1L, 256L);
+            long seconds = effect.getDuration() == -1 ? 3600L
+                    : Math.clamp(effect.getDuration() / 20L, 0L, 3600L);
+            long percent = weight * level * level;
+            if (!effect.getEffect().value().isInstantaneous()) percent += seconds * weight / 180L;
+            premium = safeAdd(premium, percentageOf(base, (int) percent));
+        }
+        return premium;
     }
 
     public static long getPrice(ItemStack stack) {
@@ -408,101 +459,27 @@ public class VCoinsPricing {
 
     public static long getReferenceSellPrice(ItemStack stack) {
         if (!isTradeable(stack)) return 0L;
-        String id = getSellMarketKey(stack);
-        return calculateSellPrice(id, getDurabilityAdjustedPrice(stack, getTieredSellBase(stack, id)));
+        return calculateSellPrice(getSellMarketKey(stack), getDurabilityAdjustedPrice(stack, getReferencePrice(stack)));
     }
 
-    /** Enchantments can be added/combined outside the shop; resale buys materials only. */
+    /** Sales follow the same item and enchantment market as purchases. */
     public static String getSellMarketKey(ItemStack stack) {
-        return stack.is(Items.ENCHANTED_BOOK) ? "minecraft:book"
-                : BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        return getMarketKey(stack);
     }
 
     public static long getSellPrice(String itemId) {
-        itemId = itemId.split("\\|", 2)[0];
-        if (itemId.equals("minecraft:enchanted_book")) itemId = "minecraft:book";
-        long basePrice = getBasePrice(itemId);
-        if (basePrice <= 0) {
-            return 0L;
-        }
-        double sellMultiplier = VMarketEngine.getSellMultiplier(itemId);
-        long marketAdjustedBuyPrice = Math.max(1L, Math.round(basePrice * sellMultiplier));
-        return calculateSellPrice(itemId, marketAdjustedBuyPrice);
+        return calculateSellPrice(itemId, getPrice(itemId));
     }
 
     public static long getSellPrice(ItemStack stack) {
         if (!isTradeable(stack)) return 0L;
-        String id = getSellMarketKey(stack);
-        long reference = getTieredSellBase(stack, id);
-        if (reference <= 0) return 0L;
-        long adjusted = Math.max(1L, Math.round(reference * VMarketEngine.getSellMultiplier(id)));
-        return calculateSellPrice(id, getDurabilityAdjustedPrice(stack, adjusted));
+        return calculateSellPrice(getSellMarketKey(stack), getDurabilityAdjustedPrice(stack, getPrice(stack)));
     }
 
     private static long calculateSellPrice(String itemId, long buyPrice) {
-        if (buyPrice <= 0 || isCreativeOnly(itemId)) {
-            return 0L;
-        }
-
-        String path = itemId.substring(itemId.indexOf(':') + 1);
-
-        // Prevent infinite money exploits via Smithing Template duplication
-        if (path.contains("smithing_template")) {
-            return Math.min(buyPrice / 4L, 50_000L);
-        }
-
-        // Tiered Sell Margins:
-        // 1. Easily farmable resources, basic blocks, mob drops, iron/gold, and craftable redstone/functional items:
-        // 30% sell margin, with a minimum floor of 1 coin so grind items are never refused with 0 payout.
-        if (isFarmableOrCrafted(path)) {
-            return Math.max(1L, percentageOf(buyPrice, 30));
-        }
-
-        // 2. Agricultural crops, food, wood, and standard building blocks:
-        ShopCategory category = getCategory(itemId);
-        if (category == ShopCategory.FOOD || category == ShopCategory.NATURAL || category == ShopCategory.BUILDING) {
-            return Math.max(1L, percentageOf(buyPrice, 35));
-        }
-
-        // 3. Other items (Tools, Combat, Rare exploration loot): 40% sell margin
-        return Math.max(1L, percentageOf(buyPrice, 40));
+        if (buyPrice <= 0 || isCreativeOnly(itemId.split("\\|", 2)[0])) return 0L;
+        return percentageOf(buyPrice, 75);
     }
-
-    private static boolean isFarmableOrCrafted(String path) {
-        return containsAny(path,
-                // Cobble / Stone / Dirt gen & Raw materials
-                "cobblestone", "cobbled_deepslate", "dirt", "gravel", "sand", "netherrack", "basalt",
-                "diorite", "andesite", "granite", "tuff", "calcite", "blackstone",
-                // Golem iron farm & Gold piglin farm & Copper
-                "iron_", "raw_iron", "gold_", "raw_gold", "copper_", "raw_copper",
-                // Mob farms (Zombies, Skeletons, Spiders, Creepers, Endermen, Witches, Slimes)
-                "rotten_flesh", "bone", "string", "spider_eye", "gunpowder", "feather", "arrow",
-                "slime_ball", "slime_block", "magma_cream", "glowstone_dust", "redstone", "sugar",
-                "glass_bottle", "ender_pearl",
-                // Crop / Plant / Tree automated farms
-                "sugar_cane", "bamboo", "cactus", "kelp", "melon", "pumpkin",
-                "wheat", "carrot", "potato", "beetroot", "sweet_berries", "glow_berries",
-                "cocoa_beans", "nether_wart", "chorus_fruit", "egg", "honey_bottle", "honeycomb",
-                // Wood tree farms & Wool sheep farms
-                "log", "stem", "wood", "hyphae", "planks", "stick", "wool", "carpet",
-                // Functional / Crafting tables / Utility blocks
-                "crafting_table", "furnace", "smoker", "blast_furnace", "stonecutter", "grindstone",
-                "smithing_table", "fletching_table", "cartography_table", "loom", "anvil", "chest",
-                "barrel", "cauldron", "composter", "note_block", "bookshelf", "lectern", "door",
-                "trapdoor", "ladder", "scaffolding", "armor_stand", "item_frame",
-                // Redstone mechanisms & Rails
-                "piston", "repeater", "comparator", "observer", "dispenser", "dropper", "hopper",
-                "crafter", "daylight_detector", "target", "tripwire_hook", "rail", "minecart", "tnt",
-                // Metal building materials
-                "iron_bars", "chain",
-                // High-yield mob / AFK drops & boss / ocean farm products
-                "ghast_tear", "blaze_rod", "blaze_powder", "phantom_membrane", "prismarine",
-                "nautilus_shell", "shulker_shell", "wither_skeleton_skull", "totem_of_undying",
-                "emerald", "froglight", "scute", "rabbit_foot", "rabbit_hide", "ink_sac",
-                "glow_ink_sac", "music_disc", "sponge", "sculk", "mud", "clay", "ice",
-                "amethyst", "shroomlight", "vine", "moss", "dripstone", "saddle", "chorus", "sniffer_egg");
-    }
-
     private static long getDurabilityAdjustedPrice(ItemStack stack, long fullPrice) {
         if (fullPrice <= 0L || !stack.isDamageableItem() || stack.getMaxDamage() <= 0) {
             return fullPrice;
@@ -618,7 +595,7 @@ public class VCoinsPricing {
             return 50_000L;
         }
         if (path.contains("shulker_box")) {
-            return 3_000_000L;
+            return 165_000L;
         }
 
         long effortPrice = getEquipmentPrice(path);
@@ -1228,24 +1205,18 @@ public class VCoinsPricing {
             return 0L;
         }
 
-        boolean isBook = stack.is(Items.ENCHANTED_BOOK);
         long premium = 0L;
         for (Map.Entry<String, EnchantmentValue> entry : enchantments.entrySet()) {
             EnchantmentValue value = entry.getValue();
             int level = Math.max(1, value.level());
             long unitPrice = getEnchantmentUnitPrice(entry.getKey(), value.enchantment().value().getWeight());
-            // Renewable books retain level/rarity differences at a lower acquisition cost.
-            if (isBook) unitPrice = percentageOf(unitPrice, 20);
+            // Applying a renewable enchantment to equipment must not inflate its value.
+            unitPrice = percentageOf(unitPrice, 20);
             long enchantmentPrice = safeMultiply(unitPrice, (long) level * level);
 
             // A max-level enchantment is more desirable than an unfinished one.
             if (level >= value.enchantment().value().getMaxLevel()) {
                 enchantmentPrice = safeAdd(enchantmentPrice, percentageOf(enchantmentPrice, 25));
-            }
-
-            // Equipment keeps its existing premium; books use the gradual level curve above.
-            if (!isBook && isHighLevelEnchantment(entry.getKey(), level, value.enchantment().value().getMaxLevel())) {
-                enchantmentPrice = safeMultiply(enchantmentPrice, 15L);
             }
             premium = safeAdd(premium, enchantmentPrice);
         }
@@ -1280,20 +1251,6 @@ public class VCoinsPricing {
                 yield 800_000L;
             }
         };
-    }
-
-    private static boolean isHighLevelEnchantment(String id, int level, int maxLevel) {
-        String path = id.substring(id.indexOf(':') + 1);
-        if (path.contains("curse")) {
-            return false;
-        }
-        if (maxLevel <= 1) {
-            return true;
-        }
-        if (maxLevel <= 3) {
-            return level >= 2;
-        }
-        return level >= 3;
     }
 
     public static Map<String, EnchantmentValue> getEnchantmentValues(ItemStack stack) {

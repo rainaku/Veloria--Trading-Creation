@@ -36,7 +36,11 @@ public final class PricingRegressionTest {
         net.minecraft.core.registries.BuiltInRegistries.DATA_COMPONENT_INITIALIZERS.build(registries).forEach(pending -> pending.apply());
         VCoinsPricing.ensureInitialized();
         testCommonBlockAnchor();
+        testPvpSupportPrices();
         testTierMultipliers();
+        testShopSearch();
+        testPotionPrices();
+        testFarmMetaIntegration();
 
         ItemStack mending = book(Enchantments.MENDING, 1);
         ItemStack infinity = book(Enchantments.INFINITY, 1);
@@ -59,6 +63,87 @@ public final class PricingRegressionTest {
         LOGGER.info("Pricing regression checks passed: {}", checks);
     }
 
+    private static void testFarmMetaIntegration() {
+        VMarketEngine.reset(null);
+        long epoch = 50 * FarmMetaCycle.CYCLE_SECONDS + FarmMetaCycle.CYCLE_SECONDS / 2;
+        for (String key : VCoinsPricing.getAllPrices().keySet()) {
+            if (VCoinsPricing.getBasePrice(key) <= 0) continue;
+            double ordinary = MarketCycle.withPressure(VMarketEngine.getDailyMultiplier(key, epoch), 0,
+                    VCoinsPricing.isRareMarketItem(key));
+            double expected = FarmMetaCycle.apply(key, epoch, ordinary);
+            require(VMarketEngine.multiplierAt(key, epoch, false) == expected, "Every catalogue buy uses live farm cycle: " + key);
+            require(VMarketEngine.multiplierAt(key, epoch, true) == expected, "Every catalogue sell uses live farm cycle: " + key);
+        }
+        boolean testedRareCrash = false;
+        for (int cycle = 0; cycle < 100; cycle++) {
+            long peak = cycle * FarmMetaCycle.CYCLE_SECONDS + FarmMetaCycle.CYCLE_SECONDS / 2;
+            if (FarmMetaCycle.influence("minecraft:diamond", peak) == -1) {
+                require(VMarketEngine.multiplierAt("minecraft:diamond", peak, false) < 0.061,
+                        "Rare floor does not block farm crash");
+                testedRareCrash = true;
+                break;
+            }
+        }
+        require(testedRareCrash, "Rare crash exercised through engine");
+    }
+
+    private static void testPotionPrices() {
+        for (var item : new net.minecraft.world.item.Item[]{Items.POTION, Items.SPLASH_POTION,
+                Items.LINGERING_POTION, Items.TIPPED_ARROW}) {
+            var water = net.minecraft.world.item.alchemy.PotionContents.createItemStack(item, net.minecraft.world.item.alchemy.Potions.WATER);
+            var speed = net.minecraft.world.item.alchemy.PotionContents.createItemStack(item, net.minecraft.world.item.alchemy.Potions.SWIFTNESS);
+            var longer = net.minecraft.world.item.alchemy.PotionContents.createItemStack(item, net.minecraft.world.item.alchemy.Potions.LONG_SWIFTNESS);
+            var stronger = net.minecraft.world.item.alchemy.PotionContents.createItemStack(item, net.minecraft.world.item.alchemy.Potions.STRONG_SWIFTNESS);
+            var strength = net.minecraft.world.item.alchemy.PotionContents.createItemStack(item, net.minecraft.world.item.alchemy.Potions.STRENGTH);
+            require(VCoinsPricing.getReferencePrice(speed) > VCoinsPricing.getReferencePrice(water), "Effect adds value: " + item);
+            require(VCoinsPricing.getReferencePrice(speed) != VCoinsPricing.getReferencePrice(strength), "Effect types have different prices: " + item);
+            for (var upgraded : new ItemStack[]{longer, stronger}) {
+                require(VCoinsPricing.getReferencePrice(upgraded) > VCoinsPricing.getReferencePrice(speed), "Duration/level increases value: " + item);
+                require(VCoinsPricing.getPrice(upgraded) > VCoinsPricing.getPrice(speed), "Live buy respects potion upgrade");
+                require(VCoinsPricing.getSellPrice(upgraded) > VCoinsPricing.getSellPrice(speed), "Live sell respects potion upgrade");
+                require(VCoinsPricing.getSellPrice(upgraded) < VCoinsPricing.getPrice(upgraded), "Potion preserves spread");
+            }
+            var bulk = speed.copy();
+            bulk.setCount(64);
+            require(VCoinsPricing.getReferencePrice(bulk) == VCoinsPricing.getReferencePrice(speed), "Potion unit value ignores count");
+            require(VCoinsPricing.getReferencePrice(water) == VCoinsPricing.getBasePrice(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString()), "Water retains base price");
+        }
+    }
+
+    private static void testPvpSupportPrices() {
+        for (var item : net.minecraft.core.registries.BuiltInRegistries.ITEM) {
+            String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString();
+            if (VBlackMarket.isEquipment(new ItemStack(item)))
+                require(!VCoinsPricing.isPvpSupportItem(id), "Equipment excluded from PvP premium: " + id);
+        }
+        for (String id : new String[]{"minecraft:diamond_sword", "minecraft:diamond_chestplate",
+                "minecraft:bow", "minecraft:shield", "minecraft:arrow", "minecraft:stone"})
+            require(!VCoinsPricing.isPvpSupportItem(id), "Non-support price excluded: " + id);
+        require(VCoinsPricing.getBasePrice("minecraft:ender_pearl") == 1_200L, "Pearl support price doubled");
+        require(VCoinsPricing.getBasePrice("minecraft:obsidian") == 16_000L, "Obsidian support price doubled");
+        require(VCoinsPricing.getBasePrice("minecraft:splash_potion") == 26_000L, "Fallback potion price doubled");
+        var before = VCoinsPricing.getAllPrices();
+        VCoinsPricing.init();
+        require(before.equals(VCoinsPricing.getAllPrices()), "Reinitialization does not compound premium");
+    }
+
+    private static void testShopSearch() {
+        var sharpness = book(Enchantments.SHARPNESS, 5);
+        for (String query : new String[]{"sắc bén", "sac ben", "SHARPNESS", "book", "enchanted_book"})
+            require(VeloriaShopSearch.matches(sharpness, query), "Book search: " + query);
+        require(!VeloriaShopSearch.matches(sharpness, "mending"), "Search excludes unrelated books");
+        var sword = new ItemStack(Items.DIAMOND_SWORD);
+        sword.enchant(registries.lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.MENDING), 1);
+        require(VeloriaShopSearch.matches(sword, "tu sua"), "Applied enchantments are searchable");
+        for (var item : new net.minecraft.world.item.Item[]{Items.POTION, Items.SPLASH_POTION, Items.LINGERING_POTION, Items.TIPPED_ARROW}) {
+            var potion = net.minecraft.world.item.alchemy.PotionContents.createItemStack(item, net.minecraft.world.item.alchemy.Potions.SWIFTNESS);
+            require(VeloriaShopSearch.matches(potion, "speed"), "Effect English name searchable");
+            require(VeloriaShopSearch.matches(potion, "toc do"), "Effect Vietnamese name searchable");
+            require(!VeloriaShopSearch.matches(potion, "poison"), "Search excludes unrelated effects");
+        }
+        require(VeloriaShopSearch.matches(new ItemStack(Items.STONE), "  "), "Empty search preserves catalogue");
+    }
+
     private static void testTierMultipliers() {
         String[] tiers = {"common", "uncommon", "rare", "epic", "exclusive"};
         int[] percents = {100, 125, 150, 200, 300};
@@ -70,7 +155,7 @@ public final class PricingRegressionTest {
             require(VCoinsPricing.getTierPricePercent(stack) == percents[i], "Tier multiplier: " + tier);
             long reference = 390L * percents[i] / 100;
             require(VCoinsPricing.getReferencePrice(stack) == reference, "Buy applies tier once: " + tier);
-            require(VCoinsPricing.getReferenceSellPrice(stack) == reference * 30 / 100, "Sell applies tier once: " + tier);
+            require(VCoinsPricing.getReferenceSellPrice(stack) == reference * 75 / 100, "Sell applies tier once: " + tier);
             require(VCoinsPricing.getSellPrice(stack) < VCoinsPricing.getPrice(stack), "Tier preserves spread: " + tier);
         }
         for (var item : new net.minecraft.world.item.Item[]{Items.SAND, Items.ENDER_PEARL, Items.GOLDEN_APPLE, Items.ENCHANTED_GOLDEN_APPLE}) {
@@ -84,9 +169,9 @@ public final class PricingRegressionTest {
 
     private static void testCommonBlockAnchor() {
         long sand = VCoinsPricing.getReferenceSellPrice(new ItemStack(Items.SAND));
-        require(sand == 152L, "Sand integer unit sale anchor");
-        require(Math.abs(sand * 54 * 64 - 525_000L) < 54 * 64 / 2,
-                "Double chest of sand is nearest whole-unit payout to 525k");
+        require(sand == 380L, "Sand integer unit sale anchor");
+        require(Math.abs(sand * 54 * 64 - 1_313_280L) < 54 * 64 / 2,
+                "Double chest uses new 75 percent payout");
         require(VCoinsPricing.getBasePrice("minecraft:cobblestone") == 507L, "Cobble follows sand anchor");
         require(VCoinsPricing.getReferenceSellPrice(new ItemStack(Items.DIRT)) < sand, "Dirt cheaper than sand");
         require(VCoinsPricing.getReferenceSellPrice(new ItemStack(Items.NETHERRACK)) < sand, "Netherrack cheaper than sand");
@@ -106,8 +191,8 @@ public final class PricingRegressionTest {
             require(VCoinsPricing.getMarketKey(stack).equals(VCoinsPricing.getMarketKey(efficiency)), "Levels share cycle");
             long buy = VCoinsPricing.getPrice(stack);
             long sell = VCoinsPricing.getSellPrice(stack);
-            require(buy > previousBuy && sell >= previousSell, "Higher levels cost more, resale is material-only");
-            require(sell == VCoinsPricing.getSellPrice(new ItemStack(Items.BOOK)), "Book upgrades cannot raise resale");
+            require(buy > previousBuy && sell >= previousSell, "Higher levels increase buy and resale value");
+            require(sell == buy * 75 / 100, "Enchanted books sell at 75 percent");
             require(sell < buy, "Buy/sell spread");
             previousBuy = buy;
             previousSell = sell;
@@ -139,8 +224,17 @@ public final class PricingRegressionTest {
         ItemStack maxGear = new ItemStack(Items.DIAMOND_PICKAXE);
         maxGear.enchant(registries.lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.EFFICIENCY), 5);
         require(VCoinsPricing.getReferencePrice(maxGear)
-                - VCoinsPricing.getReferencePrice(new ItemStack(Items.DIAMOND_PICKAXE)) == 140_625_000L,
-                "Book rebalance preserves equipment valuation");
+                - VCoinsPricing.getReferencePrice(new ItemStack(Items.DIAMOND_PICKAXE)) == 1_875_000L,
+                "Equipment uses the same renewable enchantment premium as books");
+        ItemStack silkShovel = new ItemStack(Items.IRON_SHOVEL);
+        silkShovel.enchant(registries.lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.SILK_TOUCH), 1);
+        require(VCoinsPricing.getReferencePrice(silkShovel)
+                - VCoinsPricing.getReferencePrice(new ItemStack(Items.IRON_SHOVEL)) == 625_000L,
+                "Silk Touch I has no high-level price multiplier");
+        for (int day = 0; day < 100; day++) {
+            require(VBlackMarket.getDiscountedPrice(silkShovel, day) < 1_000_000L,
+                    "Ordinary Silk Touch iron shovel stays below one million in black market");
+        }
     }
 
     private static void testEnchantmentCombinationsAndDurability(ItemStack mending) {
@@ -364,14 +458,14 @@ public final class PricingRegressionTest {
     private static void testEndgameAndMarketElasticity() {
         // Endgame base pricing sanity checks
         require(VCoinsPricing.getBasePrice("minecraft:elytra") >= 100_000_000L, "Elytra endgame valuation");
-        require(VCoinsPricing.getBasePrice("minecraft:beacon") >= 80_000_000L, "Beacon endgame valuation");
-        require(VCoinsPricing.getBasePrice("minecraft:nether_star") >= 40_000_000L, "Nether star valuation");
+        require(VCoinsPricing.getBasePrice("minecraft:beacon") <= 3_040_000L, "Farmable beacon valuation");
+        require(VCoinsPricing.getBasePrice("minecraft:nether_star") <= 3_000_000L, "Nether star valuation");
         require(VCoinsPricing.getBasePrice("minecraft:heavy_core") >= 80_000_000L, "Heavy core valuation");
         require(VCoinsPricing.getBasePrice("minecraft:mace") >= 80_000_000L, "Mace valuation");
-        require(VCoinsPricing.getBasePrice("minecraft:totem_of_undying") >= 20_000_000L, "Totem valuation");
+        require(VCoinsPricing.getBasePrice("minecraft:totem_of_undying") == 200_000L, "Totem support premium with uncommon rarity");
         require(VCoinsPricing.getBasePrice("minecraft:netherite_ingot") >= 10_000_000L, "Netherite ingot valuation");
         require(VCoinsPricing.getBasePrice("minecraft:netherite_block") >= 80_000_000L, "Netherite block valuation");
-        require(VCoinsPricing.getBasePrice("minecraft:shulker_box") >= 3_000_000L, "Shulker box valuation");
+        require(VCoinsPricing.getBasePrice("minecraft:shulker_box") <= 330_000L, "Shulker box valuation");
         require(VCoinsPricing.getBasePrice("minecraft:enchanted_golden_apple") >= 50_000_000L, "God apple valuation");
         require(VCoinsPricing.getBasePrice("minecraft:dragon_egg") >= 200_000_000L, "Dragon egg valuation");
 

@@ -83,7 +83,7 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
 
         // Công tắc bật/tắt xác minh giao dịch >100k
         this.verifyToggleButton = this.addRenderableWidget(VeloriaButton.create(
-                VCoinsPurchaseConfirm.getCompactToggleLabel(),
+                VCoinsPurchaseConfirm.getToggleLabel(),
                 button -> {
                     boolean enabled = VCoinsPurchaseConfirm.toggleConfirmation();
                     updateVerifyToggleButton();
@@ -97,11 +97,12 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
                         }
                     }
                 })
-                .bounds(this.leftPos + 206, this.topPos + 151, 16, 12)
+                .bounds(this.leftPos + 198, this.topPos + PLAYER_INVENTORY_Y + 24, 18, 18)
+                .icon(VeloriaButton.Icon.VERIFY)
                 .tooltip(VCoinsPurchaseConfirm.getToggleTooltip())
                 .build());
 
-        // 3 nút chuyển đổi Chế độ ngay trên thanh Toolbar
+        // Main destinations share one row; utility actions sit to the right of the inventory.
         this.blackMarketTabButton = this.addRenderableWidget(VeloriaButton.create(
                 Component.translatable("vcoins.tab.black_market"),
                 button -> {
@@ -113,6 +114,14 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
                 .bounds(this.leftPos + 14, this.topPos + 132, 78, 16)
                 .build());
 
+        this.addRenderableWidget(VeloriaButton.create(Component.literal("Fortuna"),
+                button -> ClientPlayNetworking.send(new ShopActionPayload("FORTUNA", "")))
+                .bounds(this.leftPos + 95, this.topPos + 132, 62, 16).build());
+
+        this.addRenderableWidget(VeloriaButton.create(Component.literal("Gift Box"),
+                button -> ClientPlayNetworking.send(new ShopActionPayload("GIFTBOX", "")))
+                .bounds(this.leftPos + 160, this.topPos + 132, 62, 16).build());
+
         this.duplicateTabButton = this.addRenderableWidget(VeloriaButton.create(
                 Component.translatable("vcoins.duplicate.open"),
                 button -> {
@@ -121,23 +130,17 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
                     }
                     ClientPlayNetworking.send(new OpenDuplicatePayload());
                 })
-                .bounds(this.leftPos + 95, this.topPos + 132, 68, 16)
+                .bounds(this.leftPos + 198, this.topPos + PLAYER_INVENTORY_Y + 2, 18, 18)
+                .icon(VeloriaButton.Icon.DUPLICATE)
+                .tooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("vcoins.duplicate.open")))
                 .build());
 
-        this.addRenderableWidget(VeloriaButton.create(Component.literal("Fortuna"),
-                button -> ClientPlayNetworking.send(new ShopActionPayload("FORTUNA", "")))
-                .bounds(this.leftPos + 166, this.topPos + 132, 56, 16).build());
-
         this.setInitialFocus(this.searchBox);
-        // Separate row keeps the existing navigation labels at their full width.
-        this.addRenderableWidget(VeloriaButton.create(Component.literal("Gift Box"),
-                button -> ClientPlayNetworking.send(new ShopActionPayload("GIFTBOX", "")))
-                .bounds(this.leftPos + 137, this.topPos + 151, 64, 12).build());
     }
 
     private void updateVerifyToggleButton() {
         if (this.verifyToggleButton != null) {
-            this.verifyToggleButton.setMessage(VCoinsPurchaseConfirm.getCompactToggleLabel());
+            this.verifyToggleButton.setMessage(VCoinsPurchaseConfirm.getToggleLabel());
             this.verifyToggleButton.setTooltip(VCoinsPurchaseConfirm.getToggleTooltip());
         }
     }
@@ -182,9 +185,6 @@ public class VTradeScreen extends VeloriaContainerScreen<VTradeScreenHandler> {
         extractor.fill(this.leftPos + 12, this.topPos + 130, this.leftPos + 224, this.topPos + 150, 0x55080310);
         extractor.fill(this.leftPos + 12, this.topPos + 130, this.leftPos + 224, this.topPos + 131, 0x22D4AF37);
         extractor.fill(this.leftPos + 12, this.topPos + 149, this.leftPos + 224, this.topPos + 150, 0x22D4AF37);
-
-        // Highlight line under active mode button (Shop - gold)
-        extractor.fill(this.leftPos + 14, this.topPos + 147, this.leftPos + 63, this.topPos + 148, 0xFFD4AF37);
 
         // Player Inventory label
         extractor.text(this.font, Component.translatable("vcoins.inventory"),

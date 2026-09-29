@@ -86,14 +86,9 @@ public class VCoinsClientMod implements ClientModInitializer {
         net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback.EVENT.register((stack, tooltipContext, tooltipType, lines) -> {
             VeloriaTooltip.removeDebugLines(lines, stack);
             if (VBlackMarket.isRomanGodItem(stack)) {
-                // Existing relics retain their saved identity; constrain their tooltip too.
+                // Keep the vanilla title component intact: anvil names can contain nested styles.
+                // Only wrap the lore; flattening the title loses colors and obfuscated text.
                 var font = net.minecraft.client.Minecraft.getInstance().font;
-                if (!lines.isEmpty()) {
-                    var title = lines.get(0);
-                    String name = title.getString().replaceAll("\\s*\\([^)]*\\)", "");
-                    if (font.width(name) > 260) name = font.plainSubstrByWidth(name, 250) + "…";
-                    lines.set(0, net.minecraft.network.chat.Component.literal(name).withStyle(title.getStyle()));
-                }
                 for (int i = 1; i < lines.size(); i++) {
                     var line = lines.get(i);
                     String text = line.getString();

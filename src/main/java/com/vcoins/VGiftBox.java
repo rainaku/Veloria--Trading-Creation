@@ -193,8 +193,12 @@ public final class VGiftBox {
     }
     private static int burst(ServerPlayer player, ItemStack box) {
         if (!player.isAlive() || player.isSpectator()) return 0;
+        int tier = boxTier(box);
         List<ItemStack> contents = consumeBox(box);
         if (contents.isEmpty()) return 0;
+        // Inspect the consumed rewards, before drop() can take ownership of their stacks.
+        ItemStack jackpotReward = contents.stream().filter(item -> item.is(jackpot(tier)))
+                .findFirst().map(ItemStack::copy).orElse(ItemStack.EMPTY);
         for (ItemStack item : contents) player.drop(item, false, net.minecraft.util.Prediction.SERVER_ONLY);
         var level = player.level();
         level.sendParticles(net.minecraft.core.particles.ParticleTypes.FIREWORK,
@@ -205,6 +209,12 @@ public final class VGiftBox {
                 net.minecraft.sounds.SoundEvents.SHULKER_BOX_OPEN, net.minecraft.sounds.SoundSource.PLAYERS, 0.7f, 1f);
         VCoinsState.checkpoint(player);
         player.inventoryMenu.broadcastChanges();
+        if (!jackpotReward.isEmpty()) {
+            Component announcement = Component.translatable("vcoins.gift.jackpot_announcement",
+                    player.getDisplayName(), tier + 1, jackpotReward.getCount(), jackpotReward.getHoverName())
+                    .withStyle(net.minecraft.ChatFormatting.GOLD);
+            player.level().getServer().getPlayerList().broadcastSystemMessage(announcement, false);
+        }
         return 1;
     }
     public static void read(UUID id, ValueInput input) {

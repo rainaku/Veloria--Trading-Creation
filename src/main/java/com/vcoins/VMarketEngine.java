@@ -24,8 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class VMarketEngine {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    public static final double MIN_MULTIPLIER = 0.25;
-    public static final double MAX_MULTIPLIER = 4.00;
+    public static final double MIN_MULTIPLIER = FarmMetaCycle.MIN_MULTIPLIER;
+    public static final double MAX_MULTIPLIER = FarmMetaCycle.MAX_MULTIPLIER;
     public static final double HALF_LIFE_SECONDS = 1800.0; // 30 minutes mean-reversion half-life
 
     public static class MarketItemState {
@@ -155,8 +155,9 @@ public class VMarketEngine {
         long base = VCoinsPricing.getBasePrice(key);
         if (base <= 0) return 1;
         double volume = getVolumeModifier(key, base, epoch);
-        return MarketCycle.withPressure(getDailyMultiplier(key, epoch), selling ? Math.min(0, volume) : volume,
+        double ordinary = MarketCycle.withPressure(getDailyMultiplier(key, epoch), selling ? Math.min(0, volume) : volume,
                 VCoinsPricing.isRareMarketItem(key));
+        return FarmMetaCycle.apply(key, epoch, ordinary);
     }
 
     public static MarketTrend getTrend(String key) { return trend(key, false, null); }

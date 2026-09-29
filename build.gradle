@@ -166,3 +166,10 @@ tasks.register('economySafetyTest', JavaExec) {
     mainClass = 'com.vcoins.EconomySafetyTest'
 }
 tasks.named('check') { dependsOn 'economySafetyTest' }
+
+tasks.register('farmMetaCycleTest', JavaExec) {
+    dependsOn marketTestClasses
+    classpath = sourceSets.marketTest.runtimeClasspath
+    mainClass = 'com.vcoins.FarmMetaCycleTest'
+}
+tasks.named('check') { dependsOn 'farmMetaCycleTest' }
